@@ -1,0 +1,1382 @@
+<title>Garden Planting Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* Layout: a calm planting-plan studio. Title block across the top, a full-width tool strip and properties bar beneath it, then the plan beside the plant library and schedule, which sit side by side. */
+:root {
+  --paper: #F4EFE4; --panel: #FBF8F1; --ink: #2F2B25; --muted: #7B7266; --line: #E0D7C6; --line-soft: #EBE4D6;
+  --accent: #667D5E; --accent-ink: #FFFDF8; --accent-soft: #E5E9DA;
+  --ground: #F1EBDF; --grid: #E3DACA; --grid-major: #D2C6B1;
+  --bed: #E6D6BE; --lawn: #DEE5CA; --pathc: #E6E0D4; --struct: #D6CFC2; --water: #CADDE1; --tree: #C0CCAC;
+  --sun: #D9A93F; --shade: #7D8FA6; --wet: #5F93AA;
+  --warn: #A06C1E; --crit: #A8402F;
+  --r-canopy: #2F5A3C; --r-understory: #4B807B; --r-shrub: #7E9A55; --r-herbaceous: #9C5378; --r-ground: #A39543; --r-tuber: #B97B42; --r-climber: #5D6FA3; --bar-edge: rgba(47, 43, 37, 0.2); --label: #000000; --exist: #7B7266;
+  --f-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --f-body: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --f-mono: "Source Serif 4", Georgia, serif;
+}
+
+
+:root { color-scheme: light; }
+html, body { height: 100%; }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, select, output { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); height: 100%; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px; gap: 10px; }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-height: 1; margin: 0; letter-spacing: -0.005em; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-height: 1.1; margin: 0; }
+.lbl, .tb > span, .pf > span, .field > span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
+.spacer { flex: 1; }
+#status { font-size: 12px; color: var(--muted); font-style: italic; white-space: nowrap; }
+#status.err { color: var(--crit); font-style: normal; }
+
+/* header title block */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; flex-direction: column; gap: 4px; }
+.brand .lbl { letter-spacing: 0.14em; }
+.titleblock { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 18px; min-width: 0; }
+.tb { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tb input[type=text] { width: 13em; }
+.tb .dim { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.tb .dim input { width: 4.6em; color: var(--ink); }
+.tb output { padding: 5px 0; font-variant-numeric: tabular-nums; }
+.tb .row { flex-wrap: nowrap; }
+
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 12px; cursor: pointer; line-height: 1.3; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--crit); }
+.btn.danger.solid { background: var(--crit); border-color: var(--crit); color: var(--panel); }
+.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); background: rgba(20, 18, 15, 0.38); }
+.modal .card { max-width: 440px; width: 100%; overflow: visible; gap: 14px; padding: 22px; box-shadow: 0 18px 50px rgba(20, 18, 15, 0.25); }
+.modal h2 { font-size: 24px; }
+.btn.sm { padding: 3px 10px; font-size: 13px; }
+select, input[type=text], input[type=number] { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 4px 8px; min-width: 0; }
+input[type=number] { font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: transparent; padding: 5px 11px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); }
+
+/* tool strip */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.tools { display: flex; flex-wrap: wrap; gap: 2px; }
+.tool { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; font-size: 14px; }
+.tool:hover { background: var(--paper); }
+.tool[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
+.tool kbd { display: none; }
+.tsep { width: 1px; align-self: stretch; background: var(--line); }
+.sw { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--muted); flex: none; }
+.sw.round { border-radius: 50%; }
+.zoom { display: flex; align-items: center; gap: 6px; }
+.ul { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ulop input { width: 84px; accent-color: var(--accent); vertical-align: middle; }
+.btn:disabled { opacity: .45; cursor: default; }
+.confirm-inline { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.zoom .seg button { padding: 3px 10px; }
+#zoomLbl { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+
+/* properties bar */
+.props { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: 46px; padding: 6px 14px; border-bottom: 1px solid var(--line); }
+.hint { color: var(--muted); font-style: italic; }
+.insp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; flex: 1; min-width: 0; }
+.pk { font-family: var(--f-display); font-size: 19px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.pf { display: inline-flex; align-items: center; gap: 7px; }
+.pf input[type=text] { width: 11em; }
+.pf input.n { width: 5em; }
+.pv { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pv i { color: var(--ink); }
+.insp .acts { display: flex; gap: 6px; margin-left: auto; }
+
+/* work area */
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; min-height: 0; }
+.side { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
+.side > .card { flex: 1 1 0; }
+.card > * { flex-shrink: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; overflow: auto; }
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+#libSearch { width: 100%; }
+.lib { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.lib li { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 9px; align-items: center; padding: 6px 7px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+.lib li:hover { background: var(--paper); }
+.lib li[aria-selected=true] { border-color: var(--accent); background: var(--accent-soft); }
+.lib .nm { min-width: 0; }
+.lib .nm b { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib .nm i { color: var(--muted); font-size: 12.5px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib .meta { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.empty { color: var(--muted); font-size: 13px; font-style: italic; }
+.ex.exist { color: var(--muted); }
+.ex { font-family: var(--f-body); font-size: 9.5px; font-style: normal; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; color: var(--warn); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 5px; vertical-align: 2px; }
+
+.mapwrap { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* the plan is a light drawing sheet in every theme, so labels stay black */
+.mapwrap { color-scheme: light; color: #2F2B25;
+  --panel: #FBF8F1; --paper: #F4EFE4; --ink: #2F2B25; --muted: #7B7266; --line: #E0D7C6; --line-soft: #EBE4D6;
+  --accent: #667D5E; --accent-ink: #FFFDF8; --accent-soft: #E5E9DA; --crit: #A8402F; --warn: #A06C1E;
+  --ground: #F1EBDF; --grid: #E3DACA; --grid-major: #D2C6B1; --bed: #E6D6BE;
+  --r-canopy: #2F5A3C; --r-understory: #4B807B; --r-shrub: #7E9A55; --r-herbaceous: #9C5378; --r-ground: #A39543; --r-tuber: #B97B42; --r-climber: #5D6FA3;
+  --label: #000000; --exist: #7B7266; }
+#map.can-pan { cursor: grab; } #map.panning, #map.panning * { cursor: grabbing !important; }
+#map { flex: 1; width: 100%; min-height: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+#map text { font-family: var(--f-body); }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--panel); }
+.overlay .card { max-width: 400px; width: 100%; overflow: visible; }
+
+.field { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: center; font-size: 13.5px; }
+.field input, .field select { width: 100%; }
+.field input[type=checkbox], .field input[type=color] { width: auto; }
+label.checks { flex-wrap: nowrap; align-items: baseline; gap: 6px; }
+.side > .card:has(#editPane:not([hidden])) { flex-grow: 3; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.checks { display: flex; gap: 10px; flex-wrap: wrap; }
+.checks label { display: inline-flex; gap: 4px; align-items: center; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.note { font-size: 12.5px; color: var(--muted); }
+.confirm { background: var(--paper); border-radius: 8px; padding: 10px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+
+table.sched { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sched th { text-align: left; font-weight: 400; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--line); padding: 4px; }
+.sched td { padding: 5px 4px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.sched td.n, .sched th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sched tfoot td { border-bottom: 0; font-weight: 600; padding-top: 7px; }
+.sched i { color: var(--muted); }
+table.sched.wide { font-size: 14px; min-width: 640px; }
+.sched.wide td, .sched.wide th { padding: 7px 8px; }
+.sched.wide tfoot td { font-size: 15px; }
+
+.months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; align-items: end; height: 64px; }
+.months div { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; height: 100%; }
+.months .bar { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
+.months .bar.zero { background: var(--line); }
+.months span { font-size: 10.5px; color: var(--muted); }
+.swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.swatches button { aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 1px solid var(--bar-edge); cursor: pointer; padding: 0; }
+.swatches button[aria-pressed=true] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.colrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.colrow input[type=color] { width: 34px; height: 24px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 1px; }
+.fdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--bar-edge); vertical-align: 0; margin-right: 3px; }
+.app.cal { grid-template-rows: auto minmax(0, 1fr); }
+.calview { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+.calhead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+.calhead h2 { font-size: 26px; }
+.prefgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 16px; align-items: start; max-width: 1100px; }
+fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 16px; margin: 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.field > span.row { font-size: 13.5px; text-transform: none; letter-spacing: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+.sortb { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.sortb:hover { color: var(--ink); }
+.dbt td { vertical-align: middle; }
+.rolecols { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px 12px; }
+.rolecol { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
+.rolecol input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); flex: none; }
+fieldset.pref legend { font-family: var(--f-display); font-weight: 600; font-size: 19px; padding: 0 6px; }
+fieldset.pref .field { grid-template-columns: 110px 1fr; }
+.pv-sample { background: var(--ground); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: #000; font-weight: 500; min-height: 2.6em; display: flex; align-items: center; }
+.calscroll { overflow-x: auto; }
+.cal-grid { min-width: 720px; display: grid; grid-template-columns: minmax(170px, 240px) minmax(0, 1fr); column-gap: 14px; }
+.cal-months, .ctrack, .cal-seasons { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.cal-seasons span { font-family: var(--f-display); font-style: italic; font-size: 15px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 2px; margin: 0 2px; }
+.cal-months span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-align: center; padding: 6px 0; }
+.cname { padding: 7px 0; border-top: 1px solid var(--line-soft); min-width: 0; }
+.cname b { font-weight: 600; } .cname i { color: var(--muted); font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cname .q { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ctrack { border-top: 1px solid var(--line-soft); background-image: linear-gradient(to right, var(--line-soft) 1px, transparent 1px); background-size: calc(100% / 12) 100%; align-items: center; }
+.cbar { grid-row: 1; height: 20px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--bar-edge); margin: 0 3px; }
+.cbar.unset { background: repeating-linear-gradient(45deg, var(--accent-soft) 0 5px, var(--panel) 5px 10px); }
+.cnone { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); font-style: italic; padding-left: 6px; }
+.csum { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+.cmix { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 0 6px; height: 64px; }
+.cmix div { display: flex; flex-direction: column-reverse; border-radius: 6px; overflow: hidden; box-shadow: inset 0 0 0 1px var(--line); }
+.cmix div span { flex: 1; }
+.ccount { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); text-align: center; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 4px; }
+.ccount .gap { color: var(--crit); }
+
+@media (max-width: 1200px) {
+  html, body { height: auto; }
+  .app { height: auto; grid-template-rows: none; }
+  .work { grid-template-columns: minmax(0, 1fr); }
+  .mapwrap { height: 66vh; min-height: 360px; }
+  .side > .card { flex: none; }
+  .card { overflow: visible; }
+}
+@media (max-width: 700px) {
+  .work { grid-template-columns: minmax(0, 1fr); }
+  .mapwrap { height: 60vh; }
+  .tb input[type=text] { width: 100%; }
+  .titleblock, .tb { width: 100%; }
+  .tsep { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><span class="lbl">Planting design</span><h1>Garden Planting Map</h1></div>
+    <div class="seg" role="group" aria-label="Page"><button type="button" id="navPlan" aria-pressed="true">Plan</button><button type="button" id="navSched" aria-pressed="false">Plant schedule</button><button type="button" id="navCal" aria-pressed="false">Flowering calendar</button><button type="button" id="navDb" aria-pressed="false">Plant database</button><button type="button" id="navPrefs" aria-pressed="false">Preferences</button></div>
+    <div class="titleblock">
+      <div class="tb"><label class="lbl" for="gardenSel">Garden</label><div class="row"><select id="gardenSel" aria-label="Choose a garden"></select><button class="btn sm" id="newGardenBtn" type="button">New</button></div></div>
+      <label class="tb"><span>Name</span><input id="g-name" type="text" data-g="name"></label>
+      <label class="tb"><span>Client</span><input id="g-client" type="text" data-g="client"></label>
+      <div class="tb"><span>Size</span><div class="dim"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="200" step="0.5" data-g="width"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="200" step="0.5" data-g="depth"> m</div></div>
+      <div class="tb"><span>Area</span><output id="dims">—</output></div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn sm" id="undoBtn" type="button" title="Undo (Ctrl+Z)">Undo</button>
+    <span id="status">Connecting…</span>
+  </header>
+
+  <nav class="toolbar" aria-label="Tools">
+    <div class="tools" id="tools"></div>
+    <div class="tsep"></div>
+    <div class="ul" role="group" aria-label="Plan underlay">
+      <span class="lbl">Plan</span>
+      <button class="btn sm" id="ulImport" type="button" title="Import your existing plan: SVG, PDF or image">Import</button>
+      <input type="file" id="ulFile" accept=".svg,.pdf,image/svg+xml,application/pdf,image/png,image/jpeg,image/webp" hidden>
+      <button class="btn sm" id="ulScale" type="button" title="Click two points a known distance apart">Set scale</button>
+      <label class="ulop" title="Plan opacity"><input type="range" id="ulOpacity" min="10" max="100" step="5" value="60" aria-label="Plan opacity"></label>
+      <button class="btn sm" id="ulToggle" type="button" aria-pressed="true">Hide</button>
+      <button class="btn sm danger" id="ulRemove" type="button">Remove</button>
+    </div>
+    <div class="tsep"></div>
+    <div class="seg" role="group" aria-label="Plant size shown">
+      <button type="button" id="vMature" aria-pressed="true" title="Plants drawn at mature spread (5–10 years)">Design intent</button>
+      <button type="button" id="vPlanted" aria-pressed="false" title="Plants drawn at supplied pot size">As planted</button>
+    </div>
+    <button class="btn sm danger" id="clearBtn" type="button" title="Remove every plant, drift and bed outline from this garden">Clear plan</button>
+    <div class="spacer"></div>
+    <div class="zoom"><div class="seg" role="group" aria-label="Zoom"><button type="button" id="zOut" aria-label="Zoom out" title="Zoom out (−)">−</button><button type="button" id="zFit" title="Fit whole garden (0)">Fit</button><button type="button" id="zIn" aria-label="Zoom in" title="Zoom in (+)">+</button></div><span id="zoomLbl">100%</span></div>
+  </nav>
+
+  <div class="props" aria-live="polite"><div class="insp" id="inspector" hidden></div><span class="hint" id="hint"></span></div>
+
+  <section class="calview" id="calView" hidden aria-label="Flowering calendar"></section>
+
+  <section class="calview" id="prefsView" hidden aria-labelledby="prefsH"></section>
+
+  <section class="calview" id="dbView" hidden aria-labelledby="dbH">
+    <div class="calhead"><div><span class="lbl">Plant database</span><h2 id="dbH">Every plant you’ve entered</h2></div>
+      <div class="row"><span class="note" id="dbCount"></span><button class="btn sm" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div></div>
+    <div class="row"><input type="text" id="dbSearch" placeholder="Search common or botanical name, supplier…" aria-label="Search the plant database" style="flex:1;min-width:200px;max-width:420px">
+      <select id="dbLayer" aria-label="Filter by layer"></select>
+      <select id="dbKind" aria-label="New or existing plants"><option value="">New and existing</option><option value="new">New plants only</option><option value="existing">Existing plants only</option></select></div>
+    <div style="overflow-x:auto"><table class="sched wide dbt" id="dbTable"></table></div>
+  </section>
+
+  <section class="calview" id="schedView" hidden aria-labelledby="schedH">
+    <div class="calhead"><div><span class="lbl">Plant schedule</span><h2 id="schedH">Plant schedule</h2></div>
+      <div class="row"><span class="note" id="schedSum"></span><button class="btn sm" id="copyBtn" type="button" title="Copy as rows you can paste into your spreadsheet">Copy for spreadsheet</button></div></div>
+    <div style="overflow-x:auto"><table class="sched wide" id="sched"></table></div>
+    <div id="existingWrap" hidden style="display:flex;flex-direction:column;gap:8px"><h2 style="font-size:20px">Existing plants</h2><div style="overflow-x:auto"><table class="sched wide" id="existingT"></table></div></div>
+  </section>
+
+  <div class="work">
+    <section class="mapwrap" aria-label="Garden plan">
+      <svg id="map" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scaled garden plan"></svg>
+      <div class="overlay" id="overlay" hidden></div>
+    </section>
+
+    <div class="side">
+    <section class="card" aria-labelledby="libH">
+      <div class="card-h"><h2 id="libH">Plant library</h2><a href="#database" class="note" style="margin-right:auto;margin-left:8px">Open database</a><button class="btn sm" id="addPlantBtn" type="button">Add species</button></div>
+      <div id="libPane" style="display:flex;flex-direction:column;gap:8px">
+        <input type="text" id="libSearch" placeholder="Search name or layer" aria-label="Search plant library">
+        <ul class="lib" id="lib"></ul>
+      </div>
+      <div id="editPane" style="display:flex;flex-direction:column;gap:10px" hidden></div>
+    </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="plantModal" hidden role="dialog" aria-modal="true" aria-label="Edit species"><div class="card" id="plantModalBody" style="max-width:560px;max-height:min(90vh, 860px);overflow:auto"></div></div>
+<div class="modal" id="clearModal" hidden role="dialog" aria-modal="true" aria-labelledby="clearH">
+  <div class="card">
+    <h2 id="clearH">Clear this plan?</h2>
+    <p id="clearMsg" style="margin:0"></p>
+    <div class="row"><button class="btn danger solid" type="button" id="clearYes">Clear plan</button><button class="btn" type="button" id="clearNo">Cancel</button></div>
+  </div>
+</div>
+<script>
+(() => {
+'use strict';
+const ROLES = { canopy: 'Canopy', understory: 'Understory', shrub: 'Shrub', herbaceous: 'Herbaceous', ground: 'Ground cover', tuber: 'Tubers & bulbs', climber: 'Climbers' };
+const OLD_ROLES = { structure: 'shrub', screening: 'shrub', feature: 'herbaceous', filler: 'herbaceous', edible: 'understory' };
+const layerOf = r => ROLES[r] ? r : (OLD_ROLES[r] || 'herbaceous');
+const LIGHT = { sun: 'Full sun', part: 'Part shade', shade: 'Full shade' };
+const MOIST = { dry: 'Dry', moist: 'Moist', wet: 'Wet' };
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const FLOWER_COLOURS = [['White','#FFFFFF'],['Cream','#F3EBC8'],['Pale yellow','#F4E58A'],['Yellow','#F2C531'],['Gold','#E0A526'],['Orange','#E8862F'],['Apricot','#F1B48A'],['Coral','#EE7F6E'],
+  ['Red','#C92F2F'],['Crimson','#9E1F3A'],['Burgundy','#6E1E33'],['Magenta','#C2307E'],['Hot pink','#E4549A'],['Pink','#EE9BBE'],['Pale pink','#F6CFDB'],['Lilac','#C9A7D9'],
+  ['Lavender','#A894D2'],['Violet','#7B5BB5'],['Purple','#5E3A8C'],['Blue','#4A6FC2'],['Sky blue','#8EB6E3'],['Lime green','#B9CF6A'],['Green','#7FA35A'],['Bronze','#9C6B3A']];
+const STATUS = { retain: 'Retain', prune: 'Retain & prune', remove: 'Remove' };
+const AREA = { bed: 'Planting bed', drift: 'Drift', zone: 'Condition zone' };
+const TOOLS = [
+  { id: 'select', label: 'Select', key: 'V or Space' },
+  { id: 'plant', label: 'Plant', key: 'P', sw: 'var(--r-shrub)', round: true },
+  { id: 'drift', label: 'Drift', key: 'D', sw: 'var(--r-herbaceous)', blob: true },
+  { id: 'bed', label: 'Bed outline', key: 'B', sw: 'var(--bed)', blob: true },
+];
+const HINTS = {
+  select: 'Click anything to edit it, drag to move it. Drag a white handle to reshape a curve. Drag empty space or scroll to pan; pinch or use + / − to zoom.',
+  plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
+  drift: 'Pick a species, then click around the drift’s edge. Double-click, press Enter or click the first point to close it.',
+  bed: 'Click around the bed’s edge to draw a curved outline. Double-click, press Enter or click the first point to close it.',
+  zone: 'Click around an area to mark its light and moisture. Double-click, press Enter or click the first point to close it.',
+  scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
+};
+const DRAW_HINT = 'Click to add points. Double-click, press Enter or click the first point to finish. Backspace removes the last point, Esc cancels.';
+
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, defaultView: 'mature', currency: '£', roleColors: {} };
+const ROLE_DEFAULTS = { canopy: '#2F5A3C', understory: '#4B807B', shrub: '#7E9A55', herbaceous: '#9C5378', ground: '#A39543', tuber: '#B97B42', climber: '#5D6FA3', existing: '#7B7266' };
+function applyRoleColours() {
+  const rc = S.prefs.roleColors || {}, mw = document.querySelector('.mapwrap');
+  for (const k of Object.keys(ROLE_DEFAULTS)) {
+    const v = rc[k] && /^#[0-9a-f]{6}$/i.test(rc[k]) ? rc[k] : null, name = k === 'existing' ? '--exist' : '--r-' + k;
+    for (const el of [document.documentElement, mw]) { if (!el) continue; if (v) el.style.setProperty(name, v); else el.style.removeProperty(name); }
+  }
+}
+const S = {
+  db: null, assets: null, online: false,
+  plants: [], gardens: [], g: null,
+  tool: 'select', activePlant: null, view: 'mature',
+  sel: null, editPlant: null, confirm: null,
+  drag: null, history: [], loaded: false, filter: '',
+  zoom: 1, cx: null, cy: null, pinch: null, space: false,
+  prefs: { ...PREF_DEFAULTS }, prefsLoaded: false,
+  draw: null, hover: null, cal: null, ulHidden: false, localUl: null, busy: false, newGarden: false,
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const snap = v => { const st = clamp(num(S.prefs.snap, 0.1), 0.05, 1); return st > 0 ? Math.round(Math.round(v / st) * st * 1000) / 1000 : Math.round(v * 1000) / 1000; };
+const r2 = v => Math.round(v * 100) / 100;
+const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const money = v => (S.prefs.currency || '£') + (Math.round(v * 100) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const plantById = id => S.plants.find(p => p.id === id);
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+function setStatus(t, err) { const el = $('status'); el.textContent = t; el.classList.toggle('err', !!err); }
+function plantLabel(p) {
+  if (!p) return '?';
+  if (S.prefs.labelMode === 'common') return p.common || code(p);
+  if (S.prefs.labelMode === 'botanical') return p.botanical || p.common || '?';
+  return code(p);
+}
+function code(p) {
+  if (!p) return '?';
+  const b = (p.botanical || '').replace(/['"‘’“”×]/g, '').split(/\s+/).filter(Boolean);
+  if (b.length >= 2) return b[0].slice(0, 3) + ' ' + b[1].slice(0, 3).toLowerCase();
+  return (p.common || b[0] || '?').slice(0, 6);
+}
+function spreadOf(p) { if (!p) return 0.5; if (p.existing) return num(p.spread, 0.5); return S.view === 'mature' ? num(p.spread, 0.5) : num(p.potSpread, 0.2); }
+function radiusOf(pl) { const p = plantById(pl.plantId); const s = p?.existing && num(pl.spread) > 0 ? num(pl.spread) : spreadOf(p); return (s / 2) * Math.sqrt(Math.max(1, pl.qty || 1)); }
+function defaultDensity(p) { const s = num(p?.spread, 0.5); return Math.round((1 / (s * s)) * 10) / 10; }
+
+/* ---------- curve geometry (closed Catmull-Rom splines) ---------- */
+function segs(pts, closed) {
+  const n = pts.length, out = [];
+  const last = closed ? n : n - 1;
+  for (let i = 0; i < last; i++) {
+    const p1 = pts[i], p2 = pts[(i + 1) % n];
+    const p0 = closed ? pts[(i - 1 + n) % n] : (i === 0 ? p1 : pts[i - 1]);
+    const p3 = closed ? pts[(i + 2) % n] : (i + 2 >= n ? p2 : pts[i + 2]);
+    out.push([p1, [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6], p2]);
+  }
+  return out;
+}
+function pathD(pts, smooth, closed = true) {
+  if (pts.length < 2) return '';
+  const f = v => +v.toFixed(3);
+  if (!smooth || pts.length < 3) return 'M' + pts.map(p => f(p[0]) + ' ' + f(p[1])).join(' L') + (closed ? ' Z' : '');
+  return 'M' + f(pts[0][0]) + ' ' + f(pts[0][1]) + segs(pts, closed).map(([, a, b, c]) => ` C${f(a[0])} ${f(a[1])} ${f(b[0])} ${f(b[1])} ${f(c[0])} ${f(c[1])}`).join('') + (closed ? ' Z' : '');
+}
+function sampled(a) {
+  if (!a.smooth || a.pts.length < 3) return a.pts;
+  const out = [];
+  for (const [p1, c1, c2, p2] of segs(a.pts, true)) for (let s = 0; s < 12; s++) {
+    const t = s / 12, u = 1 - t;
+    out.push([u * u * u * p1[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * p2[0], u * u * u * p1[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * p2[1]]);
+  }
+  return out;
+}
+function areaOf(a) { const P = sampled(a); let s = 0; for (let i = 0; i < P.length; i++) { const [x1, y1] = P[i], [x2, y2] = P[(i + 1) % P.length]; s += x1 * y2 - x2 * y1; } return Math.abs(s) / 2; }
+function centreOf(a) {
+  const P = sampled(a); let A = 0, cx = 0, cy = 0;
+  for (let i = 0; i < P.length; i++) { const [x1, y1] = P[i], [x2, y2] = P[(i + 1) % P.length]; const c = x1 * y2 - x2 * y1; A += c; cx += (x1 + x2) * c; cy += (y1 + y2) * c; }
+  if (Math.abs(A) < 1e-9) return { x: P[0][0], y: P[0][1] };
+  return { x: cx / (3 * A), y: cy / (3 * A) };
+}
+function driftQty(a) { return Math.max(1, Math.round(areaOf(a) * num(a.density, defaultDensity(plantById(a.plantId))))); }
+
+/* ---------- history & saving ---------- */
+function checkpoint() { if (!S.g) return; S.history.push(JSON.stringify(S.g)); if (S.history.length > 60) S.history.shift(); }
+function undo() { const prev = S.history.pop(); if (!prev) return; S.g = JSON.parse(prev); if (S.sel && !findSel()) S.sel = null; saveGarden(); renderAll(); }
+let saveTimer = null, saving = false, saveAgain = false;
+function saveGarden() {
+  if (!S.g) return;
+  S.g.updatedAt = Date.now();
+  if (!S.online) { setStatus('Not saved in this view'); return; }
+  setStatus('Unsaved changes…');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 700);
+}
+async function flushSave() {
+  saveTimer = null;
+  if (saving) { saveAgain = true; return; }
+  saving = true; setStatus('Saving…');
+  const body = JSON.parse(JSON.stringify(S.g)); delete body.id;
+  try { await S.db.doc('gardens/' + S.g.id).set(body); setStatus('Saved'); }
+  catch (e) { setStatus(e?.code === 'quota_exceeded' ? 'Storage full: delete an old garden' : 'Couldn’t save: ' + (e?.message || 'try again'), true); }
+  saving = false;
+  if (saveAgain) { saveAgain = false; flushSave(); }
+}
+const busy = () => saveTimer || saving || S.drag || S.draw;
+
+/* ---------- selection ---------- */
+function findSel() {
+  if (!S.sel || !S.g) return null;
+  const list = S.sel.kind === 'area' ? S.g.areas : S.g.plantings;
+  return list.find(x => x.id === S.sel.id) || null;
+}
+function select(kind, id) { S.sel = kind ? { kind, id } : null; if (S.confirm === 'underlay') S.confirm = null; renderInspector(); renderMap(); }
+function removeSel() {
+  const it = findSel(); if (!it) return;
+  checkpoint();
+  const key = S.sel.kind === 'area' ? 'areas' : 'plantings';
+  S.g[key] = S.g[key].filter(x => x !== it);
+  S.sel = null; saveGarden(); renderAll();
+}
+
+/* ---------- map ---------- */
+const svg = $('map');
+function ulUrl(u) { return u?.assetId ? '/_blob/' + u.assetId : (S.localUl || ''); }
+let rafPending = false;
+function renderMapSoon() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMap(); }); }
+function renderMap() {
+  const g = S.g;
+  if (!g) { svg.innerHTML = ''; return; }
+  const W = g.width, D = g.depth, M = Math.max(W, D);
+  const pad = M * 0.07, fs = M / 55 / S.zoom, px = (M / 900) / S.zoom;
+  if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
+  S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
+  const vw = (W + pad * 2) / S.zoom, vh = (D + pad * 2) / S.zoom;
+  svg.setAttribute('viewBox', `${S.cx - vw / 2} ${S.cy - vh / 2} ${vw} ${vh}`);
+  $('zoomLbl').textContent = Math.round(S.zoom * 100) + '%';
+  const u = g.underlay, showUl = u && !S.ulHidden && ulUrl(u);
+  const parts = [];
+  parts.push(`<rect x="0" y="0" width="${W}" height="${D}" style="fill:var(--ground)"/>`);
+  if (showUl) parts.push(`<image href="${esc(ulUrl(u))}" x="0" y="0" width="${u.natW * u.mPerPx}" height="${u.natH * u.mPerPx}" preserveAspectRatio="none" opacity="${num(u.opacity, 0.6)}" pointer-events="none"/>`);
+  // grid
+  const step = S.prefs.gridStep === 'auto' ? (M > 30 ? 5 : 1) : num(S.prefs.gridStep, 1);
+  const gop = showUl ? 0.35 : 1, maj = v => Math.abs(v / 5 - Math.round(v / 5)) < 1e-6;
+  if (S.prefs.showGrid) for (let x = step; x < W - 1e-6; x += step) parts.push(`<line x1="${x}" y1="0" x2="${x}" y2="${D}" style="stroke:var(${maj(x) ? '--grid-major' : '--grid'})" stroke-opacity="${gop}" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+  if (S.prefs.showGrid) for (let y = step; y < D - 1e-6; y += step) parts.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}" style="stroke:var(${maj(y) ? '--grid-major' : '--grid'})" stroke-opacity="${gop}" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+  const lab = M > 20 ? 5 : (M > 10 ? 2 : 1);
+  if (S.prefs.showRulers) for (let x = 0; x <= W + 1e-6; x += lab) parts.push(`<text x="${x}" y="${-fs * 0.7}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--muted)" pointer-events="none">${x}</text>`);
+  if (S.prefs.showRulers) for (let y = lab; y <= D + 1e-6; y += lab) parts.push(`<text x="${-fs * 0.6}" y="${y + fs * 0.3}" font-size="${fs * 0.9}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${y}</text>`);
+  if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
+  const ls = fs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
+  // areas: beds, then zones, then drifts
+  const order = { bed: 0, zone: 1, drift: 2 };
+  const areas = [...g.areas].sort((a, b) => order[a.kind] - order[b.kind]);
+  for (const a of areas) {
+    const d = pathD(a.pts, a.smooth);
+    const isSel = S.sel?.kind === 'area' && S.sel.id === a.id;
+    const c = centreOf(a);
+    if (a.kind === 'bed') {
+      parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:var(--bed);stroke:${isSel ? 'var(--accent)' : 'var(--muted)'}" fill-opacity="${showUl ? 0.45 : 0.8}" stroke-width="${isSel ? 2.5 : 1.2}" vector-effect="non-scaling-stroke"/>${a.label && showL ? `<text x="${c.x}" y="${c.y}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-style:italic">${esc(a.label)}</text>` : ''}</g>`);
+    } else if (a.kind === 'zone') {
+      const col = a.moisture === 'wet' ? 'var(--wet)' : a.light === 'sun' ? 'var(--sun)' : 'var(--shade)';
+      const text = [LIGHT[a.light], MOIST[a.moisture]].filter(Boolean).join(' · ') || 'Zone';
+      parts.push(`<g data-kind="area" data-id="${a.id}"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="0.12" stroke-width="${isSel ? 2.5 : 1.5}" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" pointer-events="none"/><path d="${d}" fill="none" stroke="transparent" stroke-width="12" vector-effect="non-scaling-stroke" pointer-events="stroke" style="cursor:move"/><text x="${c.x}" y="${c.y}" font-size="${fs * 0.95}" text-anchor="middle" style="fill:${col};cursor:move;font-style:italic">${esc(text)}</text></g>`);
+    } else {
+      const p = plantById(a.plantId), ex = !!p?.existing, col = ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
+      parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${ex ? 0.13 : S.view === 'mature' ? 0.32 : 0.18}" stroke-width="${isSel ? 2.5 : 1.5}" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${showL ? `<text x="${c.x}" y="${c.y + ls * 0.25}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${S.prefs.labelQty ? driftQty(a) + ' ' : ''}${esc(plantLabel(p))}</text>` : ''}</g>`);
+    }
+  }
+  // single plants and groups, largest first
+  const pls = [...g.plantings].sort((a, b) => radiusOf(b) - radiusOf(a));
+  for (const pl of pls) {
+    const p = plantById(pl.plantId), r = radiusOf(pl), ex = !!p?.existing, st = pl.status || 'retain';
+    const c = ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
+    const isSel = S.sel?.kind === 'planting' && S.sel.id === pl.id;
+    const lbl = (S.prefs.labelQty && pl.qty > 1 ? pl.qty + ' ' : '') + plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '');
+    const k = r * 0.7071;
+    parts.push(`<g data-kind="planting" data-id="${pl.id}" style="cursor:move">
+      <circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${c};stroke:${c}" fill-opacity="${ex ? 0.13 : S.view === 'mature' ? 0.3 : 0.55}" stroke-width="1.5" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
+      ${ex && st === 'remove' ? `<path d="M${pl.x - k} ${pl.y - k} L${pl.x + k} ${pl.y + k} M${pl.x + k} ${pl.y - k} L${pl.x - k} ${pl.y + k}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}
+      ${isSel ? `<circle cx="${pl.x}" cy="${pl.y}" r="${r + fs * 0.6}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}
+      <circle cx="${pl.x}" cy="${pl.y}" r="${fs * 0.18}" style="fill:${c}"/>
+      ${showL ? `<text x="${pl.x}" y="${pl.y - ls * 0.32}" font-size="${ls * 0.68}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${esc(lbl)}</text>` : ''}
+    </g>`);
+  }
+  // handles for the selected curve
+  const sa = S.sel?.kind === 'area' ? findSel() : null;
+  if (sa && S.tool === 'select') sa.pts.forEach((pt, i) => parts.push(`<circle data-kind="handle" data-id="${sa.id}" data-i="${i}" cx="${pt[0]}" cy="${pt[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
+  // curve being drawn
+  if (S.draw) {
+    const pts = S.hover ? [...S.draw.pts, [S.hover.x, S.hover.y]] : S.draw.pts;
+    if (pts.length >= 2) parts.push(`<path d="${pathD(pts, true, false)}" fill="none" style="stroke:var(--accent)" stroke-width="2" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+    if (pts.length >= 3) parts.push(`<path d="${pathD(pts, true, true)}" style="fill:var(--accent)" fill-opacity="0.08" stroke="none" pointer-events="none"/>`);
+    S.draw.pts.forEach((pt, i) => parts.push(`<circle cx="${pt[0]}" cy="${pt[1]}" r="${px * (i === 0 ? 6 : 4)}" style="fill:${i === 0 ? 'var(--panel)' : 'var(--accent)'};stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`));
+  }
+  // scale calibration line
+  if (S.cal?.a) {
+    const b = S.cal.b || S.hover;
+    if (b) parts.push(`<line x1="${S.cal.a.x}" y1="${S.cal.a.y}" x2="${b.x}" y2="${b.y}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+    for (const q of [S.cal.a, S.cal.b].filter(Boolean)) parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${px * 5}" style="fill:var(--panel);stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+  }
+  parts.push(`<rect x="0" y="0" width="${W}" height="${D}" fill="none" style="stroke:var(--ink)" stroke-opacity="${showUl ? 0.35 : 1}" stroke-width="${showUl ? 1 : 2}" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+  const sb = M > 20 ? 5 : 2, sy = D + pad * 0.55;
+  if (S.prefs.showScale) parts.push(`<g pointer-events="none"><rect x="0" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--ink)"/><rect x="${sb / 2}" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--panel);stroke:var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${sb + fs * 0.5}" y="${sy + fs * 0.35}" font-size="${fs * 0.9}" style="fill:var(--muted)">${sb} m</text></g>`);
+  if (S.prefs.showScale) parts.push(`<g pointer-events="none" transform="translate(${W + pad * 0.5} ${D - fs * 2})"><path d="M0 ${-fs * 1.4} L${fs * 0.55} ${fs * 0.4} L0 0 L${-fs * 0.55} ${fs * 0.4} Z" style="fill:var(--ink)"/><text y="${fs * 1.5}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--ink)">N</text></g>`);
+  svg.innerHTML = parts.join('');
+  $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
+}
+
+/* ---------- panels ---------- */
+function toolSwatch(t) {
+  if (!t.sw) return '<span class="sw" style="border:0;background:none;line-height:12px">↖</span>';
+  if (t.blob) return `<svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true"><path d="M2 7 C1 3 5 1 8 2 C12 3 13 6 11 9 C9 11 4 11 2 7 Z" style="fill:${t.sw};stroke:var(--muted)" stroke-width="1" ${t.dashed ? 'stroke-dasharray="2 1.5"' : ''}/></svg>`;
+  return `<span class="sw${t.round ? ' round' : ''}" style="background:${t.sw}"></span>`;
+}
+function renderTools() {
+  $('tools').innerHTML = TOOLS.map(t => `<button type="button" class="tool" data-tool="${t.id}" aria-pressed="${S.tool === t.id}" title="${t.label} (${t.key})">${toolSwatch(t)}${t.label}</button>`).join('');
+  const needSp = (S.tool === 'plant' || S.tool === 'drift') && !S.activePlant;
+  const ap = plantById(S.activePlant)?.common || '';
+  let h = HINTS[S.tool] || '';
+  if (needSp) h = 'Pick a species in the plant library first.';
+  else if (S.draw) h = (S.tool === 'drift' ? `Drawing a drift of ${ap}. ` : '') + DRAW_HINT;
+  else if (S.tool === 'plant') h = `Placing ${ap}. Click the plan to drop one; set the quantity for a group.`;
+  else if (S.tool === 'drift') h = `Drift of ${ap}: ` + HINTS.drift.replace('Pick a species, then click', 'click');
+  else if (S.tool === 'scale' && S.cal?.a && !S.cal.b) h = 'Now click the second point.';
+  else if (S.tool === 'select' && S.g && !S.g.underlay) h = 'Start by importing your existing plan with Import, then set its scale. ' + HINTS.select;
+  else if (S.tool === 'select' && S.g?.underlay && !S.g.underlay.calibrated) h = 'Your plan isn’t scaled yet. Use Set scale and click two points a known distance apart.';
+  $('hint').textContent = h;
+  const u = S.g?.underlay;
+  $('ulImport').disabled = !S.g || S.busy || (S.loaded && S.online && !S.assets);
+  $('ulImport').textContent = S.busy ? 'Importing…' : u ? 'Replace' : 'Import';
+  updateClear();
+  $('ulScale').disabled = !u; $('ulRemove').disabled = !u; $('ulToggle').disabled = !u; $('ulOpacity').disabled = !u;
+  $('ulScale').setAttribute('aria-pressed', S.tool === 'scale');
+  $('ulToggle').textContent = S.ulHidden ? 'Show' : 'Hide';
+  if (u && document.activeElement !== $('ulOpacity')) $('ulOpacity').value = Math.round(num(u.opacity, 0.6) * 100);
+}
+function renderLibrary() {
+  $('libPane').hidden = !!S.editPlant; $('editPane').hidden = !S.editPlant; $('addPlantBtn').hidden = !!S.editPlant;
+  const inDb = getPage() === 'database';
+  $('plantModal').hidden = !(S.editPlant && inDb);
+  if (S.editPlant && inDb) { $('libPane').hidden = false; $('editPane').hidden = true; $('addPlantBtn').hidden = false; renderPlantEditor($('plantModalBody')); return; }
+  if (S.editPlant) { renderPlantEditor($('editPane')); return; }
+  $('editPane').innerHTML = '';
+  const q = S.filter.trim().toLowerCase();
+  const list = S.plants.filter(p => !q || [p.common, p.botanical, ROLES[p.role]].join(' ').toLowerCase().includes(q)).sort((a, b) => (a.common || '').localeCompare(b.common || ''));
+  if (!S.plants.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${S.loaded ? 'Your library is empty. Use Add species to start it. Every species you add here is reused across all your gardens.' : 'Loading your plant library…'}</li>`; return; }
+  if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">No species match “${esc(S.filter)}”.</li>`; return; }
+  $('lib').innerHTML = list.map(p => `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant"><span class="sw round" style="${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span><span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || 'Flower colour')}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
+}
+function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
+function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
+function renderInspector() {
+  const el = $('inspector'), hint = $('hint');
+  if (S.confirm === 'underlay') {
+    hint.hidden = true; el.hidden = false;
+    el.innerHTML = `<span class="confirm-inline"><span>Remove <i>${esc(S.g?.underlay?.name || 'the plan')}</i> from this garden? Your plants stay where they are. This can’t be undone.</span><button class="btn sm danger" type="button" data-act="ulRemoveYes">Remove plan</button><button class="btn sm" type="button" data-act="ulRemoveNo">Keep it</button></span>`;
+    return;
+  }
+  if (S.tool === 'scale' && S.cal?.b) {
+    hint.hidden = true; el.hidden = false;
+    const cur = Math.hypot(S.cal.b.x - S.cal.a.x, S.cal.b.y - S.cal.a.y);
+    el.innerHTML = `<span class="pk">Set scale</span>
+      <label class="pf"><span>Real distance between the points</span><input id="cal-m" class="n" type="number" min="0.01" step="0.01" value="${cur.toFixed(2)}"><span class="pv">m</span></label>
+      <span class="pv">Currently measures ${cur.toFixed(2)} m</span>
+      <span class="acts"><button class="btn sm primary" type="button" data-act="calApply">Apply scale</button><button class="btn sm" type="button" data-act="calCancel">Cancel</button></span>`;
+    setTimeout(() => { const i = $('cal-m'); if (i) { i.focus(); i.select(); } }, 0);
+    return;
+  }
+  const it = S.g ? findSel() : null;
+  hint.hidden = !!it; el.hidden = !it;
+  if (!it) { el.innerHTML = ''; return; }
+  const acts = (extra = '') => `<span class="acts">${extra}<button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
+  if (S.sel.kind === 'planting') {
+    const p = plantById(it.plantId);
+    const fl = p?.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : 'no flowers';
+    el.innerHTML = `<span class="pk"><span class="sw round" style="${p?.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p?.role || 'herbaceous'});border-color:var(--r-${p?.role || 'herbaceous'})`}"></span>${esc(p?.common || 'Missing species')}${p?.existing ? '<span class="ex exist">Existing</span>' : ''}</span>
+      <label class="pf"><span>Species</span><select id="pl-species" data-f="plantId">${speciesOpts(it.plantId)}</select></label>
+      <label class="pf"><span>Qty</span><input id="pl-qty" class="n" type="number" min="1" max="500" step="1" data-f="qty" value="${it.qty || 1}"></label>
+      ${p?.existing ? `<label class="pf"><span>Status</span><select id="pl-status" data-f="status">${opt(STATUS, it.status || 'retain')}</select></label>
+      <span class="pf"><span>Measured</span><input id="pl-h" class="n" aria-label="Height of this plant in metres" type="number" min="0" step="0.1" data-f="height" value="${it.height ?? ''}" placeholder="${num(p.height).toFixed(1)}"><span class="pv">×</span><input id="pl-s" class="n" aria-label="Spread of this plant in metres" type="number" min="0.05" step="0.1" data-f="spread" value="${it.spread ?? ''}" placeholder="${num(p.spread).toFixed(1)}"><span class="pv">m</span></span>
+      <label class="pf"><span>Note</span><input id="pl-note" type="text" data-f="note" value="${esc(it.note)}" placeholder="e.g. crown lift, reduce by a third"></label>` : ''}
+      ${p && !p.existing ? `<span class="pv"><i>${esc(p.botanical)}</i> · ${num(p.height).toFixed(1)} × ${num(p.spread).toFixed(1)} m · ${fl} · ${money(num(p.cost))} each</span>` : p ? `<span class="pv"><i>${esc(p.botanical)}</i></span>` : ''}
+      ${acts(p ? '<button class="btn sm" type="button" data-act="editSpecies">Edit species</button>' : '')}`;
+    return;
+  }
+  const smooth = `<label class="pf"><input type="checkbox" id="a-smooth" data-f="smooth"${it.smooth ? ' checked' : ''}><span>Curved</span></label>`;
+  const area = `<span class="pv">${areaOf(it).toFixed(1)} m²</span>`;
+  if (it.kind === 'drift') {
+    const p = plantById(it.plantId);
+    el.innerHTML = `<span class="pk">${toolSwatch({ sw: `var(--r-${p?.role || 'herbaceous'})`, blob: true })} Drift</span>
+      <label class="pf"><span>Species</span><select id="a-species" data-f="plantId">${speciesOpts(it.plantId)}</select></label>
+      <label class="pf"><span>Plants per m²</span><input id="a-density" class="n" type="number" min="0.1" max="100" step="0.1" data-f="density" value="${num(it.density, defaultDensity(p))}"></label>
+      ${area}<span class="pv"><b style="color:var(--ink)">${driftQty(it)}</b> plants${p && !p.existing ? ' · ' + money(num(p.cost) * driftQty(it)) : p?.existing ? ' · existing' : ''}</span>
+      ${smooth}${acts(p ? '<button class="btn sm" type="button" data-act="editSpecies">Edit species</button>' : '')}`;
+  } else if (it.kind === 'bed') {
+    el.innerHTML = `<span class="pk">${toolSwatch(TOOLS[3])} Planting bed</span>
+      <label class="pf"><span>Label</span><input id="a-label" type="text" data-f="label" value="${esc(it.label)}"></label>
+      ${area}${smooth}${acts()}`;
+  } else {
+    el.innerHTML = `<span class="pk">${toolSwatch(TOOLS[4])} Condition zone</span>
+      <label class="pf"><span>Light</span><select id="a-light" data-f="light">${opt(LIGHT, it.light, 'Not set')}</select></label>
+      <label class="pf"><span>Moisture</span><select id="a-moist" data-f="moisture">${opt(MOIST, it.moisture, 'Not set')}</select></label>
+      ${area}${smooth}${acts()}`;
+  }
+}
+function renderGardenFields() {
+  for (const [id, k] of [['g-name', 'name'], ['g-client', 'client'], ['g-w', 'width'], ['g-d', 'depth']]) {
+    const el = $(id); el.disabled = !S.g;
+    if (document.activeElement !== el) el.value = S.g ? (S.g[k] ?? '') : '';
+  }
+  if (!S.g) $('dims').textContent = '—';
+}
+function renderPlantEditor(el) {
+  const p = S.editPlant;
+  const mo = v => `<option value="">None</option>` + MONTHS.map((m, i) => `<option value="${i + 1}"${+v === i + 1 ? ' selected' : ''}>${m}</option>`).join('');
+  const cb = (map, arr, f) => Object.entries(map).map(([k, l]) => `<label><input type="checkbox" id="sp-${f}-${k}" data-arr="${f}" value="${k}"${(arr || []).includes(k) ? ' checked' : ''}> ${l}</label>`).join('');
+  const used = gardensUsing(p.id).length > 0;
+  el.innerHTML = `<div class="card-h"><h2 style="font-size:17px">${p._new ? 'New species' : 'Edit species'}</h2>${p.example ? '<span class="ex">Example</span>' : ''}</div>
+    <label class="field"><span>Common name</span><input id="sp-common" type="text" data-p="common" value="${esc(p.common)}"></label>
+    <label class="field"><span>Botanical</span><input id="sp-bot" type="text" data-p="botanical" value="${esc(p.botanical)}"></label>
+    <div class="field"><span>On site</span><label class="checks"><input type="checkbox" id="sp-existing" data-pb="existing"${p.existing ? ' checked' : ''}> Existing plant, already in the garden</label></div>
+    <label class="field"><span>Layer</span><select id="sp-role" data-p="role">${opt(ROLES, p.role)}</select></label>
+    <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
+    <div class="field"><span>Flowers</span><div class="pair"><select id="sp-ff" aria-label="Flowering from" data-p="flowerFrom">${mo(p.flowerFrom)}</select><select id="sp-ft" aria-label="Flowering to" data-p="flowerTo">${mo(p.flowerTo)}</select></div></div>
+    <div class="field" style="align-items:start"><span style="padding-top:4px">Flower colour</span><div style="display:flex;flex-direction:column;gap:8px">
+      <div class="swatches" role="group" aria-label="Flower colour">${FLOWER_COLOURS.map(([n, h]) => `<button type="button" data-color="${h}" data-cname="${n}" title="${n}" aria-label="${n}" aria-pressed="${(p.flowerColor || '').toLowerCase() === h.toLowerCase()}" style="background:${h}"></button>`).join('')}</div>
+      <div class="colrow"><label style="display:inline-flex;gap:6px;align-items:center">Custom <input type="color" id="sp-col" data-p="flowerColor" value="${p.flowerColor || '#c9a7d9'}"></label><span id="colName">${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}"></span>${esc(p.flowerColorName || 'Custom colour')}` : 'No colour chosen'}</span>${p.flowerColor ? '<button class="btn sm" type="button" data-act="clearColour">Clear</button>' : ''}</div>
+    </div></div>
+    <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
+    ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>`}
+    ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
+    <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
+    <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
+    <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing plants are drawn dashed at that size and left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets plant size in Design intent and the default drift density.'}</p>
+    <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
+    ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants and drifts first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
+    <p class="note" id="plantErr" style="margin:0;color:var(--crit)"></p>`;
+}
+function scheduleRows() {
+  const m = new Map();
+  const isEx = id => !!plantById(id)?.existing;
+  for (const pl of S.g?.plantings || []) if (!isEx(pl.plantId)) m.set(pl.plantId, (m.get(pl.plantId) || 0) + (pl.qty || 1));
+  for (const a of S.g?.areas || []) if (a.kind === 'drift' && a.plantId && !isEx(a.plantId)) m.set(a.plantId, (m.get(a.plantId) || 0) + driftQty(a));
+  return [...m.entries()].map(([id, qty]) => ({ p: plantById(id), id, qty })).sort((a, b) => (a.p?.common || '').localeCompare(b.p?.common || ''));
+}
+function existingRows() {
+  const m = new Map();
+  const add = (id, st, q, note) => { const r = m.get(id) || { id, p: plantById(id), retain: 0, prune: 0, remove: 0, notes: new Set() }; r[st] += q; if (note) r.notes.add(note); m.set(id, r); };
+  for (const pl of S.g?.plantings || []) if (plantById(pl.plantId)?.existing) add(pl.plantId, STATUS[pl.status] ? pl.status : 'retain', pl.qty || 1, (pl.note || '').trim());
+  for (const a of S.g?.areas || []) if (a.kind === 'drift' && plantById(a.plantId)?.existing) add(a.plantId, 'retain', driftQty(a));
+  return [...m.values()].sort((a, b) => (a.p?.common || '').localeCompare(b.p?.common || ''));
+}
+function renderSchedule() {
+  const rows = scheduleRows(), exRows = existingRows();
+  $('schedH').textContent = S.g ? S.g.name + (S.g.client ? ' · ' + S.g.client : '') : 'Plant schedule';
+  $('existingWrap').hidden = !exRows.length;
+  $('existingT').innerHTML = exRows.length ? `<thead><tr><th>Species</th><th>Botanical name</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th><th>Notes</th></tr></thead><tbody>${exRows.map(r => `<tr><td>${esc(r.p?.common || '')}</td><td><i>${esc(r.p?.botanical || '')}</i></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n"${r.remove ? ' style="color:var(--crit)"' : ''}>${r.remove || '–'}</td><td>${esc([...r.notes].join('; '))}</td></tr>`).join('')}</tbody>` : '';
+  const t = $('sched');
+  let total = 0, count = 0;
+  if (!rows.length) t.innerHTML = `<tbody><tr><td class="empty">${exRows.length ? 'No new plants yet.' : 'The schedule fills in as you place plants and drifts on the plan.'}</td></tr></tbody>`;
+  else {
+    t.innerHTML = `<thead><tr><th>Species</th><th>Botanical name</th><th>Layer</th><th>Supply</th><th>Supplier</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${rows.map(r => { const each = num(r.p?.cost); total += each * r.qty; count += r.qty; return `<tr><td>${r.p?.flowerColor ? `<span class="fdot" style="background:${esc(r.p.flowerColor)}"></span>` : ''}${esc(r.p?.common || 'Missing species')}</td><td><i>${esc(r.p?.botanical || '')}</i>${r.p?.cultivar ? ` <i>${esc(r.p.cultivar)}</i>` : ''}</td><td>${esc(ROLES[r.p?.role] || '')}</td><td>${esc(r.p?.supply || '')}</td><td>${esc(r.p?.supplier || '')}</td><td class="n">${r.qty}</td><td class="n">${money(each)}</td><td class="n">${money(each * r.qty)}</td></tr>`; }).join('')}</tbody><tfoot><tr><td colspan="5">Plant supply</td><td class="n">${count}</td><td></td><td class="n">${money(total)}</td></tr></tfoot>`;
+  }
+  $('schedSum').textContent = rows.length ? `${rows.length} species · ${count} plants · ${money(total)}` : '';
+}
+function renderPicker() {
+  const sel = $('gardenSel');
+  sel.innerHTML = S.gardens.length ? S.gardens.map(g => `<option value="${g.id}"${g.id === S.g?.id ? ' selected' : ''}>${esc(g.name || 'Untitled garden')}</option>`).join('') : '<option>No gardens yet</option>';
+  sel.disabled = !S.gardens.length;
+}
+function renderOverlay() {
+  const ov = $('overlay');
+  if (S.newGarden || (S.loaded && !S.g)) {
+    ov.hidden = false;
+    ov.innerHTML = `<form class="card" id="newGardenForm"><h2>New garden</h2>
+      <label class="field"><span>Name</span><input id="ng-name" type="text" required placeholder="e.g. Rear garden, 14 Elm Road"></label>
+      <label class="field"><span>Client</span><input id="ng-client" type="text"></label>
+      <label class="field"><span>Existing plan</span><input id="ng-file" type="file" accept=".svg,.pdf,image/svg+xml,application/pdf,image/png,image/jpeg,image/webp"></label>
+      <div class="field"><span>Size (m)</span><div class="pair"><input id="ng-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.5" value="10" required><input id="ng-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.5" value="8" required></div></div>
+      <p class="note" style="margin:0">Attach your site plan as an SVG, PDF or image. You’ll set its scale next by clicking two points a known distance apart. Without a plan, give the plot’s width and depth.</p>
+      <div class="row"><button class="btn primary" type="submit">Create garden</button>${S.g ? '<button class="btn" type="button" id="ngCancel">Cancel</button>' : ''}</div></form>`;
+    setTimeout(() => $('ng-name')?.focus(), 0);
+  } else if (!S.loaded) { ov.hidden = false; ov.innerHTML = '<p class="empty">Loading your gardens…</p>'; }
+  else { ov.hidden = true; ov.innerHTML = ''; }
+}
+function flowerMonths(p) {
+  const f = +p?.flowerFrom, to = +(p?.flowerTo || p?.flowerFrom);
+  if (!f) return [];
+  const out = []; for (let i = 0, m = f; i < 12; i++) { out.push(m); if (m === to) break; m = m % 12 + 1; }
+  return out;
+}
+function runs(ms) {
+  const set = new Set(ms), out = [];
+  for (let m = 1; m <= 12; m++) if (set.has(m) && !set.has(m - 1)) { let e = m; while (set.has(e + 1)) e++; out.push([m, e]); }
+  return out;
+}
+function renderCalendar() {
+  const el = $('calView');
+  if (!S.g) { el.innerHTML = '<p class="empty">Create a garden to see its flowering calendar.</p>'; return; }
+  const list = [
+    ...scheduleRows().map(r => ({ p: r.p, qty: r.qty, ex: false })),
+    ...existingRows().filter(r => r.retain + r.prune > 0).map(r => ({ p: r.p, qty: r.retain + r.prune, ex: true })),
+  ].filter(r => r.p);
+  const withF = list.filter(r => flowerMonths(r.p).length).sort((a, b) => (+a.p.flowerFrom - +b.p.flowerFrom) || (a.p.common || '').localeCompare(b.p.common || ''));
+  const noF = list.filter(r => !flowerMonths(r.p).length).sort((a, b) => (a.p.common || '').localeCompare(b.p.common || ''));
+  const byMonth = MONTHS.map((_, i) => withF.filter(r => flowerMonths(r.p).includes(i + 1)));
+  const peak = Math.max(0, ...byMonth.map(x => x.length));
+  const gaps = MONTHS.filter((_, i) => !byMonth[i].length);
+  const peakM = MONTHS.filter((_, i) => peak && byMonth[i].length === peak);
+  const unsetCol = withF.filter(r => !r.p.flowerColor).length;
+  const row = r => {
+    const ms = flowerMonths(r.p);
+    const col = r.p.flowerColor;
+    const bars = runs(ms).map(([a, b]) => `<div class="cbar${col ? '' : ' unset'}" style="grid-column:${a} / ${b + 1};${col ? `background:${esc(col)}` : ''}" title="${esc(r.p.common)}: ${MONTHS[ms[0] - 1]}–${MONTHS[ms[ms.length - 1] - 1]}${col ? ', ' + esc(r.p.flowerColorName || 'custom colour') : ''}"></div>`).join('');
+    return `<div class="cname"><b>${esc(r.p.common)}</b> <span class="q">× ${r.qty}</span>${r.ex ? '<span class="ex exist">Existing</span>' : ''}<i>${esc(r.p.botanical)}</i></div><div class="ctrack">${bars || '<span class="cnone">No flowering months set</span>'}</div>`;
+  };
+  el.innerHTML = `<div class="calhead"><div><span class="lbl">Flowering calendar</span><h2>${esc(S.g.name)}</h2></div>
+      <p class="note" style="margin:0;max-width:60ch">${!list.length ? 'Place plants or drifts on the plan and they’ll appear here.' : `${withF.length} of ${list.length} species have flowering times. ${peak ? `Peak in ${peakM.join(', ')} with ${peak} in flower.` : ''} ${gaps.length && gaps.length < 12 ? `Nothing in flower in ${gaps.join(', ')}.` : gaps.length ? '' : 'Something is in flower every month.'}`}</p></div>
+    ${list.length ? `<div class="calscroll"><div class="cal-grid">
+      <div></div><div class="cal-seasons"><span style="grid-column:1/3">Winter</span><span style="grid-column:3/6">Spring</span><span style="grid-column:6/9">Summer</span><span style="grid-column:9/12">Autumn</span><span style="grid-column:12/13">&nbsp;</span></div>
+      <div></div><div class="cal-months">${MONTHS.map(m => `<span>${m}</span>`).join('')}</div>
+      ${withF.map(row).join('')}${noF.map(row).join('')}
+      <div class="cname csum"><b>Colour through the year</b><i>Every species in flower that month</i></div>
+      <div class="csum"><div class="cmix">${byMonth.map((rs, i) => `<div title="${MONTHS[i]}: ${rs.map(r => r.p.common).join(', ') || 'nothing in flower'}">${rs.map(r => `<span style="background:${r.p.flowerColor ? esc(r.p.flowerColor) : 'var(--accent-soft)'}"></span>`).join('')}</div>`).join('')}</div>
+        <div class="ccount">${byMonth.map(rs => `<span class="${rs.length ? '' : 'gap'}">${rs.length || '–'}</span>`).join('')}</div></div>
+    </div></div>
+    ${unsetCol ? `<p class="note" style="margin:0">Hatched bars have no flower colour yet. Use Edit in the plant library to choose one.</p>` : ''}` : ''}`;
+}
+function renderPrefs() {
+  const P = S.prefs, el = $('prefsView');
+  const sel = (id, k, opts) => `<select id="${id}" data-pref="${k}">${opts.map(([v, l]) => `<option value="${v}"${String(P[k]) === String(v) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
+  const chk = (id, k, l) => `<label class="checks"><input type="checkbox" id="${id}" data-pref="${k}"${P[k] ? ' checked' : ''}> ${l}</label>`;
+  const sample = (P.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender', botanical: 'Lavandula angustifolia' }[P.labelMode] || 'Lav ang');
+  el.innerHTML = `<div class="calhead"><div><span class="lbl">Preferences</span><h2 id="prefsH">Preferences</h2></div>
+      <div class="row"><span class="note">${S.online ? 'Saved automatically and used for every garden.' : 'Not saved in this view.'}</span><button class="btn sm" type="button" data-act="resetPrefs">Reset to defaults</button></div></div>
+    <div class="prefgrid">
+      <fieldset class="pref"><legend>Plan labels</legend>
+        ${chk('pf-show', 'showLabels', 'Show plant and bed labels')}
+        <label class="field"><span>Label size</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-size" data-pref="labelSize" min="0.5" max="2" step="0.1" value="${P.labelSize}" style="flex:1;accent-color:var(--accent)"><output id="pf-size-v" style="min-width:3.5em;text-align:right">${Math.round(P.labelSize * 100)}%</output></span></label>
+        <label class="field"><span>Label text</span>${sel('pf-mode', 'labelMode', [['code', 'Short code (Lav ang)'], ['common', 'Common name'], ['botanical', 'Botanical name']])}</label>
+        ${chk('pf-qty', 'labelQty', 'Show quantity before the name')}
+        <div class="field"><span>Preview</span><div class="pv-sample"><span id="pf-sample" style="font-size:${Math.round(13 * P.labelSize)}px">${esc(sample)}</span></div></div>
+      </fieldset>
+      <fieldset class="pref"><legend>Plan display</legend>
+        ${chk('pf-grid', 'showGrid', 'Show grid')}
+        <label class="field"><span>Grid spacing</span>${sel('pf-step', 'gridStep', [['auto', 'Automatic'], ['0.5', '0.5 m'], ['1', '1 m'], ['2', '2 m'], ['5', '5 m']])}</label>
+        ${chk('pf-rulers', 'showRulers', 'Show measurements along the edges')}
+        ${chk('pf-scale', 'showScale', 'Show scale bar and north arrow')}
+      </fieldset>
+      <fieldset class="pref"><legend>Placing plants</legend>
+        <label class="field"><span>Snap to</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-snap" data-pref="snap" min="0.05" max="1" step="0.05" value="${clamp(num(P.snap, 0.1), 0.05, 1)}" style="flex:1;accent-color:var(--accent)"><output id="pf-snap-v" style="min-width:3.5em;text-align:right">${snapText(P.snap)}</output></span></label>
+        <p class="note" style="margin:0">Plants jump to this spacing when you place or drag them.</p>
+        <label class="field"><span>Plans open in</span>${sel('pf-view', 'defaultView', [['mature', 'Design intent (mature size)'], ['planted', 'As planted (pot size)']])}</label>
+      </fieldset>
+      <fieldset class="pref"><legend>Layer colours</legend>
+        <p class="note" style="margin:0">Used for plants, drifts and library dots in every garden. Flower colours are set per species.</p>
+        <div class="rolecols">${Object.entries({ ...ROLES, existing: 'Existing plants' }).map(([k, l]) => { const v = (P.roleColors || {})[k] || ROLE_DEFAULTS[k]; return `<label class="rolecol"><input type="color" id="pf-rc-${k}" data-pref-role="${k}" value="${v}"><span>${l}</span></label>`; }).join('')}</div>
+        <div class="row"><button class="btn sm" type="button" data-act="resetRoleCols">Reset colours</button></div>
+      </fieldset>
+      <fieldset class="pref"><legend>Plant schedule</legend>
+        <label class="field"><span>Currency</span>${sel('pf-cur', 'currency', [['£', '£ Pound'], ['€', '€ Euro'], ['$', '$ Dollar']])}</label>
+      </fieldset>
+    </div>`;
+}
+function snapText(v) { const c = Math.round(clamp(num(v, 0.1), 0.05, 1) * 100); return c >= 100 ? '1 m' : c + ' cm'; }
+let prefTimer = null;
+function savePrefs() {
+  if (!S.online) return;
+  clearTimeout(prefTimer);
+  prefTimer = setTimeout(async () => { try { await S.db.doc('settings/prefs').set({ ...S.prefs }); } catch (e) { setStatus('Couldn’t save preferences: ' + (e?.message || ''), true); } }, 500);
+}
+function setPref(k, v) {
+  S.prefs[k] = v; savePrefs();
+  if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
+  if (k === 'snap') { const o = $('pf-snap-v'); if (o) o.textContent = snapText(v); }
+  const smp = $('pf-sample');
+  if (smp) { smp.style.fontSize = Math.round(13 * S.prefs.labelSize) + 'px'; smp.textContent = (S.prefs.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender', botanical: 'Lavandula angustifolia' }[S.prefs.labelMode] || 'Lav ang'); }
+}
+function gardensUsing(id) {
+  const gs = S.gardens.map(g => (S.g && g.id === S.g.id) ? S.g : g);
+  if (S.g && !gs.some(g => g.id === S.g.id)) gs.push(S.g);
+  return gs.filter(g => g.plantings.some(x => x.plantId === id) || g.areas.some(x => x.plantId === id));
+}
+const DB = { q: '', layer: '', kind: '', sort: 'common', dir: 1 };
+function renderDatabase() {
+  const L = $('dbLayer');
+  if (!L.options.length) L.innerHTML = '<option value="">All layers</option>' + Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const q = DB.q.trim().toLowerCase();
+  const fm = p => p.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : '';
+  let rows = S.plants.map(p => ({ p, n: gardensUsing(p.id).length }))
+    .filter(({ p }) => (!DB.layer || p.role === DB.layer) && (!DB.kind || (DB.kind === 'existing') === !!p.existing))
+    .filter(({ p }) => !q || [p.common, p.botanical, p.cultivar, p.supplier, p.supply, ROLES[p.role], p.flowerColorName].join(' ').toLowerCase().includes(q));
+  const key = { common: r => (r.p.common || '').toLowerCase(), botanical: r => (r.p.botanical || '').toLowerCase(), layer: r => Object.keys(ROLES).indexOf(r.p.role), flower: r => +r.p.flowerFrom || 99, height: r => num(r.p.height), spread: r => num(r.p.spread), cost: r => r.p.existing ? -1 : num(r.p.cost), used: r => r.n }[DB.sort];
+  rows.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * DB.dir; });
+  const th = (k, l, n) => `<th${n ? ' class="n"' : ''}><button type="button" class="sortb" data-sort="${k}">${l}${DB.sort === k ? (DB.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`;
+  $('dbCount').textContent = `${rows.length} of ${S.plants.length} species`;
+  $('dbTable').innerHTML = !S.plants.length ? `<tbody><tr><td class="empty">${S.loaded ? 'No plants yet. Use Add species to start your database.' : 'Loading your plants…'}</td></tr></tbody>`
+    : !rows.length ? '<tbody><tr><td class="empty">No species match those filters.</td></tr></tbody>'
+    : `<thead><tr>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Supply</th><th>Supplier</th>${th('cost', 'Cost', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n }) => `<tr>
+      <td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
+      <td><i>${esc(p.botanical)}</i>${p.cultivar ? ` <i>${esc(p.cultivar)}</i>` : ''}</td>
+      <td>${esc(ROLES[p.role] || '')}</td>
+      <td>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || '')}"></span>` : ''}${fm(p)}</td>
+      <td class="n">${p.height != null && p.height !== '' ? num(p.height).toFixed(2) + ' m' : ''}</td><td class="n">${num(p.spread).toFixed(2)} m</td>
+      <td>${esc(p.existing ? 'on site' : p.supply || '')}</td><td>${esc(p.existing ? '' : p.supplier || '')}</td>
+      <td class="n">${p.existing ? '–' : money(num(p.cost))}</td>
+      <td class="n" title="${esc(gardensUsing(p.id).map(g => g.name).join(', '))}">${n || '–'}</td>
+      <td class="n"><button class="btn sm" type="button" data-edit="${p.id}">Edit</button></td></tr>`).join('')}</tbody>`;
+}
+function getPage() { const h = location.hash.slice(1); return ['flowering', 'schedule', 'preferences', 'database'].includes(h) ? h : 'plan'; }
+function applyPage() {
+  const pg = getPage(), plan = pg === 'plan';
+  document.querySelector('.app').classList.toggle('cal', !plan);
+  for (const sel of ['.toolbar', '.props', '.work']) document.querySelector(sel).hidden = !plan;
+  $('calView').hidden = pg !== 'flowering'; $('schedView').hidden = pg !== 'schedule'; $('prefsView').hidden = pg !== 'preferences'; $('dbView').hidden = pg !== 'database'; $('navDb').setAttribute('aria-pressed', pg === 'database'); if (pg !== 'database') $('plantModal').hidden = true;
+  $('navPlan').setAttribute('aria-pressed', plan); $('navSched').setAttribute('aria-pressed', pg === 'schedule'); $('navCal').setAttribute('aria-pressed', pg === 'flowering'); $('navPrefs').setAttribute('aria-pressed', pg === 'preferences');
+  if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'database') { renderDatabase(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
+}
+function renderAll() { if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
+function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
+function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
+
+/* ---------- plan underlay import ---------- */
+function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('The PDF reader could not load. Check your connection, or export the plan as SVG or PNG.')); document.head.appendChild(s); }); }
+function canvasBlob(c) {
+  return new Promise(res => c.toBlob(b => {
+    if (b && b.size < 19.5e6) return res(b);
+    c.toBlob(j => res(j), 'image/jpeg', 0.85);
+  }, 'image/png'));
+}
+function rasterSize(w, h) { const k = Math.min(6000 / Math.max(w, h), Math.sqrt(32e6 / (w * h))); return { w: Math.max(1, Math.round(w * k)), h: Math.max(1, Math.round(h * k)) }; }
+async function pdfToImage(file) {
+  const base = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  if (!window.pdfjsLib) { await loadScript(base + 'pdf.min.js'); await loadScript(base + 'pdf.worker.min.js'); }
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.js';
+  const doc = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
+  const page = await doc.getPage(1);
+  const v1 = page.getViewport({ scale: 1 });
+  const { w } = rasterSize(v1.width, v1.height);
+  const vp = page.getViewport({ scale: w / v1.width });
+  const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  return { blob: await canvasBlob(c), type: 'image', natW: c.width, natH: c.height, note: doc.numPages > 1 ? `Used page 1 of ${doc.numPages}.` : '' };
+}
+async function svgPrepare(file) {
+  const text = await file.text();
+  const docx = new DOMParser().parseFromString(text, 'image/svg+xml');
+  const root = docx.documentElement;
+  if (!root || root.nodeName.toLowerCase() !== 'svg' || docx.querySelector('parsererror')) throw new Error('This SVG file could not be read.');
+  const vb = (root.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+  let natW = vb.length === 4 && vb[2] > 0 ? vb[2] : parseFloat(root.getAttribute('width')) || 1000;
+  let natH = vb.length === 4 && vb[3] > 0 ? vb[3] : parseFloat(root.getAttribute('height')) || 1000;
+  if (!(vb.length === 4 && vb[2] > 0)) root.setAttribute('viewBox', `0 0 ${natW} ${natH}`);
+  root.setAttribute('preserveAspectRatio', 'none');
+  const out = new XMLSerializer().serializeToString(docx);
+  const needsRaster = /<style[\s>]/i.test(out) || /href\s*=\s*["']data:/i.test(out) || /<foreignObject/i.test(out) || /class\s*=/.test(out) && /<style/i.test(out) || out.length > 1.9e6;
+  if (!needsRaster) return { blob: new Blob([out], { type: 'image/svg+xml' }), type: 'svg', natW, natH, note: '' };
+  // keep its look: draw it to a high-resolution image instead
+  const { w, h } = rasterSize(natW, natH);
+  root.setAttribute('width', w); root.setAttribute('height', h);
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(docx)], { type: 'image/svg+xml' }));
+  try {
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('This SVG could not be drawn. Try exporting it as PDF.')); img.src = url; });
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+    return { blob: await canvasBlob(c), type: 'image', natW, natH, note: 'Converted to a high-resolution image to keep its styling.' };
+  } finally { URL.revokeObjectURL(url); }
+}
+async function imagePrepare(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('This image could not be read.')); img.src = url; });
+    return { blob: file, type: 'image', natW: img.naturalWidth, natH: img.naturalHeight, note: '' };
+  } finally { URL.revokeObjectURL(url); }
+}
+async function importPlan(file) {
+  if (!file || !S.g) return;
+  const name = file.name || 'plan';
+  const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(name);
+  const isSvg = /svg/i.test(file.type) || /\.svg$/i.test(name);
+  if (!isPdf && !isSvg && !/^image\/(png|jpeg|webp)$/.test(file.type)) { setStatus('Use an SVG, PDF, PNG or JPEG plan. Export DWG/DXF drawings from your CAD app as PDF or SVG.', true); return; }
+  S.busy = true; renderTools(); setStatus('Reading plan…');
+  try {
+    const prep = isPdf ? await pdfToImage(file) : isSvg ? await svgPrepare(file) : await imagePrepare(file);
+    let assetId = null;
+    if (S.assets) {
+      setStatus('Uploading plan…');
+      const res = await S.assets.upload(prep.blob, { type: prep.blob.type || (prep.type === 'svg' ? 'image/svg+xml' : 'image/png') });
+      assetId = res.id;
+    } else {
+      if (S.localUl) URL.revokeObjectURL(S.localUl);
+      S.localUl = URL.createObjectURL(prep.blob);
+    }
+    checkpoint();
+    const fitW = S.g.width || 10;
+    const mPerPx = fitW / prep.natW;
+    S.g.underlay = { assetId, kind: prep.type, name, natW: prep.natW, natH: prep.natH, mPerPx, opacity: S.g.underlay?.opacity ?? 0.6, calibrated: false };
+    S.g.width = r2(prep.natW * mPerPx); S.g.depth = r2(prep.natH * mPerPx);
+    S.ulHidden = false; resetView(); saveGarden();
+    S.tool = 'scale'; S.cal = { a: null, b: null }; S.sel = null;
+    setStatus(S.online ? 'Plan imported. ' + prep.note : 'Plan shown but not saved in this view');
+    renderAll();
+  } catch (e) {
+    const m = e?.code === 'too_large' ? 'That plan is too large to store (20 MB limit). Export it at a lower resolution.' : e?.code === 'quota_or_state' ? 'Plan storage is full. Remove plans from old gardens first.' : (e?.message || 'The plan could not be imported.');
+    setStatus(m, true);
+  } finally { S.busy = false; renderTools(); }
+}
+function applyScale(real) {
+  const a = S.cal.a, b = S.cal.b, cur = Math.hypot(b.x - a.x, b.y - a.y);
+  if (!(real > 0) || !(cur > 0)) return;
+  const k = real / cur;
+  checkpoint();
+  const g = S.g;
+  if (g.underlay) { g.underlay.mPerPx *= k; g.underlay.calibrated = true; }
+  g.width = r2(g.width * k); g.depth = r2(g.depth * k);
+  for (const pl of g.plantings) { pl.x = r2(pl.x * k); pl.y = r2(pl.y * k); }
+  for (const ar of g.areas) ar.pts = ar.pts.map(([x, y]) => [r2(x * k), r2(y * k)]);
+  S.cal = null; S.tool = 'select'; resetView(); saveGarden();
+  setStatus(`Scale set. The plan is ${g.width} × ${g.depth} m.`);
+  renderAll();
+}
+
+/* ---------- map interaction ---------- */
+function toXY(x, y) { const pt = svg.createSVGPoint(); pt.x = x; pt.y = y; const m = svg.getScreenCTM(); return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 }; }
+function toM(e) { return toXY(e.clientX, e.clientY); }
+const ZMIN = 0.6, ZMAX = 16;
+function resetView() { S.zoom = 1; S.cx = null; S.cy = null; }
+function zoomAt(factor, x, y) {
+  if (!S.g) return;
+  const z = clamp(S.zoom * factor, ZMIN, ZMAX); if (z === S.zoom) return;
+  const before = toXY(x, y); S.zoom = z; renderMap();
+  const after = toXY(x, y); S.cx += before.x - after.x; S.cy += before.y - after.y; renderMap();
+}
+function zoomBy(f) { const r = svg.getBoundingClientRect(); zoomAt(f, r.left + r.width / 2, r.top + r.height / 2); }
+function pxPerM() { return svg.getScreenCTM()?.a || 1; }
+const ptrs = new Map();
+function startPan(e, deselect) { S.drag = { pan: true, sx: e.clientX, sy: e.clientY, cx: S.cx, cy: S.cy, moved: false, deselect }; }
+function cancelDrag() {
+  const d = S.drag; if (!d) return;
+  if (d.placed) { S.history.pop(); S.g.plantings = S.g.plantings.filter(x => x.id !== d.placed); S.sel = null; }
+  else if (d.moved && d.before) { S.g = JSON.parse(d.before); }
+  S.drag = null; svg.classList.remove('panning'); renderInspector(); refreshDerived();
+}
+function startPinch() {
+  cancelDrag();
+  if (S.draw && S.draw.pts.length) S.draw.pts.pop();
+  const [a, b] = [...ptrs.values()];
+  S.pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: S.zoom, anchor: toXY((a.x + b.x) / 2, (a.y + b.y) / 2) };
+}
+function movePinch() {
+  const [a, b] = [...ptrs.values()];
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+  S.zoom = clamp(S.pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / S.pinch.d0, ZMIN, ZMAX);
+  renderMap(); const now = toXY(mx, my);
+  S.cx += S.pinch.anchor.x - now.x; S.cy += S.pinch.anchor.y - now.y; renderMap();
+}
+function finishDraw() {
+  const d = S.draw; if (!d) return;
+  const pts = [];
+  for (const p of d.pts) { const q = pts[pts.length - 1]; if (!q || Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.05) pts.push(p); }
+  if (pts.length > 3 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 0.05) pts.pop();
+  S.draw = null; S.hover = null;
+  if (pts.length < 3) { renderTools(); renderMap(); return; }
+  checkpoint();
+  const a = { id: uid(), kind: d.kind, pts, smooth: true };
+  if (d.kind === 'drift') { a.plantId = d.plantId; a.density = defaultDensity(plantById(d.plantId)); }
+  if (d.kind === 'bed') a.label = '';
+  if (d.kind === 'zone') { a.light = 'part'; a.moisture = ''; }
+  S.g.areas.push(a); S.sel = { kind: 'area', id: a.id };
+  saveGarden(); renderTools(); renderInspector(); refreshDerived();
+}
+svg.addEventListener('pointerdown', e => {
+  if (!S.g) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { svg.setPointerCapture(e.pointerId); } catch {}
+  if (ptrs.size === 2) { startPinch(); return; }
+  if (ptrs.size > 2) return;
+  if (e.button === 1 || S.space) { e.preventDefault(); startPan(e, false); return; }
+  if (e.button > 0) return;
+  const p = toM(e), sp = { x: snap(p.x), y: snap(p.y) };
+  const hit = e.target.closest('[data-kind]');
+  const tool = S.tool;
+  if (tool === 'scale') {
+    if (!S.cal || S.cal.b) S.cal = { a: null, b: null };
+    if (!S.cal.a) S.cal.a = { x: p.x, y: p.y }; else S.cal.b = { x: p.x, y: p.y };
+    renderTools(); renderInspector(); renderMap(); return;
+  }
+  if (tool === 'drift' || tool === 'bed' || tool === 'zone') {
+    if (tool === 'drift' && !S.activePlant) { renderTools(); return; }
+    const pt = [r2(p.x), r2(p.y)];
+    if (!S.draw) { S.draw = { kind: tool, pts: [pt], plantId: S.activePlant }; select(null); }
+    else {
+      const f = S.draw.pts[0];
+      if (S.draw.pts.length >= 3 && Math.hypot(f[0] - pt[0], f[1] - pt[1]) * pxPerM() < 10) { finishDraw(); return; }
+      S.draw.pts.push(pt);
+    }
+    renderTools(); renderMap(); return;
+  }
+  if (tool === 'select' || (tool === 'plant' && hit && !S.activePlant)) {
+    if (!hit) { startPan(e, true); return; }
+    const kind = hit.dataset.kind, id = hit.dataset.id;
+    if (kind === 'handle') { S.drag = { handle: true, id, i: +hit.dataset.i, moved: false, before: JSON.stringify(S.g) }; return; }
+    select(kind, id);
+    const it = findSel(); if (!it) return;
+    S.drag = { move: true, kind, start: p, orig: kind === 'area' ? it.pts.map(q => q.slice()) : { x: it.x, y: it.y }, moved: false, before: JSON.stringify(S.g) };
+    return;
+  }
+  if (tool === 'plant') {
+    if (!S.activePlant) { renderTools(); return; }
+    checkpoint();
+    const pl = { id: uid(), plantId: S.activePlant, x: sp.x, y: sp.y, qty: 1 };
+    S.g.plantings.push(pl);
+    S.sel = { kind: 'planting', id: pl.id };
+    S.drag = { move: true, kind: 'planting', start: p, orig: { x: pl.x, y: pl.y }, moved: true, placed: pl.id };
+    renderInspector(); refreshDerived();
+  }
+});
+svg.addEventListener('pointermove', e => {
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (S.pinch) { if (ptrs.size >= 2) movePinch(); return; }
+  const d = S.drag;
+  if (!d) {
+    if (S.draw || (S.cal?.a && !S.cal.b)) { const p = toM(e); S.hover = { x: r2(p.x), y: r2(p.y) }; renderMapSoon(); }
+    return;
+  }
+  if (d.pan) {
+    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return;
+    d.moved = true; svg.classList.add('panning');
+    const k = pxPerM(); S.cx = d.cx - (e.clientX - d.sx) / k; S.cy = d.cy - (e.clientY - d.sy) / k;
+    renderMapSoon(); return;
+  }
+  const p = toM(e);
+  if (d.handle) {
+    const a = S.g.areas.find(x => x.id === d.id); if (!a) return;
+    if (!d.moved) { S.history.push(d.before); d.moved = true; }
+    a.pts[d.i] = [r2(p.x), r2(p.y)]; renderMapSoon(); return;
+  }
+  if (d.move) {
+    const it = findSel(); if (!it) return;
+    const dx = p.x - d.start.x, dy = p.y - d.start.y;
+    if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
+    if (!d.moved && d.before) S.history.push(d.before);
+    d.moved = true;
+    if (d.kind === 'area') it.pts = d.orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
+    else { it.x = snap(d.orig.x + dx); it.y = snap(d.orig.y + dy); }
+    renderMapSoon();
+  }
+});
+function endDrag() {
+  const d = S.drag; if (!d) return;
+  S.drag = null;
+  if (d.pan) { svg.classList.remove('panning'); if (!d.moved && d.deselect) select(null); return; }
+  if (d.moved) { saveGarden(); renderInspector(); }
+  refreshDerived();
+}
+function onUp(e) { ptrs.delete(e.pointerId); if (S.pinch) { if (ptrs.size < 2) S.pinch = null; return; } endDrag(); }
+svg.addEventListener('pointerup', onUp);
+svg.addEventListener('pointercancel', onUp);
+svg.addEventListener('pointerleave', () => { if (S.hover && !S.drag) { S.hover = null; renderMapSoon(); } });
+svg.addEventListener('dblclick', e => { if (S.draw) { e.preventDefault(); finishDraw(); } });
+svg.addEventListener('wheel', e => {
+  if (!S.g) return;
+  e.preventDefault();
+  if (e.ctrlKey) { zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); return; }
+  const k = pxPerM(), unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? svg.clientHeight : 1;
+  const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * unit, dy = (e.shiftKey && !e.deltaX ? 0 : e.deltaY) * unit;
+  S.cx += dx / k; S.cy += dy / k; renderMapSoon();
+}, { passive: false });
+
+/* ---------- controls ---------- */
+function setTool(t) {
+  if (S.draw && t !== S.tool) finishDraw();
+  if (t !== 'scale') S.cal = null; else S.cal = { a: null, b: null };
+  S.tool = t; S.hover = null; renderTools(); renderInspector(); renderMap();
+}
+$('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
+$('lib').addEventListener('click', e => {
+  const ed = e.target.closest('[data-edit]'); if (ed) { openPlantEditor(ed.dataset.edit); return; }
+  const li = e.target.closest('[data-pid]'); if (!li) return;
+  S.activePlant = li.dataset.pid;
+  if (S.tool !== 'drift' && S.tool !== 'plant') S.tool = 'plant';
+  if (S.draw) S.draw.plantId = S.activePlant;
+  renderTools(); renderLibrary();
+});
+$('lib').addEventListener('dblclick', e => { const li = e.target.closest('[data-pid]'); if (li) openPlantEditor(li.dataset.pid); });
+$('libSearch').addEventListener('input', e => { S.filter = e.target.value; renderLibrary(); });
+$('addPlantBtn').addEventListener('click', () => openPlantEditor(null));
+function openPlantEditor(id) {
+  const p = id ? plantById(id) : null;
+  S.editPlant = p ? JSON.parse(JSON.stringify(p)) : { id: uid(), _new: true, common: '', botanical: '', role: 'herbaceous', spread: 0.5, potSpread: 0.2, height: 0.5, light: ['sun'], moisture: ['moist'], cost: 0 };
+  S.confirm = null; renderLibrary();
+  setTimeout(() => $('sp-common')?.focus(), 0);
+}
+$('ulImport').addEventListener('click', () => $('ulFile').click());
+$('ulFile').addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; importPlan(f); });
+$('ulScale').addEventListener('click', () => setTool(S.tool === 'scale' ? 'select' : 'scale'));
+$('ulToggle').addEventListener('click', () => { S.ulHidden = !S.ulHidden; renderTools(); renderMap(); });
+let opTimer = null;
+$('ulOpacity').addEventListener('input', e => {
+  const u = S.g?.underlay; if (!u) return;
+  u.opacity = clamp(num(e.target.value, 60) / 100, 0.1, 1); renderMapSoon();
+  clearTimeout(opTimer); opTimer = setTimeout(saveGarden, 300);
+});
+$('ulRemove').addEventListener('click', () => { S.confirm = 'underlay'; renderInspector(); });
+
+const app = document.body;
+let fieldCheckpointed = false;
+app.addEventListener('focusin', () => { fieldCheckpointed = false; });
+app.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.g) {
+    if (!S.g) return;
+    if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
+    const k = t.dataset.g;
+    S.g[k] = (k === 'width' || k === 'depth') ? clamp(num(t.value, S.g[k]), 1, 500) : t.value;
+    if (k === 'width' || k === 'depth') resetView();
+    saveGarden(); refreshDerived(); if (k === 'name') renderPicker(); return;
+  }
+  if (t.dataset.pb) { S.editPlant[t.dataset.pb] = t.checked; renderLibrary(); setTimeout(() => $('sp-existing')?.focus(), 0); return; }
+  if (t.dataset.prefRole) {
+    S.prefs.roleColors = { ...(S.prefs.roleColors || {}), [t.dataset.prefRole]: t.value };
+    applyRoleColours(); savePrefs(); return;
+  }
+  if (t.dataset.pref) {
+    const k = t.dataset.pref;
+    const v = t.type === 'checkbox' ? t.checked : t.type === 'range' ? num(t.value, 1) : t.value;
+    setPref(k, v); return;
+  }
+  if (t.dataset.p === 'flowerColor') { S.editPlant.flowerColor = t.value; S.editPlant.flowerColorName = 'Custom colour'; markSwatches(); return; }
+  if (t.dataset.p) { const k = t.dataset.p; S.editPlant[k] = t.type === 'number' ? (t.value === '' ? null : num(t.value)) : (k === 'flowerFrom' || k === 'flowerTo') ? (t.value ? +t.value : null) : t.value; return; }
+  if (t.dataset.arr) { const k = t.dataset.arr; S.editPlant[k] = [...app.querySelectorAll(`[data-arr="${k}"]:checked`)].map(x => x.value); return; }
+  if (t.dataset.f) {
+    const it = findSel(); if (!it) return;
+    if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
+    const k = t.dataset.f;
+    if (k === 'qty') it.qty = clamp(Math.round(num(t.value, 1)), 1, 500);
+    else if (k === 'density') it.density = clamp(num(t.value, it.density), 0.1, 100);
+    else if (k === 'smooth') it.smooth = t.checked;
+    else if (k === 'height' || k === 'spread') it[k] = t.value === '' ? null : Math.max(0, num(t.value));
+    else it[k] = t.value;
+    if (k === 'plantId' && it.kind === 'drift') it.density = defaultDensity(plantById(it.plantId));
+    saveGarden(); refreshDerived();
+    if (k === 'plantId' || k === 'smooth') renderInspector();
+    else if (k === 'density') { const q = $('inspector').querySelector('.pv b'); if (q) q.textContent = driftQty(it); }
+  }
+});
+app.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'cal-m') { e.preventDefault(); applyScale(num(e.target.value)); } });
+function markSwatches() {
+  const p = S.editPlant; if (!p) return;
+  for (const b of app.querySelectorAll('[data-color]')) b.setAttribute('aria-pressed', (p.flowerColor || '').toLowerCase() === b.dataset.color.toLowerCase());
+  const n = $('colName'); if (n) n.innerHTML = p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}"></span>${esc(p.flowerColorName || 'Custom colour')}` : 'No colour chosen';
+}
+app.addEventListener('click', e => {
+  const sw = e.target.closest('[data-color]'); if (!sw || !S.editPlant) return;
+  S.editPlant.flowerColor = sw.dataset.color; S.editPlant.flowerColorName = sw.dataset.cname;
+  const c = $('sp-col'); if (c) c.value = sw.dataset.color.toLowerCase();
+  if (!app.querySelector('[data-act=clearColour]')) renderLibrary(); else markSwatches();
+});
+app.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'delete') removeSel();
+  if (act === 'resetPrefs') { S.prefs = { ...PREF_DEFAULTS, roleColors: {} }; applyRoleColours(); savePrefs(); renderPrefs(); }
+  if (act === 'resetRoleCols') { S.prefs.roleColors = {}; applyRoleColours(); savePrefs(); renderPrefs(); }
+  if (act === 'clearColour') { S.editPlant.flowerColor = null; S.editPlant.flowerColorName = null; renderLibrary(); }
+  if (act === 'editSpecies') { const it = findSel(); if (it?.plantId) openPlantEditor(it.plantId); }
+  if (act === 'calApply') applyScale(num($('cal-m')?.value));
+  if (act === 'calCancel') setTool('select');
+  if (act === 'ulRemoveNo') { S.confirm = null; renderInspector(); }
+  if (act === 'ulRemoveYes') {
+    const u = S.g.underlay; S.confirm = null;
+    S.g.underlay = null; S.history = []; saveGarden();
+    if (u?.assetId && S.assets) { try { await S.assets.delete(u.assetId); } catch {} }
+    if (S.localUl) { URL.revokeObjectURL(S.localUl); S.localUl = null; }
+    if (S.tool === 'scale') S.tool = 'select';
+    renderAll();
+  }
+  if (act === 'cancelPlant') { S.editPlant = null; S.confirm = null; renderLibrary(); }
+  if (act === 'askDeletePlant') { S.confirm = 'plant'; renderLibrary(); }
+  if (act === 'cancelConfirm') { S.confirm = null; renderLibrary(); }
+  if (act === 'deletePlant') {
+    const id = S.editPlant.id;
+    if (S.online) { try { await S.db.doc('plants/' + id).delete(); } catch (err) { $('plantErr').textContent = 'Couldn’t delete: ' + (err?.message || 'try again'); return; } }
+    S.plants = S.plants.filter(p => p.id !== id); if (S.activePlant === id) S.activePlant = null;
+    S.editPlant = null; S.confirm = null; renderAll();
+  }
+  if (act === 'savePlant') {
+    const p = S.editPlant;
+    if (!(p.common || '').trim()) { $('plantErr').textContent = 'Give the species a common name.'; return; }
+    if (!(num(p.spread) > 0)) { $('plantErr').textContent = 'Mature spread must be more than 0 m.'; return; }
+    const body = { ...p }; delete body._new; delete body.id; delete body.example;
+    if (S.online) { b.disabled = true; try { await S.db.doc('plants/' + p.id).set(body); } catch (err) { b.disabled = false; $('plantErr').textContent = 'Couldn’t save: ' + (err?.message || 'try again'); return; } }
+    const i = S.plants.findIndex(x => x.id === p.id), rec = { id: p.id, ...body };
+    if (i >= 0) S.plants[i] = rec; else S.plants.push(rec);
+    S.editPlant = null; S.activePlant = p.id; if (S.tool !== 'drift') S.tool = 'plant'; renderAll();
+  }
+});
+$('vMature').addEventListener('click', () => { S.view = 'mature'; renderAll(); });
+$('vPlanted').addEventListener('click', () => { S.view = 'planted'; renderAll(); });
+$('undoBtn').addEventListener('click', undo);
+$('zIn').addEventListener('click', () => zoomBy(1.4));
+$('zOut').addEventListener('click', () => zoomBy(1 / 1.4));
+$('zFit').addEventListener('click', () => { resetView(); renderMap(); });
+$('gardenSel').addEventListener('change', e => openGarden(e.target.value));
+$('newGardenBtn').addEventListener('click', () => { S.newGarden = true; renderOverlay(); });
+$('overlay').addEventListener('click', e => { if (e.target.id === 'ngCancel') { S.newGarden = false; renderOverlay(); } });
+$('overlay').addEventListener('submit', async e => {
+  e.preventDefault();
+  const file = $('ng-file').files?.[0];
+  const g = { id: uid(), name: $('ng-name').value.trim() || 'Untitled garden', client: $('ng-client').value.trim(), width: clamp(num($('ng-w').value, 10), 1, 500), depth: clamp(num($('ng-d').value, 8), 1, 500), underlay: null, areas: [], plantings: [], updatedAt: Date.now() };
+  if (S.online) { const body = { ...g }; delete body.id; try { await S.db.doc('gardens/' + g.id).set(body); } catch (err) { setStatus('Couldn’t create garden: ' + (err?.message || ''), true); return; } setStatus('Saved'); }
+  S.gardens.push(g); S.newGarden = false; S.g = JSON.parse(JSON.stringify(g)); S.history = []; S.sel = null; store.set('gpm.last', g.id); resetView();
+  S.tool = 'select'; renderAll();
+  if (file) importPlan(file);
+});
+$('copyBtn').addEventListener('click', async () => {
+  const rows = scheduleRows();
+  const lines = [['Botanical name', 'Common name', 'Layer', 'Qty', 'Supply', 'Unit cost', 'Line total', 'Supplier'].join('\t')]
+    .concat(rows.map(r => [r.p?.botanical || '', r.p?.common || '', ROLES[r.p?.role] || '', r.qty, r.p?.supply || '', num(r.p?.cost).toFixed(2), (num(r.p?.cost) * r.qty).toFixed(2), r.p?.supplier || ''].join('\t')));
+  const text = lines.join('\n'), b = $('copyBtn');
+  try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; }
+  catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch { b.textContent = 'Copy failed'; } ta.remove(); }
+  setTimeout(() => { b.textContent = 'Copy for spreadsheet'; }, 1600);
+});
+document.addEventListener('keyup', e => { if (e.key === ' ') { S.space = false; svg.classList.remove('can-pan'); } });
+window.addEventListener('blur', () => { S.space = false; svg.classList.remove('can-pan'); });
+function plural(n, w) { return `${n} ${w}${n === 1 ? '' : 's'}`; }
+function openClear() {
+  if (!S.g) return;
+  const plants = S.g.plantings.reduce((t, x) => t + (x.qty || 1), 0), drifts = S.g.areas.filter(a => a.kind === 'drift').length, beds = S.g.areas.filter(a => a.kind === 'bed').length;
+  const parts = [plants && plural(plants, 'plant'), drifts && plural(drifts, 'drift'), beds && plural(beds, 'bed outline')].filter(Boolean);
+  $('clearMsg').innerHTML = `This removes ${esc(parts.join(', ').replace(/, ([^,]*)$/, ' and $1'))} from <b>${esc(S.g.name)}</b>. ${S.g.underlay ? 'Your imported site plan stays. ' : ''}If you change your mind, press Undo straight afterwards.`;
+  $('clearModal').hidden = false; $('clearNo').focus();
+}
+function closeClear() { $('clearModal').hidden = true; $('clearBtn').focus(); }
+$('clearBtn').addEventListener('click', openClear);
+$('clearNo').addEventListener('click', closeClear);
+$('clearModal').addEventListener('click', e => { if (e.target.id === 'clearModal') closeClear(); });
+$('clearYes').addEventListener('click', () => {
+  checkpoint();
+  S.g.plantings = []; S.g.areas = []; S.sel = null; S.draw = null; S.hover = null;
+  saveGarden(); closeClear(); renderAll();
+  setStatus('Plan cleared. Press Undo to bring it back.');
+});
+document.addEventListener('keydown', e => {
+  if (!$('plantModal').hidden && e.key === 'Escape') { S.editPlant = null; S.confirm = null; renderLibrary(); return; }
+  if (!$('clearModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeClear(); } return; }
+  const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
+  if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (S.draw) {
+    if (e.key === 'Enter') { e.preventDefault(); finishDraw(); return; }
+    if (e.key === 'Escape') { S.draw = null; S.hover = null; renderTools(); renderMap(); return; }
+    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); S.draw.pts.pop(); if (!S.draw.pts.length) S.draw = null; renderTools(); renderMap(); return; }
+  }
+  if (e.key === '+' || e.key === '=') { zoomBy(1.4); return; }
+  if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
+  if (e.key === '0') { resetView(); renderMap(); return; }
+  if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setTool('select'); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel) { e.preventDefault(); removeSel(); } return; }
+  if (e.key === 'Escape') { setTool('select'); select(null); return; }
+  const t = TOOLS.find(x => x.key.toLowerCase() === e.key.toLowerCase()); if (t) setTool(t.id);
+});
+
+/* ---------- data ---------- */
+function normGarden(id, d) {
+  return { id, name: d.name || 'Untitled garden', client: d.client || '', width: num(d.width, 10), depth: num(d.depth, 8),
+    underlay: d.underlay && d.underlay.natW ? d.underlay : null,
+    areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind !== 'zone' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
+    plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example };
+}
+function openGarden(id) {
+  if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
+  const g = S.gardens.find(x => x.id === id); if (!g) return;
+  S.g = JSON.parse(JSON.stringify(g)); S.history = []; S.sel = null; S.draw = null; S.cal = null; S.confirm = null;
+  if (S.tool === 'scale') S.tool = 'select';
+  store.set('gpm.last', id); resetView(); renderAll();
+}
+async function init() {
+  renderAll();
+  const use = n => (window.claude?.use ? window.claude.use(n).catch(() => null) : Promise.resolve(null));
+  const [db, assets] = await Promise.all([use('db'), use('assets')]);
+  S.assets = assets;
+  if (!db) { S.loaded = true; S.online = false; setStatus('Not saved in this view'); renderAll(); return; }
+  S.db = db; S.online = true; setStatus('Loading…');
+  let gotPlants = false, gotGardens = false;
+  const ready = () => { if (gotPlants && gotGardens && !S.loaded) { S.loaded = true; setStatus(S.assets ? 'Saved' : 'Saved · plan import needs edit access'); renderAll(); } };
+  db.doc('settings/prefs').onSnapshot(snap => {
+    if (prefTimer) return;
+    const first = !S.prefsLoaded; S.prefsLoaded = true;
+    S.prefs = { ...PREF_DEFAULTS, ...(snap.exists ? snap.data() : {}) };
+    if (first) S.view = S.prefs.defaultView === 'planted' ? 'planted' : 'mature';
+    applyRoleColours();
+    if (getPage() === 'preferences' && !document.activeElement?.dataset?.pref) renderPrefs();
+    if (S.loaded) renderAll();
+  }, () => {});
+  db.collection('plants').onSnapshot(snap => {
+    S.plants = snap.docs.map(d => { const x = { id: d.id, ...d.data() }; x.role = layerOf(x.role); return x; });
+    gotPlants = true;
+    if (S.loaded) { if (!S.editPlant) renderLibrary(); refreshDerived(); if (S.sel) renderInspector(); renderTools(); }
+    ready();
+  }, err => setStatus('Plant library unavailable: ' + (err?.message || ''), true));
+  db.collection('gardens').onSnapshot(snap => {
+    S.gardens = snap.docs.map(d => normGarden(d.id, d.data())).sort((a, b) => a.name.localeCompare(b.name));
+    gotGardens = true;
+    if (!S.g) {
+      const last = store.get('gpm.last');
+      const pick = S.gardens.find(g => g.id === last) || S.gardens.find(g => !g.example) || S.gardens[0];
+      if (pick) S.g = JSON.parse(JSON.stringify(pick));
+      if (S.loaded) renderAll();
+    } else if (!busy() && !snap.metadata.hasPendingWrites) {
+      const remote = S.gardens.find(g => g.id === S.g.id);
+      if (remote && remote.updatedAt > (S.g.updatedAt || 0)) { S.g = JSON.parse(JSON.stringify(remote)); if (S.sel && !findSel()) S.sel = null; renderAll(); }
+      else renderPicker();
+    } else renderPicker();
+    ready();
+  }, err => setStatus('Gardens unavailable: ' + (err?.message || ''), true));
+}
+$('navPlan').addEventListener('click', () => { location.hash = 'plan'; });
+$('navCal').addEventListener('click', () => { location.hash = 'flowering'; });
+$('navSched').addEventListener('click', () => { location.hash = 'schedule'; });
+$('navPrefs').addEventListener('click', () => { location.hash = 'preferences'; });
+$('navDb').addEventListener('click', () => { location.hash = 'database'; });
+$('dbSearch').addEventListener('input', e => { DB.q = e.target.value; renderDatabase(); });
+$('dbLayer').addEventListener('change', e => { DB.layer = e.target.value; renderDatabase(); });
+$('dbKind').addEventListener('change', e => { DB.kind = e.target.value; renderDatabase(); });
+$('dbAdd').addEventListener('click', () => openPlantEditor(null));
+$('dbTable').addEventListener('click', e => {
+  const sb = e.target.closest('[data-sort]'); if (sb) { const k = sb.dataset.sort; DB.dir = DB.sort === k ? -DB.dir : 1; DB.sort = k; renderDatabase(); return; }
+  const ed = e.target.closest('[data-edit]'); if (ed) openPlantEditor(ed.dataset.edit);
+});
+$('plantModal').addEventListener('click', e => { if (e.target.id === 'plantModal') { S.editPlant = null; S.confirm = null; renderLibrary(); } });
+$('dbCopy').addEventListener('click', async () => {
+  const head = ['Common name', 'Botanical name', 'Cultivar / rootstock', 'Layer', 'Existing', 'Flowers from', 'Flowers to', 'Flower colour', 'Height (m)', 'Spread (m)', 'Spread as planted (m)', 'Supply', 'Unit cost', 'Supplier', 'Gardens used in'];
+  const lines = [head.join('\t')].concat(S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(p => [p.common, p.botanical, p.cultivar, ROLES[p.role], p.existing ? 'Yes' : 'No', p.flowerFrom ? MONTHS[p.flowerFrom - 1] : '', p.flowerTo ? MONTHS[p.flowerTo - 1] : '', p.flowerColorName || '', p.height ?? '', p.spread ?? '', p.potSpread ?? '', p.supply, p.existing ? '' : num(p.cost).toFixed(2), p.supplier, gardensUsing(p.id).length].map(v => String(v ?? '').replace(/[\t\n]/g, ' ')).join('\t')));
+  const text = lines.join('\n'), b = $('dbCopy');
+  try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; }
+  catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch { b.textContent = 'Copy failed'; } ta.remove(); }
+  setTimeout(() => { b.textContent = 'Copy all for spreadsheet'; }, 1600);
+});
+window.addEventListener('hashchange', applyPage);
+applyPage();
+init();
+})();
+</script>
