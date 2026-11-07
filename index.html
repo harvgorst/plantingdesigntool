@@ -193,6 +193,14 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .lrow { display: grid; grid-template-columns: auto 14px 1fr auto; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
 .lrow:hover { background: var(--paper); }
 .lrow .n { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.subtabs { align-self: end; }
+.avbar { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 14px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 10px; }
+.dbt td.ck, .dbt th.ck { width: 28px; }
+.mine-tag { font-size: 11px; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+.mapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 14px; }
+.mapgrid label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.mapgrid label > span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.preview td, .preview th { white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .rolecols { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px 12px; }
 .rolecol { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
 .rolecol input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); flex: none; }
@@ -283,12 +291,33 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
   <section class="calview" id="prefsView" hidden aria-labelledby="prefsH"></section>
 
   <section class="calview" id="dbView" hidden aria-labelledby="dbH">
-    <div class="calhead"><div><span class="lbl">Plant database</span><h2 id="dbH">Every plant you’ve entered</h2></div>
-      <div class="row"><span class="note" id="dbCount"></span><button class="btn sm" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div></div>
-    <div class="row"><input type="text" id="dbSearch" placeholder="Search common or botanical name, supplier…" aria-label="Search the plant database" style="flex:1;min-width:200px;max-width:420px">
-      <select id="dbLayer" aria-label="Filter by layer"></select>
-      <select id="dbKind" aria-label="New or existing plants"><option value="">New and existing</option><option value="new">New plants only</option><option value="existing">Existing plants only</option></select></div>
-    <div style="overflow-x:auto"><table class="sched wide dbt" id="dbTable"></table></div>
+    <div class="calhead"><div><span class="lbl">Plant database</span><h2 id="dbH">Plants</h2></div>
+      <nav class="tabs subtabs" aria-label="Plant database views"><button type="button" id="dbTabMine" aria-pressed="true">My plants</button><button type="button" id="dbTabAvail" aria-pressed="false">Supplier availability</button></nav></div>
+    <div id="dbMine" style="display:flex;flex-direction:column;gap:14px">
+      <div class="row"><input type="text" id="dbSearch" placeholder="Search common or botanical name, supplier…" aria-label="Search the plant database" style="flex:1;min-width:200px;max-width:420px">
+        <select id="dbLayer" aria-label="Filter by layer"></select>
+        <select id="dbKind" aria-label="New or existing plants"><option value="">New and existing</option><option value="new">New plants only</option><option value="existing">Existing plants only</option></select>
+        <span class="spacer"></span><span class="note" id="dbCount"></span><button class="btn sm" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div>
+      <div style="overflow-x:auto"><table class="sched wide dbt" id="dbTable"></table></div>
+    </div>
+    <div id="dbAvail" hidden style="display:flex;flex-direction:column;gap:14px">
+      <p class="note" style="margin:0;max-width:75ch">Supplier availability lists are kept separately from your plants. Tick the lines you want and add them to My plants. The price, supplier, pot size and code come across with them.</p>
+      <div class="row"><select id="avList" aria-label="Availability list" style="min-width:260px"></select>
+        <button class="btn sm primary" type="button" id="avImport">Import availability list…</button>
+        <button class="btn sm danger" type="button" id="avDelete">Delete list</button>
+        <span class="spacer"></span><span class="note" id="avInfo"></span></div>
+      <div class="row" id="avFilters"><input type="text" id="avSearch" placeholder="Search this list…" aria-label="Search availability list" style="flex:1;min-width:200px;max-width:420px">
+        <select id="avShow" aria-label="Which lines"><option value="">All lines</option><option value="new">Not in my plants yet</option><option value="mine">Already in my plants</option></select></div>
+      <div style="overflow-x:auto"><table class="sched wide dbt" id="avTable"></table></div>
+      <div class="avbar" id="avBar" hidden>
+        <b id="avSelN">0 selected</b>
+        <label class="pf"><span>Layer</span><select id="avLayer"></select></label>
+        <label class="checks" id="avAiWrap"><input type="checkbox" id="avAi" checked> Fill in height, spread, flowering, colour and layer with Claude</label>
+        <span class="spacer"></span><span class="note" id="avProgress"></span>
+        <button class="btn sm" type="button" id="avClear">Clear selection</button>
+        <button class="btn sm primary" type="button" id="avAdd">Add to my plants</button>
+      </div>
+    </div>
   </section>
 
   <section class="calview" id="schedView" hidden aria-labelledby="schedH">
@@ -333,6 +362,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
     </div>
   </div>
 </div>
+<div class="modal" id="importModal" hidden role="dialog" aria-modal="true" aria-labelledby="impH"><div class="card" id="importBody" style="max-width:860px;max-height:min(92vh, 900px);overflow:auto"></div></div>
 <div class="modal" id="clearModal" hidden role="dialog" aria-modal="true" aria-labelledby="clearH">
   <div class="card">
     <h2 id="clearH">Clear this plan?</h2>
@@ -909,7 +939,7 @@ function gardensUsing(id) {
   if (S.g && !gs.some(g => g.id === S.g.id)) gs.push(S.g);
   return gs.filter(g => g.plantings.some(x => x.plantId === id) || g.areas.some(x => x.plantId === id));
 }
-const DB = { q: '', layer: '', kind: '', sort: 'common', dir: 1 };
+const DB = { q: '', layer: '', kind: '', sort: 'common', dir: 1, view: 'mine' };
 function renderDatabase() {
   const L = $('dbLayer');
   if (!L.options.length) L.innerHTML = '<option value="">All layers</option>' + Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
@@ -942,7 +972,7 @@ function applyPage() {
   for (const sel of ['.toolbar', '.props', '.work']) document.querySelector(sel).hidden = !plan;
   $('calView').hidden = pg !== 'flowering'; $('schedView').hidden = pg !== 'schedule'; $('prefsView').hidden = pg !== 'preferences'; $('dbView').hidden = pg !== 'database'; $('navDb').setAttribute('aria-pressed', pg === 'database'); if (pg !== 'database') $('plantModal').hidden = true;
   $('navPlan').setAttribute('aria-pressed', plan); $('navSched').setAttribute('aria-pressed', pg === 'schedule'); $('navCal').setAttribute('aria-pressed', pg === 'flowering'); $('navPrefs').setAttribute('aria-pressed', pg === 'preferences');
-  if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'database') { renderDatabase(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
+  if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'database') { showDbView(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
 }
 function renderAll() { renderLayers(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
@@ -1458,6 +1488,7 @@ $('clearYes').addEventListener('click', () => {
   setStatus('Plan cleared. Press Undo to bring it back.');
 });
 document.addEventListener('keydown', e => {
+  if (!$('importModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeImport(); } return; }
   if (!$('detailsModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeDetails(); } return; }
   if (!$('ulMenu').hidden && e.key === 'Escape') { closeUlMenu(); $('ulMenuBtn').focus(); return; }
   if (!$('layerMenu').hidden && e.key === 'Escape') { closeLayerMenu(); $('layerBtn').focus(); return; }
@@ -1512,6 +1543,10 @@ async function init() {
     if (getPage() === 'preferences' && !document.activeElement?.dataset?.pref) renderPrefs();
     if (S.loaded) renderAll();
   }, () => {});
+  db.collection('availability').onSnapshot(snap => {
+    AV.lists = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (getPage() === 'database' && DB.view === 'avail' && !AV.busy) renderAvailability();
+  }, () => {});
   db.collection('plants').onSnapshot(snap => {
     S.plants = snap.docs.map(d => { const x = { id: d.id, ...d.data() }; x.role = layerOf(x.role); return x; });
     gotPlants = true;
@@ -1543,6 +1578,287 @@ $('dbSearch').addEventListener('input', e => { DB.q = e.target.value; renderData
 $('dbLayer').addEventListener('change', e => { DB.layer = e.target.value; renderDatabase(); });
 $('dbKind').addEventListener('change', e => { DB.kind = e.target.value; renderDatabase(); });
 $('dbAdd').addEventListener('click', () => openPlantEditor(null));
+
+/* ---------- supplier availability lists ---------- */
+const AV = { lists: [], listId: store.get('gpm.avlist') || '', items: [], loadedFor: '', q: '', show: '', sel: new Set(), busy: false, imp: null, delArm: false, sample: undefined };
+const AV_FIELDS = [
+  ['b', 'Botanical name', /botan|latin|scientific|plant ?name|^name$|^plant$|description|product/i],
+  ['genus', 'Genus (if separate)', /^genus/i], ['species', 'Species (if separate)', /^species/i], ['cv', 'Cultivar / variety', /cultivar|variety|^var/i],
+  ['c', 'Common name', /common/i], ['sz', 'Pot size / grade', /size|pot|container|grade|spec|format|litre/i],
+  ['pr', 'Price', /price|cost|£|€|\$|each|unit|rate|net/i], ['st', 'Stock available', /stock|avail|qty|quantity|in hand/i],
+  ['h', 'Height', /height|^ht/i], ['sp', 'Spread', /spread|width/i], ['code', 'Code', /code|sku|ref|item ?no|^id$/i],
+];
+const normName = v => String(v || '').toLowerCase().replace(/['"‘’“”]/g, '').replace(/\s+/g, ' ').trim();
+const avKey = it => normName(it.b) + '|' + normName(it.sz);
+function myPlantFor(it, supplier) {
+  const k = avKey(it);
+  return S.plants.find(p => !p.existing && normName(p.botanical) + '|' + normName(p.supply) === k && (!supplier || normName(p.supplier) === normName(supplier) || !p.supplier))
+    || S.plants.find(p => !p.existing && normName(p.botanical) + '|' + normName(p.supply) === k);
+}
+function curList() { return AV.lists.find(l => l.id === AV.listId) || null; }
+async function loadListItems() {
+  const l = curList();
+  if (!l) { AV.items = []; AV.loadedFor = ''; return; }
+  if (AV.loadedFor === l.id) return;
+  if (l.local) { AV.items = l.local; AV.loadedFor = l.id; return; }
+  $('avInfo').textContent = 'Loading list…';
+  try {
+    const snap = await S.db.collection('availability/' + l.id + '/chunks').get();
+    AV.items = snap.docs.sort((a, b) => +a.id - +b.id).flatMap(d => d.data().items || []);
+    AV.loadedFor = l.id;
+  } catch (e) { AV.items = []; $('avInfo').textContent = 'Couldn’t load this list: ' + (e?.message || ''); }
+}
+function parseDelimited(text) {
+  const first = text.split(/\r?\n/).slice(0, 10).join('\n');
+  const delim = (first.match(/\t/g) || []).length > (first.match(/,/g) || []).length / 2 ? '\t' : (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ';' : ',';
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; continue; }
+    if (ch === '"' && cell === '') { q = true; continue; }
+    if (ch === delim) { row.push(cell); cell = ''; continue; }
+    if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; continue; }
+    cell += ch;
+  }
+  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+}
+async function parseSheetFile(file) {
+  if (/\.(xlsx|xls|ods)$/i.test(file.name)) {
+    if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').catch(() => { throw new Error('The spreadsheet reader could not load. Save the list as CSV and import that instead.'); });
+    const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    let best = null;
+    for (const n of wb.SheetNames) { const r = window.XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' }); if (!best || r.length > best.length) best = r; }
+    return best || [];
+  }
+  return parseDelimited(await file.text());
+}
+function guessHeader(rows) {
+  let best = 0, bestScore = -1;
+  for (let r = 0; r < Math.min(20, rows.length); r++) {
+    const score = rows[r].filter(c => AV_FIELDS.some(([, , re]) => re.test(String(c).trim()))).length;
+    if (score > bestScore) { bestScore = score; best = r; }
+  }
+  return bestScore > 0 ? best : -1;
+}
+function guessMap(head) {
+  const map = {}, used = new Set();
+  for (const [k, , re] of AV_FIELDS) { const i = head.findIndex((h, idx) => !used.has(idx) && re.test(String(h).trim())); if (i >= 0) { map[k] = i; used.add(i); } }
+  if (map.b == null && map.genus == null) { const i = head.findIndex((h, idx) => !used.has(idx)); if (i >= 0) map.b = i; }
+  return map;
+}
+const toNum = v => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : null; };
+function rowsToItems(imp) {
+  const m = imp.map, data = imp.rows.slice(imp.header + 1), out = [];
+  const g = (r, k) => m[k] == null || m[k] === '' ? '' : String(r[m[k]] ?? '').trim();
+  data.forEach((r, n) => {
+    let b = g(r, 'b');
+    if (!b) b = [g(r, 'genus'), g(r, 'species')].filter(Boolean).join(' ');
+    const cv = g(r, 'cv');
+    if (cv && b && !normName(b).includes(normName(cv).replace(/^'|'$/g, ''))) b = b + " '" + cv.replace(/^['‘’]|['‘’]$/g, '') + "'";
+    const c = g(r, 'c');
+    if (!b && !c) return;
+    out.push({ id: 'i' + n, b, c, sz: g(r, 'sz'), pr: toNum(g(r, 'pr')), st: g(r, 'st'), h: toNum(g(r, 'h')), sp: toNum(g(r, 'sp')), code: g(r, 'code') });
+  });
+  return out;
+}
+function monthYear() { return new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); }
+function openImport() { AV.imp = { step: 1, supplier: curList()?.supplier || '', name: monthYear(), rows: null, header: 0, map: {}, err: '' }; renderImport(); $('importModal').hidden = false; setTimeout(() => $('imp-sup')?.focus(), 0); }
+function closeImport() { $('importModal').hidden = true; AV.imp = null; }
+function renderImport() {
+  const I = AV.imp, el = $('importBody'); if (!I) return;
+  const head = I.rows ? (I.header >= 0 ? I.rows[I.header] : I.rows[0].map((_, i) => 'Column ' + (i + 1))) : [];
+  const cols = head.map((h, i) => `<option value="${i}">${esc(String(h || 'Column ' + (i + 1)).slice(0, 40))}</option>`).join('');
+  const items = I.rows ? rowsToItems(I) : [];
+  el.innerHTML = `<div class="card-h"><h2 id="impH">Import availability list</h2><button class="btn sm" type="button" data-imp="cancel">Cancel</button></div>
+    <div class="mapgrid">
+      <label><span>Supplier</span><input type="text" id="imp-sup" value="${esc(I.supplier)}" placeholder="e.g. Babylon Plants"></label>
+      <label><span>List name</span><input type="text" id="imp-name" value="${esc(I.name)}" placeholder="e.g. Autumn 2026"></label>
+    </div>
+    ${!I.rows ? `<div class="field" style="grid-template-columns:110px 1fr"><span>File</span><input type="file" id="imp-file" accept=".csv,.tsv,.txt,.xlsx,.xls,.ods,text/csv"></div>
+      <p class="note" style="margin:0">Excel (.xlsx), CSV or TSV. Or paste rows copied from a spreadsheet:</p>
+      <textarea id="imp-paste" rows="6" style="width:100%;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)" placeholder="Paste the list here, including the heading row"></textarea>
+      <div class="row"><button class="btn primary" type="button" data-imp="parse">Next: check columns</button><span class="note" style="color:var(--crit)">${esc(I.err)}</span></div>`
+    : `<p class="note" style="margin:0">Match the list’s columns to what they mean. Leave anything the list doesn’t have as “Not in list”.</p>
+      <div class="row"><label class="checks"><input type="checkbox" id="imp-hashead"${I.header >= 0 ? ' checked' : ''}> The list has a heading row</label>${I.header >= 0 ? `<label class="pf"><span>Heading row</span><input id="imp-hrow" class="n" type="number" min="1" max="${I.rows.length}" value="${I.header + 1}"></label>` : ''}</div>
+      <div class="mapgrid">${AV_FIELDS.map(([k, l]) => `<label><span>${l}</span><select data-impmap="${k}"><option value="">Not in list</option>${cols}</select></label>`).join('')}</div>
+      <div style="overflow-x:auto"><table class="sched preview"><thead><tr><th>Botanical name</th><th>Common</th><th>Size</th><th class="n">Price</th><th>Stock</th><th>Code</th></tr></thead><tbody>${items.slice(0, 8).map(it => `<tr><td><i>${esc(it.b)}</i></td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td class="n">${it.pr != null ? money(it.pr) : ''}</td><td>${esc(it.st)}</td><td>${esc(it.code)}</td></tr>`).join('') || '<tr><td class="empty" colspan="6">No plant lines found with these columns.</td></tr>'}</tbody></table></div>
+      <div class="row"><button class="btn" type="button" data-imp="back">Back</button><button class="btn primary" type="button" data-imp="save"${items.length ? '' : ' disabled'}>Save ${items.length.toLocaleString('en-GB')} lines</button><span class="note" style="color:var(--crit)">${esc(I.err)}</span></div>`}`;
+  if (I.rows) for (const sel of el.querySelectorAll('[data-impmap]')) sel.value = I.map[sel.dataset.impmap] ?? '';
+}
+$('importBody').addEventListener('input', e => {
+  const I = AV.imp; if (!I) return; const t = e.target;
+  if (t.id === 'imp-sup') I.supplier = t.value;
+  else if (t.id === 'imp-name') I.name = t.value;
+  else if (t.dataset.impmap) { I.map[t.dataset.impmap] = t.value === '' ? null : +t.value; renderImport(); }
+  else if (t.id === 'imp-hashead') { I.header = t.checked ? Math.max(0, guessHeader(I.rows)) : -1; I.map = guessMap(I.header >= 0 ? I.rows[I.header] : []); renderImport(); }
+  else if (t.id === 'imp-hrow') { I.header = clamp(Math.round(num(t.value, 1)) - 1, 0, I.rows.length - 1); I.map = guessMap(I.rows[I.header]); renderImport(); }
+});
+$('importBody').addEventListener('click', async e => {
+  const b = e.target.closest('[data-imp]'); if (!b || !AV.imp) return;
+  const I = AV.imp, act = b.dataset.imp;
+  if (act === 'cancel') { closeImport(); return; }
+  if (act === 'back') { I.rows = null; I.err = ''; renderImport(); return; }
+  if (act === 'parse') {
+    I.err = '';
+    try {
+      const f = $('imp-file').files?.[0], pasted = $('imp-paste').value;
+      const rows = (f ? await parseSheetFile(f) : pasted.trim() ? parseDelimited(pasted) : null);
+      if (!rows) { I.err = 'Choose a file or paste the list first.'; renderImport(); return; }
+      I.rows = rows.map(r => r.map(c => String(c ?? ''))).filter(r => r.some(c => c.trim()));
+      if (!I.rows.length) { I.rows = null; I.err = 'That file has no rows.'; renderImport(); return; }
+      if (!I.supplier && f) I.supplier = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\b(availability|stock|list|price ?list)\b/ig, '').trim();
+      I.header = guessHeader(I.rows); I.map = guessMap(I.header >= 0 ? I.rows[I.header] : I.rows[0].map(() => ''));
+    } catch (err) { I.rows = null; I.err = err?.message || 'That file could not be read.'; }
+    renderImport(); return;
+  }
+  if (act === 'save') {
+    const items = rowsToItems(I);
+    if (!I.supplier.trim()) { I.err = 'Give the supplier’s name, so plants you add record who they’re from.'; renderImport(); return; }
+    b.disabled = true; b.textContent = 'Saving…';
+    const meta = { supplier: I.supplier.trim(), name: I.name.trim() || monthYear(), importedAt: Date.now(), count: items.length };
+    const id = uid();
+    try {
+      if (S.online) {
+        const CH = 400;
+        for (let n = 0, c = 0; n < items.length; n += CH, c++) await S.db.doc(`availability/${id}/chunks/${c}`).set({ items: items.slice(n, n + CH) });
+        await S.db.doc('availability/' + id).set(meta);
+      } else { AV.lists.push({ id, ...meta, local: items }); }
+      AV.listId = id; store.set('gpm.avlist', id); AV.loadedFor = ''; AV.sel.clear();
+      closeImport(); await renderAvailability();
+    } catch (err) { b.disabled = false; b.textContent = 'Save'; I.err = err?.code === 'quota_exceeded' ? 'Storage is full. Delete an old availability list first.' : 'Couldn’t save: ' + (err?.message || 'try again'); renderImport(); }
+  }
+});
+$('importModal').addEventListener('click', e => { if (e.target.id === 'importModal') closeImport(); });
+async function renderAvailability() {
+  const L = $('avList');
+  L.innerHTML = AV.lists.length ? AV.lists.slice().sort((a, b) => b.importedAt - a.importedAt).map(l => `<option value="${l.id}"${l.id === AV.listId ? ' selected' : ''}>${esc(l.supplier)} · ${esc(l.name)} (${(l.count || 0).toLocaleString('en-GB')})</option>`).join('') : '<option value="">No lists imported yet</option>';
+  if (!curList() && AV.lists.length) { AV.listId = L.value; }
+  L.disabled = !AV.lists.length; $('avDelete').disabled = !AV.lists.length; $('avDelete').textContent = AV.delArm ? 'Click again to delete' : 'Delete list';
+  $('avFilters').hidden = !AV.lists.length;
+  const ls = $('avLayer'); if (!ls.options.length) ls.innerHTML = '<option value="auto">Let Claude choose</option>' + Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const l = curList();
+  if (!l) { $('avTable').innerHTML = `<tbody><tr><td class="empty">${S.loaded ? 'Import a supplier’s availability list (Excel, CSV or pasted rows) to browse it here.' : 'Loading…'}</td></tr></tbody>`; $('avInfo').textContent = ''; $('avBar').hidden = true; return; }
+  await loadListItems();
+  if (AV.loadedFor !== l.id) return;
+  $('avInfo').textContent = `Imported ${new Date(l.importedAt).toLocaleDateString('en-GB')} · ${AV.items.length.toLocaleString('en-GB')} lines`;
+  const q = AV.q.trim().toLowerCase();
+  const rows = AV.items.map(it => ({ it, mine: myPlantFor(it, l.supplier) }))
+    .filter(({ it, mine }) => (!AV.show || (AV.show === 'mine') === !!mine) && (!q || [it.b, it.c, it.sz, it.code].join(' ').toLowerCase().includes(q)));
+  const shown = rows.slice(0, 400);
+  const allOn = shown.length && shown.every(r => AV.sel.has(r.it.id));
+  $('avTable').innerHTML = !rows.length ? '<tbody><tr><td class="empty">No lines match.</td></tr></tbody>'
+    : `<thead><tr><th class="ck"><input type="checkbox" id="avAll" aria-label="Select all shown"${allOn ? ' checked' : ''}></th><th>Botanical name</th><th>Common name</th><th>Size</th><th>Code</th><th>Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${shown.map(({ it, mine }) => `<tr>
+      <td class="ck"><input type="checkbox" data-av="${it.id}"${AV.sel.has(it.id) ? ' checked' : ''} aria-label="Select ${esc(it.b)}"></td>
+      <td><i>${esc(it.b)}</i></td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td>${esc(it.code)}</td><td>${esc(it.st)}</td>
+      <td class="n">${it.pr != null ? money(it.pr) : ''}</td>
+      <td>${mine ? `<span class="mine-tag" title="${esc(mine.common || mine.botanical)}${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · your price ' + money(num(mine.cost)) : ''}">In my plants${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · price differs' : ''}</span>` : ''}</td></tr>`).join('')}</tbody>
+      ${rows.length > shown.length ? `<tfoot><tr><td colspan="8" class="note" style="font-weight:400">Showing 400 of ${rows.length.toLocaleString('en-GB')} lines. Search to narrow the list.</td></tr></tfoot>` : ''}`;
+  renderAvBar();
+}
+function renderAvBar() {
+  const n = AV.sel.size;
+  $('avBar').hidden = !n && !AV.busy;
+  $('avSelN').textContent = `${n} selected`;
+  $('avAiWrap').hidden = AV.sample === null;
+  $('avAdd').disabled = AV.busy || !n; $('avClear').disabled = AV.busy;
+}
+$('dbTabMine').addEventListener('click', () => { DB.view = 'mine'; showDbView(); });
+$('dbTabAvail').addEventListener('click', () => { DB.view = 'avail'; showDbView(); });
+function showDbView() {
+  const av = DB.view === 'avail';
+  $('dbMine').hidden = av; $('dbAvail').hidden = !av;
+  $('dbTabMine').setAttribute('aria-pressed', !av); $('dbTabAvail').setAttribute('aria-pressed', av);
+  if (av) renderAvailability(); else renderDatabase();
+}
+$('avList').addEventListener('change', e => { AV.listId = e.target.value; store.set('gpm.avlist', AV.listId); AV.sel.clear(); AV.delArm = false; renderAvailability(); });
+$('avSearch').addEventListener('input', e => { AV.q = e.target.value; renderAvailability(); });
+$('avShow').addEventListener('change', e => { AV.show = e.target.value; renderAvailability(); });
+$('avImport').addEventListener('click', openImport);
+$('avClear').addEventListener('click', () => { AV.sel.clear(); renderAvailability(); });
+$('avTable').addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'avAll') { for (const cb of $('avTable').querySelectorAll('[data-av]')) { cb.checked = t.checked; if (t.checked) AV.sel.add(cb.dataset.av); else AV.sel.delete(cb.dataset.av); } renderAvBar(); return; }
+  if (t.dataset.av) { if (t.checked) AV.sel.add(t.dataset.av); else AV.sel.delete(t.dataset.av); renderAvBar(); }
+});
+$('avDelete').addEventListener('click', async () => {
+  const l = curList(); if (!l) return;
+  if (!AV.delArm) { AV.delArm = true; renderAvailability(); setTimeout(() => { if (AV.delArm) { AV.delArm = false; renderAvailability(); } }, 4000); return; }
+  AV.delArm = false;
+  try {
+    if (!l.local && S.online) { const ch = await S.db.collection('availability/' + l.id + '/chunks').get(); for (const d of ch.docs) await S.db.doc(`availability/${l.id}/chunks/${d.id}`).delete(); await S.db.doc('availability/' + l.id).delete(); }
+    AV.lists = AV.lists.filter(x => x.id !== l.id); AV.listId = AV.lists[0]?.id || ''; AV.loadedFor = ''; AV.sel.clear();
+    renderAvailability();
+  } catch (e) { $('avInfo').textContent = 'Couldn’t delete: ' + (e?.message || ''); }
+});
+async function plantDetails(items) {
+  if (AV.sample === undefined) AV.sample = window.claude?.use ? await window.claude.use('sample').catch(() => null) : null;
+  if (!AV.sample) return {};
+  const colours = FLOWER_COLOURS.map(c => c[0]).join(', ');
+  const out = {};
+  for (let n = 0; n < items.length; n += 25) {
+    const batch = items.slice(n, n + 25);
+    $('avProgress').textContent = `Asking Claude for plant details (${Math.min(n + 25, items.length)} of ${items.length})…`;
+    const prompt = `You are a horticulturist helping a UK garden designer fill in a plant database. For each plant below, give typical values for a garden in the UK.
+Reply with ONLY a JSON array, one object per plant, in the same order, like:
+[{"botanical":"Lavandula angustifolia 'Hidcote'","common":"English lavender","layer":"shrub","height_m":0.6,"spread_m":0.6,"planted_spread_m":0.15,"flower_from":6,"flower_to":8,"flower_colour":"Lavender"}]
+Rules: "layer" is one of canopy, understory, shrub, herbaceous, ground, tuber, climber (forest-garden seven-layer system; bulbs, corms and tubers are "tuber"). height_m and spread_m are at maturity in metres. planted_spread_m is the spread at planting for the supply size given. flower_from/flower_to are month numbers 1-12, or null if not grown for flowers. flower_colour is the closest of: ${colours}; or null. Keep the botanical name exactly as given. If you do not recognise a plant, still return an object with null values.
+Plants (botanical name | common name | supply size):
+${batch.map((it, i) => `${i + 1}. ${it.b} | ${it.c || '-'} | ${it.sz || '-'}`).join('\n')}`;
+    try {
+      const res = await AV.sample.json(prompt, { modelTier: 'default' });
+      const arr = Array.isArray(res) ? res : Array.isArray(res?.plants) ? res.plants : [];
+      batch.forEach((it, i) => { if (arr[i]) out[it.id] = arr[i]; });
+    } catch (e) {
+      if (e?.code === 'not_granted') { AV.sample = null; $('avProgress').textContent = 'Claude wasn’t allowed, so plant details were left blank.'; return out; }
+      $('avProgress').textContent = e?.code === 'rate_limited' ? 'Claude is busy; some details were left blank. Try again later.' : 'Some plant details couldn’t be filled in.';
+      return out;
+    }
+  }
+  return out;
+}
+$('avAdd').addEventListener('click', async () => {
+  const l = curList(); if (!l || !AV.sel.size || AV.busy) return;
+  const items = AV.items.filter(it => AV.sel.has(it.id)); if (!items.length) return;
+  AV.busy = true; renderAvBar();
+  const layerPick = $('avLayer').value, wantAi = $('avAi').checked && AV.sample !== null;
+  const details = wantAi ? await plantDetails(items) : {};
+  const colourHex = name => (FLOWER_COLOURS.find(([n]) => normName(n) === normName(name)) || [])[1] || null;
+  let added = 0, updated = 0, failed = 0;
+  for (let n = 0; n < items.length; n++) {
+    const it = items[n], d = details[it.id] || {}, mine = myPlantFor(it, l.supplier);
+    $('avProgress').textContent = `Saving ${n + 1} of ${items.length}…`;
+    const layer = layerPick !== 'auto' ? layerPick : (ROLES[d.layer] ? d.layer : null);
+    const base = mine ? { ...mine } : { common: '', botanical: it.b, role: layer || 'herbaceous', light: [], moisture: [] };
+    delete base.id;
+    const fill = (k, v) => { if (v != null && v !== '' && (base[k] == null || base[k] === '' || !mine)) base[k] = v; };
+    base.botanical = base.botanical || it.b;
+    fill('common', it.c || d.common || '');
+    if (!mine && !base.common) base.common = it.b;
+    base.supply = it.sz || base.supply || '';
+    if (it.pr != null) base.cost = it.pr;
+    base.supplier = l.supplier;
+    base.source = { list: l.id, listName: `${l.supplier} · ${l.name}`, code: it.code || '', stock: it.st || '', checkedAt: Date.now() };
+    if (mine && layerPick !== 'auto') base.role = layerPick; else if (!mine && layer) base.role = layer;
+    fill('height', it.h ?? (num(d.height_m, NaN) > 0 ? +d.height_m : null));
+    fill('spread', it.sp ?? (num(d.spread_m, NaN) > 0 ? +d.spread_m : null));
+    fill('potSpread', num(d.planted_spread_m, NaN) > 0 ? +d.planted_spread_m : null);
+    if (d.flower_from >= 1 && d.flower_from <= 12) { fill('flowerFrom', +d.flower_from); fill('flowerTo', d.flower_to >= 1 && d.flower_to <= 12 ? +d.flower_to : +d.flower_from); }
+    const hex = d.flower_colour ? colourHex(d.flower_colour) : null; if (hex) { fill('flowerColor', hex); fill('flowerColorName', FLOWER_COLOURS.find(c => c[1] === hex)?.[0]); }
+    if (!(num(base.spread) > 0)) base.spread = 0.5;
+    const id = mine?.id || uid();
+    try {
+      if (S.online) await S.db.doc('plants/' + id).set(base);
+      const i = S.plants.findIndex(x => x.id === id), rec = { id, ...base };
+      if (i >= 0) S.plants[i] = rec; else S.plants.push(rec);
+      if (mine) updated++; else added++;
+    } catch { failed++; }
+  }
+  AV.busy = false; AV.sel.clear();
+  $('avProgress').textContent = `${added ? plural(added, 'plant') + ' added' : ''}${added && updated ? ', ' : ''}${updated ? plural(updated, 'plant') + ' updated' : ''}${failed ? ` · ${failed} couldn’t be saved` : ''}. Find them under My plants.`;
+  renderAvailability(); renderLibrary();
+  setTimeout(() => { if (!AV.busy && !AV.sel.size) $('avBar').hidden = true; }, 6000);
+});
 $('dbTable').addEventListener('click', e => {
   const sb = e.target.closest('[data-sort]'); if (sb) { const k = sb.dataset.sort; DB.dir = DB.sort === k ? -DB.dir : 1; DB.sort = k; renderDatabase(); return; }
   const ed = e.target.closest('[data-edit]'); if (ed) openPlantEditor(ed.dataset.edit);

@@ -11,6 +11,7 @@ https://claude.ai/artifact/2aTBjBBXxP2rNoepiPnhLe
 - **Plant schedule**: new plants with layer, supply, supplier, quantity and cost, plus a separate table of existing plants. Copies straight into a spreadsheet.
 - **Flowering calendar**: months across, species down, bars in each plant's flower colour, with a month-by-month colour strip showing interest and gaps.
 - **Plant database**: every species entered, shared across all gardens. Searchable, filterable by layer, sortable.
+- **Supplier availability**: import a nursery's availability list (Excel, CSV or pasted rows), kept separate from your plants. Tick lines to add them to your plant database with price, supplier, pot size and code; matching plants have their price and supplier updated. Claude can fill in height, spread, flowering, flower colour and layer for the plants you add.
 - **Preferences**: label size and text, grid, rulers, snap spacing (5 cm–1 m), default view, currency, and colours for each layer.
 
 Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbaceous, Ground cover, Tubers & bulbs, Climbers.
@@ -22,7 +23,7 @@ Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbace
 
 ## Storage
 
-The app is written for the claude.ai artifact runtime. Gardens, the plant database and preferences are saved through its `db` capability, and imported plans through its `assets` capability. Opened as a plain local file, the app still works but nothing is saved.
+The app is written for the claude.ai artifact runtime. Gardens, the plant database, supplier availability lists and preferences are saved through its `db` capability, imported plans through its `assets` capability, and plant details are looked up through its `sample` capability. Opened as a plain local file, the app still works but nothing is saved.
 
 ## Later
 
