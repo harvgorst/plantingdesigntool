@@ -171,6 +171,21 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .sortb { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
 .sortb:hover { color: var(--ink); }
 .dbt td { vertical-align: middle; }
+.top { flex-wrap: wrap; align-items: center; gap: 8px 28px; padding-bottom: 0; }
+.top h1 { font-size: 24px; padding: 6px 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0 22px; align-self: stretch; }
+.tabs button { border: 0; background: none; padding: 10px 0 9px; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; font-size: 14.5px; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-pressed=true] { color: var(--ink); border-bottom-color: var(--accent); }
+.gbox { display: flex; gap: 6px; align-items: center; }
+.gbox select { max-width: 240px; }
+.menuwrap { position: relative; }
+.menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 25; min-width: 240px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(20, 18, 15, 0.16); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.mi { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; border: 0; background: none; padding: 7px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+.mi:hover:not(:disabled) { background: var(--paper); }
+.mi:disabled { opacity: .45; cursor: default; }
+.mi.danger { color: var(--crit); }
+.mi.ulop input { width: 110px; }
 .rolecols { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px 12px; }
 .rolecol { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
 .rolecol input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); flex: none; }
@@ -216,39 +231,34 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 
 <div class="app">
   <header class="top">
-    <div class="brand"><span class="lbl">Planting design</span><h1>Garden Planting Map</h1></div>
-    <div class="seg" role="group" aria-label="Page"><button type="button" id="navPlan" aria-pressed="true">Plan</button><button type="button" id="navSched" aria-pressed="false">Plant schedule</button><button type="button" id="navCal" aria-pressed="false">Flowering calendar</button><button type="button" id="navDb" aria-pressed="false">Plant database</button><button type="button" id="navPrefs" aria-pressed="false">Preferences</button></div>
-    <div class="titleblock">
-      <div class="tb"><label class="lbl" for="gardenSel">Garden</label><div class="row"><select id="gardenSel" aria-label="Choose a garden"></select><button class="btn sm" id="newGardenBtn" type="button">New</button></div></div>
-      <label class="tb"><span>Name</span><input id="g-name" type="text" data-g="name"></label>
-      <label class="tb"><span>Client</span><input id="g-client" type="text" data-g="client"></label>
-      <div class="tb"><span>Size</span><div class="dim"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="200" step="0.5" data-g="width"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="200" step="0.5" data-g="depth"> m</div></div>
-      <div class="tb"><span>Area</span><output id="dims">—</output></div>
-    </div>
+    <h1>Garden Planting Map</h1>
+    <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true">Plan</button><button type="button" id="navSched" aria-pressed="false">Plant schedule</button><button type="button" id="navCal" aria-pressed="false">Flowering calendar</button><button type="button" id="navDb" aria-pressed="false">Plant database</button><button type="button" id="navPrefs" aria-pressed="false">Preferences</button></nav>
     <div class="spacer"></div>
-    <button class="btn sm" id="undoBtn" type="button" title="Undo (Ctrl+Z)">Undo</button>
+    <div class="gbox"><select id="gardenSel" aria-label="Choose a garden"></select><button class="btn sm" id="detailsBtn" type="button">Garden details</button></div>
     <span id="status">Connecting…</span>
   </header>
 
   <nav class="toolbar" aria-label="Tools">
     <div class="tools" id="tools"></div>
     <div class="tsep"></div>
-    <div class="ul" role="group" aria-label="Plan underlay">
-      <span class="lbl">Plan</span>
-      <button class="btn sm" id="ulImport" type="button" title="Import your existing plan: SVG, PDF or image">Import</button>
-      <input type="file" id="ulFile" accept=".svg,.pdf,image/svg+xml,application/pdf,image/png,image/jpeg,image/webp" hidden>
-      <button class="btn sm" id="ulScale" type="button" title="Click two points a known distance apart">Set scale</button>
-      <label class="ulop" title="Plan opacity"><input type="range" id="ulOpacity" min="10" max="100" step="5" value="60" aria-label="Plan opacity"></label>
-      <button class="btn sm" id="ulToggle" type="button" aria-pressed="true">Hide</button>
-      <button class="btn sm danger" id="ulRemove" type="button">Remove</button>
+    <div class="menuwrap">
+      <button class="btn sm" id="ulMenuBtn" type="button" aria-expanded="false" aria-controls="ulMenu">Site plan ▾</button>
+      <div class="menu" id="ulMenu" hidden role="group" aria-label="Site plan">
+        <button class="mi" id="ulImport" type="button">Import plan…</button>
+        <input type="file" id="ulFile" accept=".svg,.pdf,image/svg+xml,application/pdf,image/png,image/jpeg,image/webp" hidden>
+        <button class="mi" id="ulScale" type="button">Set scale</button>
+        <label class="mi ulop"><span>Transparency</span><input type="range" id="ulOpacity" min="10" max="100" step="5" value="60" aria-label="Plan opacity"></label>
+        <button class="mi" id="ulToggle" type="button">Hide plan</button>
+        <button class="mi danger" id="ulRemove" type="button">Remove plan</button>
+        <p class="note" style="margin:2px 4px 0">SVG, PDF (page 1), PNG or JPEG.</p>
+      </div>
     </div>
-    <div class="tsep"></div>
     <div class="seg" role="group" aria-label="Plant size shown">
       <button type="button" id="vMature" aria-pressed="true" title="Plants drawn at mature spread (5–10 years)">Design intent</button>
       <button type="button" id="vPlanted" aria-pressed="false" title="Plants drawn at supplied pot size">As planted</button>
     </div>
-    <button class="btn sm danger" id="clearBtn" type="button" title="Remove every plant, drift and bed outline from this garden">Clear plan</button>
     <div class="spacer"></div>
+    <button class="btn sm" id="undoBtn" type="button" title="Undo (Ctrl+Z)">Undo</button>
     <div class="zoom"><div class="seg" role="group" aria-label="Zoom"><button type="button" id="zOut" aria-label="Zoom out" title="Zoom out (−)">−</button><button type="button" id="zFit" title="Fit whole garden (0)">Fit</button><button type="button" id="zIn" aria-label="Zoom in" title="Zoom in (+)">+</button></div><span id="zoomLbl">100%</span></div>
   </nav>
 
@@ -295,6 +305,20 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 </div>
 
 <div class="modal" id="plantModal" hidden role="dialog" aria-modal="true" aria-label="Edit species"><div class="card" id="plantModalBody" style="max-width:560px;max-height:min(90vh, 860px);overflow:auto"></div></div>
+<div class="modal" id="detailsModal" hidden role="dialog" aria-modal="true" aria-labelledby="detailsH">
+  <div class="card">
+    <div class="card-h"><h2 id="detailsH">Garden details</h2><button class="btn sm" type="button" id="detailsDone">Done</button></div>
+    <label class="field"><span>Name</span><input id="g-name" type="text" data-g="name"></label>
+    <label class="field"><span>Client</span><input id="g-client" type="text" data-g="client"></label>
+    <div class="field"><span>Size</span><div class="row" style="flex-wrap:nowrap"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.5" data-g="width" style="width:5.5em"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.5" data-g="depth" style="width:5.5em"> m</div></div>
+    <div class="field"><span>Area</span><output id="dims">—</output></div>
+    <p class="note" id="sizeNote" style="margin:0"></p>
+    <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:12px">
+      <button class="btn sm" type="button" id="newGardenBtn">New garden</button>
+      <button class="btn sm danger" type="button" id="clearBtn" title="Remove every plant, drift and bed outline from this garden">Clear plan…</button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="clearModal" hidden role="dialog" aria-modal="true" aria-labelledby="clearH">
   <div class="card">
     <h2 id="clearH">Clear this plan?</h2>
@@ -556,16 +580,17 @@ function renderTools() {
   else if (S.tool === 'plant') h = `Placing ${ap}. Click the plan to drop one; set the quantity for a group.`;
   else if (S.tool === 'drift') h = `Drift of ${ap}: ` + HINTS.drift.replace('Pick a species, then click', 'click');
   else if (S.tool === 'scale' && S.cal?.a && !S.cal.b) h = 'Now click the second point.';
-  else if (S.tool === 'select' && S.g && !S.g.underlay) h = 'Start by importing your existing plan with Import, then set its scale. ' + HINTS.select;
+  else if (S.tool === 'select' && S.g && !S.g.underlay) h = 'Start by importing your site plan from the Site plan menu, then set its scale. ' + HINTS.select;
   else if (S.tool === 'select' && S.g?.underlay && !S.g.underlay.calibrated) h = 'Your plan isn’t scaled yet. Use Set scale and click two points a known distance apart.';
   $('hint').textContent = h;
   const u = S.g?.underlay;
   $('ulImport').disabled = !S.g || S.busy || (S.loaded && S.online && !S.assets);
-  $('ulImport').textContent = S.busy ? 'Importing…' : u ? 'Replace' : 'Import';
+  $('ulImport').textContent = S.busy ? 'Importing…' : u ? 'Replace plan…' : 'Import plan…';
+  $('ulMenuBtn').textContent = (u && !u.calibrated ? 'Site plan · not scaled' : 'Site plan') + ' ▾';
   updateClear();
   $('ulScale').disabled = !u; $('ulRemove').disabled = !u; $('ulToggle').disabled = !u; $('ulOpacity').disabled = !u;
   $('ulScale').setAttribute('aria-pressed', S.tool === 'scale');
-  $('ulToggle').textContent = S.ulHidden ? 'Show' : 'Hide';
+  $('ulToggle').textContent = S.ulHidden ? 'Show plan' : 'Hide plan';
   if (u && document.activeElement !== $('ulOpacity')) $('ulOpacity').value = Math.round(num(u.opacity, 0.6) * 100);
 }
 function renderLibrary() {
@@ -699,8 +724,7 @@ function renderSchedule() {
 }
 function renderPicker() {
   const sel = $('gardenSel');
-  sel.innerHTML = S.gardens.length ? S.gardens.map(g => `<option value="${g.id}"${g.id === S.g?.id ? ' selected' : ''}>${esc(g.name || 'Untitled garden')}</option>`).join('') : '<option>No gardens yet</option>';
-  sel.disabled = !S.gardens.length;
+  sel.innerHTML = S.gardens.length ? S.gardens.map(g => `<option value="${g.id}"${g.id === S.g?.id ? ' selected' : ''}>${esc(g.name || 'Untitled garden')}</option>`).join('') + '<option value="__new">+ New garden…</option>' : '<option value="">No gardens yet</option><option value="__new">+ New garden…</option>';
 }
 function renderOverlay() {
   const ov = $('overlay');
@@ -1128,9 +1152,9 @@ function openPlantEditor(id) {
   S.confirm = null; renderLibrary();
   setTimeout(() => $('sp-common')?.focus(), 0);
 }
-$('ulImport').addEventListener('click', () => $('ulFile').click());
+$('ulImport').addEventListener('click', () => { closeUlMenu(); $('ulFile').click(); });
 $('ulFile').addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; importPlan(f); });
-$('ulScale').addEventListener('click', () => setTool(S.tool === 'scale' ? 'select' : 'scale'));
+$('ulScale').addEventListener('click', () => { closeUlMenu(); setTool(S.tool === 'scale' ? 'select' : 'scale'); });
 $('ulToggle').addEventListener('click', () => { S.ulHidden = !S.ulHidden; renderTools(); renderMap(); });
 let opTimer = null;
 $('ulOpacity').addEventListener('input', e => {
@@ -1138,7 +1162,7 @@ $('ulOpacity').addEventListener('input', e => {
   u.opacity = clamp(num(e.target.value, 60) / 100, 0.1, 1); renderMapSoon();
   clearTimeout(opTimer); opTimer = setTimeout(saveGarden, 300);
 });
-$('ulRemove').addEventListener('click', () => { S.confirm = 'underlay'; renderInspector(); });
+$('ulRemove').addEventListener('click', () => { closeUlMenu(); S.confirm = 'underlay'; renderInspector(); });
 
 const app = document.body;
 let fieldCheckpointed = false;
@@ -1238,8 +1262,17 @@ $('undoBtn').addEventListener('click', undo);
 $('zIn').addEventListener('click', () => zoomBy(1.4));
 $('zOut').addEventListener('click', () => zoomBy(1 / 1.4));
 $('zFit').addEventListener('click', () => { resetView(); renderMap(); });
-$('gardenSel').addEventListener('change', e => openGarden(e.target.value));
-$('newGardenBtn').addEventListener('click', () => { S.newGarden = true; renderOverlay(); });
+$('gardenSel').addEventListener('change', e => { if (e.target.value === '__new') { e.target.value = S.g?.id || ''; startNewGarden(); } else openGarden(e.target.value); });
+function startNewGarden() { $('detailsModal').hidden = true; if (getPage() !== 'plan') location.hash = 'plan'; S.newGarden = true; renderOverlay(); }
+function openDetails() { if (!S.g) { startNewGarden(); return; } renderGardenFields(); $('sizeNote').textContent = S.g.underlay ? 'The size comes from your site plan once its scale is set. Change it here only if you need more room around the plan.' : 'Width runs left to right and depth top to bottom, with north at the top.'; $('detailsModal').hidden = false; $('g-name').focus(); }
+function closeDetails() { $('detailsModal').hidden = true; $('detailsBtn').focus(); }
+$('detailsBtn').addEventListener('click', openDetails);
+$('detailsDone').addEventListener('click', closeDetails);
+$('detailsModal').addEventListener('click', e => { if (e.target.id === 'detailsModal') closeDetails(); });
+function closeUlMenu() { $('ulMenu').hidden = true; $('ulMenuBtn').setAttribute('aria-expanded', 'false'); }
+$('ulMenuBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('ulMenu').hidden; $('ulMenu').hidden = !open; $('ulMenuBtn').setAttribute('aria-expanded', String(open)); });
+document.addEventListener('pointerdown', e => { if (!$('ulMenu').hidden && !e.target.closest('.menuwrap')) closeUlMenu(); }, true);
+$('newGardenBtn').addEventListener('click', startNewGarden);
 $('overlay').addEventListener('click', e => { if (e.target.id === 'ngCancel') { S.newGarden = false; renderOverlay(); } });
 $('overlay').addEventListener('submit', async e => {
   e.preventDefault();
@@ -1263,13 +1296,14 @@ document.addEventListener('keyup', e => { if (e.key === ' ') { S.space = false; 
 window.addEventListener('blur', () => { S.space = false; svg.classList.remove('can-pan'); });
 function plural(n, w) { return `${n} ${w}${n === 1 ? '' : 's'}`; }
 function openClear() {
+  $('detailsModal').hidden = true;
   if (!S.g) return;
   const plants = S.g.plantings.reduce((t, x) => t + (x.qty || 1), 0), drifts = S.g.areas.filter(a => a.kind === 'drift').length, beds = S.g.areas.filter(a => a.kind === 'bed').length;
   const parts = [plants && plural(plants, 'plant'), drifts && plural(drifts, 'drift'), beds && plural(beds, 'bed outline')].filter(Boolean);
   $('clearMsg').innerHTML = `This removes ${esc(parts.join(', ').replace(/, ([^,]*)$/, ' and $1'))} from <b>${esc(S.g.name)}</b>. ${S.g.underlay ? 'Your imported site plan stays. ' : ''}If you change your mind, press Undo straight afterwards.`;
   $('clearModal').hidden = false; $('clearNo').focus();
 }
-function closeClear() { $('clearModal').hidden = true; $('clearBtn').focus(); }
+function closeClear() { $('clearModal').hidden = true; $('detailsBtn').focus(); }
 $('clearBtn').addEventListener('click', openClear);
 $('clearNo').addEventListener('click', closeClear);
 $('clearModal').addEventListener('click', e => { if (e.target.id === 'clearModal') closeClear(); });
@@ -1280,6 +1314,8 @@ $('clearYes').addEventListener('click', () => {
   setStatus('Plan cleared. Press Undo to bring it back.');
 });
 document.addEventListener('keydown', e => {
+  if (!$('detailsModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeDetails(); } return; }
+  if (!$('ulMenu').hidden && e.key === 'Escape') { closeUlMenu(); $('ulMenuBtn').focus(); return; }
   if (!$('plantModal').hidden && e.key === 'Escape') { S.editPlant = null; S.confirm = null; renderLibrary(); return; }
   if (!$('clearModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeClear(); } return; }
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
