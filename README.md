@@ -7,7 +7,7 @@ https://claude.ai/artifact/2aTBjBBXxP2rNoepiPnhLe
 
 ## What it does
 
-- **Plan**: import a site plan (SVG, PDF page 1, PNG or JPEG) as an underlay and set its scale from two points a known distance apart. Place single plants or groups, draw curved drifts (plant count worked out from area and density) and bed outlines. Existing plants are drawn dashed, with Retain / Prune / Remove status, measured size and notes per plant. Design intent (mature spread) and As planted (pot size) views.
+- **Plan**: import a site plan (SVG, PDF page 1, PNG or JPEG) as an underlay and set its scale from two points a known distance apart. Place single plants or groups, draw curved drifts (plant count worked out from area and density). Existing plants are drawn dashed, with Retain / Prune / Remove status, measured size and notes per plant. Design intent (mature spread) and As planted (pot-size plants at their spacing) views, a Layers menu to show any combination of the seven layers, and a Shift-drag selection box.
 - **Plant schedule**: new plants with layer, supply, supplier, quantity and cost, plus a separate table of existing plants. Copies straight into a spreadsheet.
 - **Flowering calendar**: months across, species down, bars in each plant's flower colour, with a month-by-month colour strip showing interest and gaps.
 - **Plant database**: every species entered, shared across all gardens. Searchable, filterable by layer, sortable.
