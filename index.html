@@ -357,7 +357,7 @@ const TOOLS = [
   { id: 'drift', label: 'Drift', key: 'D', sw: 'var(--r-herbaceous)', blob: true },
 ];
 const HINTS = {
-  select: 'Click to select, drag across empty space to select several. Press and hold empty space, then drag, to move the page. Scroll to pan; + / − to zoom.',
+  select: 'Click to select. Drag empty space to move the page. Shift-drag to draw a selection box (add Ctrl to add to the selection). Scroll to pan; + / − to zoom.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
   drift: 'Pick a species, then click around the drift’s edge. Double-click, press Enter or click the first point to close it.',
   bed: 'Click around the bed’s edge to draw a curved outline. Double-click, press Enter or click the first point to close it.',
@@ -1147,8 +1147,7 @@ svg.addEventListener('pointerdown', e => {
     return;
   }
   // empty space (or any click with a drawing tool): a click acts, a drag selects or pans, a press-and-hold pans
-  const d = { pending: tool, marquee: tool === 'select', start: p, cur: p, sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey };
-  d.hold = setTimeout(() => { if (S.drag === d && !d.moved) beginPan(d); }, HOLD_MS);
+  const d = { pending: tool, marquee: e.shiftKey, start: p, cur: p, sx: e.clientX, sy: e.clientY, moved: false, add: e.ctrlKey || e.metaKey };
   S.drag = d;
 });
 svg.addEventListener('pointermove', e => {
@@ -1205,11 +1204,11 @@ function endDrag() {
         ...S.g.plantings.filter(pl => isVisible(plantById(pl.plantId)) && inR(pl.x, pl.y)).map(pl => ({ kind: 'planting', id: pl.id })),
         ...S.g.areas.filter(a => isVisible(plantById(a.plantId)) && a.pts.every(([x, y]) => inR(x, y))).map(a => ({ kind: 'area', id: a.id })),
       ];
-      if (d.shift) { const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : []; for (const f of found) if (!cur.some(c => c.kind === f.kind && c.id === f.id)) cur.push(f); selectMany(cur); }
+      if (d.add) { const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : []; for (const f of found) if (!cur.some(c => c.kind === f.kind && c.id === f.id)) cur.push(f); selectMany(cur); }
       else selectMany(found);
       return;
     }
-    if (d.marquee) { if (!d.shift) select(null); else renderMap(); return; }
+    if (d.pending === 'select') { select(null); return; }
     toolClick(d.pending, d.start); return;
   }
   if (d.moved) { saveGarden(); renderInspector(); }
