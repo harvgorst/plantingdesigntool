@@ -695,7 +695,7 @@ function renderLibrary() {
   const list = S.plants.filter(p => !q || [p.common, p.botanical, ROLES[p.role]].join(' ').toLowerCase().includes(q)).sort((a, b) => (a.common || '').localeCompare(b.common || ''));
   if (!S.plants.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${S.loaded ? 'Your library is empty. Use Add species to start it. Every species you add here is reused across all your gardens.' : 'Loading your plant library…'}</li>`; return; }
   if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">No species match “${esc(S.filter)}”.</li>`; return; }
-  $('lib').innerHTML = list.map(p => `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant"><span class="sw round" style="${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span><span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || 'Flower colour')}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
+  $('lib').innerHTML = list.map(p => `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan"><span class="sw round" style="${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span><span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || 'Flower colour')}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
 }
 function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
 function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
@@ -1277,9 +1277,20 @@ $('lib').addEventListener('click', e => {
   S.activePlant = li.dataset.pid;
   if (S.tool !== 'drift' && S.tool !== 'plant') S.tool = 'plant';
   if (S.draw) S.draw.plantId = S.activePlant;
-  renderTools(); renderLibrary();
+  renderTools();
+  for (const el of $('lib').querySelectorAll('[data-pid]')) el.setAttribute('aria-selected', el.dataset.pid === S.activePlant);
 });
-$('lib').addEventListener('dblclick', e => { const li = e.target.closest('[data-pid]'); if (li) openPlantEditor(li.dataset.pid); });
+$('lib').addEventListener('dblclick', e => {
+  if (e.target.closest('[data-edit]')) return;
+  const li = e.target.closest('[data-pid]'); if (!li || !S.g) return;
+  const id = li.dataset.pid, p = plantById(id);
+  const found = [...S.g.plantings.filter(x => x.plantId === id).map(x => ({ kind: 'planting', id: x.id })), ...S.g.areas.filter(a => a.plantId === id).map(a => ({ kind: 'area', id: a.id }))];
+  if (S.draw) { S.draw = null; S.hover = null; }
+  S.tool = 'select'; renderTools();
+  if (p && !isVisible(p)) { if (p.existing) S.showExisting = true; S.layers.add(layerOf(p.role)); saveLayers(); renderLayers(); }
+  if (!found.length) { select(null); $('hint').textContent = `${p?.common || 'This species'} isn’t on this plan yet.`; return; }
+  selectMany(found);
+});
 $('libSearch').addEventListener('input', e => { S.filter = e.target.value; renderLibrary(); });
 $('addPlantBtn').addEventListener('click', () => openPlantEditor(null));
 function openPlantEditor(id) {
