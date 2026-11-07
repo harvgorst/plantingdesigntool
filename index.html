@@ -83,16 +83,19 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 #zoomLbl { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
 
 /* properties bar */
-.props { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-height: 46px; padding: 6px 14px; border-bottom: 1px solid var(--line); }
-.hint { color: var(--muted); font-style: italic; }
-.insp { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; flex: 1; min-width: 0; }
-.pk { font-family: var(--f-display); font-size: 19px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.props { display: flex; flex-wrap: nowrap; align-items: center; gap: 16px; height: 48px; padding: 0 14px; border-bottom: 1px solid var(--line); overflow: hidden; }
+.hint { color: var(--muted); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.insp { display: flex; flex-wrap: nowrap; align-items: center; gap: 18px; flex: 1; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; white-space: nowrap; }
+.insp > * { flex: none; }
+.insp > .pv { flex: 0 1 auto; min-width: 60px; overflow: hidden; text-overflow: ellipsis; }
+.pk { white-space: nowrap; font-family: var(--f-display); font-size: 19px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
 .pf { display: inline-flex; align-items: center; gap: 7px; }
 .pf input[type=text] { width: 11em; }
 .pf input.n { width: 5em; }
 .pv { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .pv i { color: var(--ink); }
-.insp .acts { display: flex; gap: 6px; margin-left: auto; }
+.insp .acts { display: flex; gap: 6px; margin-left: auto; padding-left: 8px; }
+.insp .confirm-inline { flex-wrap: nowrap; }
 
 /* work area */
 .work { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; min-height: 0; }
@@ -637,7 +640,7 @@ function renderTools() {
   else if (S.tool === 'scale' && S.cal?.a && !S.cal.b) h = 'Now click the second point.';
   else if (S.tool === 'select' && S.g && !S.g.underlay) h = 'Start by importing your site plan from the Site plan menu, then set its scale. ' + HINTS.select;
   else if (S.tool === 'select' && S.g?.underlay && !S.g.underlay.calibrated) h = 'Your plan isn’t scaled yet. Use Set scale and click two points a known distance apart.';
-  $('hint').textContent = h;
+  $('hint').textContent = h; $('hint').title = h;
   const u = S.g?.underlay;
   $('ulImport').disabled = !S.g || S.busy || (S.loaded && S.online && !S.assets);
   $('ulImport').textContent = S.busy ? 'Importing…' : u ? 'Replace plan…' : 'Import plan…';
