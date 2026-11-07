@@ -30,22 +30,13 @@ button, input, select, output { font: inherit; color: inherit; }
 .app { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); height: 100%; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px; gap: 10px; }
 h1 { font-family: var(--f-display); font-weight: 600; font-size: 30px; line-height: 1; margin: 0; letter-spacing: -0.005em; text-wrap: balance; }
 h2 { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-height: 1.1; margin: 0; }
-.lbl, .tb > span, .pf > span, .field > span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
+.lbl, .pf > span, .field > span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
 .spacer { flex: 1; }
 #status { font-size: 12px; color: var(--muted); font-style: italic; white-space: nowrap; }
 #status.err { color: var(--crit); font-style: normal; }
 
 /* header title block */
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-.brand { display: flex; flex-direction: column; gap: 4px; }
-.brand .lbl { letter-spacing: 0.14em; }
-.titleblock { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 18px; min-width: 0; }
-.tb { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.tb input[type=text] { width: 13em; }
-.tb .dim { display: flex; align-items: center; gap: 6px; color: var(--muted); }
-.tb .dim input { width: 4.6em; color: var(--ink); }
-.tb output { padding: 5px 0; font-variant-numeric: tabular-nums; }
-.tb .row { flex-wrap: nowrap; }
 
 .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 12px; cursor: pointer; line-height: 1.3; }
 .btn:hover { border-color: var(--muted); }
@@ -75,8 +66,6 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 .sw { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--muted); flex: none; }
 .sw.round { border-radius: 50%; }
 .zoom { display: flex; align-items: center; gap: 6px; }
-.ul { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.ulop input { width: 84px; accent-color: var(--accent); vertical-align: middle; }
 .btn:disabled { opacity: .45; cursor: default; }
 .confirm-inline { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .zoom .seg button { padding: 3px 10px; }
@@ -126,7 +115,7 @@ input[type=number] { font-variant-numeric: tabular-nums; }
   --ground: #F1EBDF; --grid: #E3DACA; --grid-major: #D2C6B1; --bed: #E6D6BE;
   --r-canopy: #2F5A3C; --r-understory: #4B807B; --r-shrub: #7E9A55; --r-herbaceous: #9C5378; --r-ground: #A39543; --r-tuber: #B97B42; --r-climber: #5D6FA3;
   --label: #000000; --exist: #7B7266; }
-#map.can-pan { cursor: grab; } #map.panning, #map.panning * { cursor: grabbing !important; }
+#map.panning, #map.panning * { cursor: grabbing !important; }
 #map { flex: 1; width: 100%; min-height: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
 #map text { font-family: var(--f-body); }
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--panel); }
@@ -154,11 +143,6 @@ table.sched.wide { font-size: 14px; min-width: 640px; }
 .sched.wide td, .sched.wide th { padding: 7px 8px; }
 .sched.wide tfoot td { font-size: 15px; }
 
-.months { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; align-items: end; height: 64px; }
-.months div { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; height: 100%; }
-.months .bar { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
-.months .bar.zero { background: var(--line); }
-.months span { font-size: 10.5px; color: var(--muted); }
 .mslider { position: relative; display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
 .mslider .mcells { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; height: 14px; margin-top: 7px; }
 .mslider .mcells span { background: var(--line-soft); border-radius: 3px; }
@@ -207,7 +191,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .mi:hover:not(:disabled) { background: var(--paper); }
 .mi:disabled { opacity: .45; cursor: default; }
 .mi.danger { color: var(--crit); }
-.mi.ulop input { width: 110px; }
+.mi.ulop input { width: 110px; accent-color: var(--accent); }
 .lrow { display: grid; grid-template-columns: auto 14px 1fr auto; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
 .lrow:hover { background: var(--paper); }
 .lrow .n { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
@@ -256,8 +240,6 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 @media (max-width: 700px) {
   .work { grid-template-columns: minmax(0, 1fr); }
   .mapwrap { height: 60vh; }
-  .tb input[type=text] { width: 100%; }
-  .titleblock, .tb { width: 100%; }
   .tsep { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -395,14 +377,11 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 const ROLES = { canopy: 'Canopy', understory: 'Understory', shrub: 'Shrub', herbaceous: 'Herbaceous', ground: 'Ground cover', tuber: 'Tubers & bulbs', climber: 'Climbers' };
 const OLD_ROLES = { structure: 'shrub', screening: 'shrub', feature: 'herbaceous', filler: 'herbaceous', edible: 'understory' };
 const layerOf = r => ROLES[r] ? r : (OLD_ROLES[r] || 'herbaceous');
-const LIGHT = { sun: 'Full sun', part: 'Part shade', shade: 'Full shade' };
-const MOIST = { dry: 'Dry', moist: 'Moist', wet: 'Wet' };
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const FLOWER_COLOURS = [['White','#FFFFFF'],['Cream','#F3EBC8'],['Pale yellow','#F4E58A'],['Yellow','#F2C531'],['Gold','#E0A526'],['Orange','#E8862F'],['Apricot','#F1B48A'],['Coral','#EE7F6E'],
   ['Red','#C92F2F'],['Crimson','#9E1F3A'],['Burgundy','#6E1E33'],['Magenta','#C2307E'],['Hot pink','#E4549A'],['Pink','#EE9BBE'],['Pale pink','#F6CFDB'],['Lilac','#C9A7D9'],
   ['Lavender','#A894D2'],['Violet','#7B5BB5'],['Purple','#5E3A8C'],['Blue','#4A6FC2'],['Sky blue','#8EB6E3'],['Lime green','#B9CF6A'],['Green','#7FA35A'],['Bronze','#9C6B3A']];
 const STATUS = { retain: 'Retain', prune: 'Retain & prune', remove: 'Remove' };
-const AREA = { bed: 'Planting bed', drift: 'Drift', zone: 'Condition zone' };
 const TOOLS = [
   { id: 'select', label: 'Select', key: 'V or Space' },
   { id: 'plant', label: 'Plant', key: 'P', sw: 'var(--r-shrub)', round: true },
@@ -410,12 +389,8 @@ const TOOLS = [
 const HINTS = {
   select: 'Click to select. Drag empty space to move the page. Shift-drag to draw a selection box (add Ctrl to add to the selection). Scroll to pan; + / − to zoom.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
-  drift: 'Pick a species, then click around the drift’s edge. Double-click, press Enter or click the first point to close it.',
-  bed: 'Click around the bed’s edge to draw a curved outline. Double-click, press Enter or click the first point to close it.',
-  zone: 'Click around an area to mark its light and moisture. Double-click, press Enter or click the first point to close it.',
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
-const DRAW_HINT = 'Click to add points. Double-click, press Enter or click the first point to finish. Backspace removes the last point, Esc cancels.';
 
 const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, defaultView: 'mature', currency: '£', roleColors: {} };
 const ROLE_DEFAULTS = { canopy: '#2F5A3C', understory: '#4B807B', shrub: '#7E9A55', herbaceous: '#9C5378', ground: '#A39543', tuber: '#B97B42', climber: '#5D6FA3', existing: '#7B7266' };
@@ -444,7 +419,9 @@ const r2 = v => Math.round(v * 100) / 100;
 const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const money = v => (S.prefs.currency || '£') + (Math.round(v * 100) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const plantById = id => S.plants.find(p => p.id === id);
+let plantIndex = null, plantIndexOf = null;
+const plantById = id => { if (plantIndexOf !== S.plants) { plantIndex = new Map(S.plants.map(p => [p.id, p])); plantIndexOf = S.plants; } return plantIndex.get(id); };
+const upsertPlant = rec => { S.plants = [...S.plants.filter(x => x.id !== rec.id), rec]; };
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 function setStatus(t, err) { const el = $('status'); el.textContent = t; el.classList.toggle('err', !!err); }
 function plantLabel(p) {
@@ -500,7 +477,14 @@ function centreOf(a) {
 }
 const potR = p => Math.max(0.02, num(p?.potSpread, 0.2) / 2);
 function pointInPoly(x, y, P) { let ins = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, yi] = P[i], [xj, yj] = P[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; } return ins; }
+const dotCache = new Map();
 function driftDots(a) {
+  const key = a.id + '|' + a.smooth + '|' + a.density + '|' + a.pts.join(';');
+  if (dotCache.has(key)) return dotCache.get(key);
+  if (dotCache.size > 200) dotCache.clear();
+  const v = driftDotsCalc(a); dotCache.set(key, v); return v;
+}
+function driftDotsCalc(a) {
   const P = sampled(a), dens = Math.max(0.05, num(a.density, defaultDensity(plantById(a.plantId)))), sp = 1 / Math.sqrt(dens * 0.866);
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of P) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
@@ -533,7 +517,7 @@ async function flushSave() {
   saving = false;
   if (saveAgain) { saveAgain = false; flushSave(); }
 }
-const busy = () => saveTimer || saving || S.drag || S.draw;
+const busy = () => saveTimer || saving || S.drag;
 
 /* ---------- selection ---------- */
 function findSel() {
@@ -601,12 +585,9 @@ function renderMap() {
   if (S.prefs.showRulers) for (let y = lab; y <= D + 1e-6; y += lab) parts.push(`<text x="${-fs * 0.6}" y="${y + fs * 0.3}" font-size="${fs * 0.9}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${y}</text>`);
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
   const ls = fs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
-  // areas: beds, then zones, then drifts
-  const order = { bed: 0, zone: 1, drift: 2 };
-  const areas = [...g.areas].sort((a, b) => order[a.kind] - order[b.kind]);
+  const areas = g.areas;
   const planted = S.view === 'planted';
   for (const a of areas) {
-    if (a.kind !== 'drift') continue;
     const p = plantById(a.plantId);
     if (!isVisible(p)) continue;
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
@@ -651,13 +632,6 @@ function renderMap() {
   // handles for the selected curve
   const sa = S.sel?.kind === 'area' ? findSel() : null;
   if (sa && S.tool === 'select') sa.pts.forEach((pt, i) => parts.push(`<circle data-kind="handle" data-id="${sa.id}" data-i="${i}" cx="${pt[0]}" cy="${pt[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
-  // curve being drawn
-  if (S.draw) {
-    const pts = S.hover ? [...S.draw.pts, [S.hover.x, S.hover.y]] : S.draw.pts;
-    if (pts.length >= 2) parts.push(`<path d="${pathD(pts, true, false)}" fill="none" style="stroke:var(--accent)" stroke-width="2" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
-    if (pts.length >= 3) parts.push(`<path d="${pathD(pts, true, true)}" style="fill:var(--accent)" fill-opacity="0.08" stroke="none" pointer-events="none"/>`);
-    S.draw.pts.forEach((pt, i) => parts.push(`<circle cx="${pt[0]}" cy="${pt[1]}" r="${px * (i === 0 ? 6 : 4)}" style="fill:${i === 0 ? 'var(--panel)' : 'var(--accent)'};stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`));
-  }
   // scale calibration line
   if (S.cal?.a) {
     const b = S.cal.b || S.hover;
@@ -680,13 +654,11 @@ function toolSwatch(t) {
 }
 function renderTools() {
   $('tools').innerHTML = TOOLS.map(t => `<button type="button" class="tool" data-tool="${t.id}" aria-pressed="${S.tool === t.id}" title="${t.label} (${t.key})">${toolSwatch(t)}${t.label}</button>`).join('');
-  const needSp = (S.tool === 'plant' || S.tool === 'drift') && !S.activePlant;
+  const needSp = S.tool === 'plant' && !S.activePlant;
   const ap = plantById(S.activePlant)?.common || '';
   let h = HINTS[S.tool] || '';
   if (needSp) h = 'Pick a species in the plant library first.';
-  else if (S.draw) h = (S.tool === 'drift' ? `Drawing a drift of ${ap}. ` : '') + DRAW_HINT;
   else if (S.tool === 'plant') h = `Placing ${ap}. Click the plan to drop one; set the quantity for a group.`;
-  else if (S.tool === 'drift') h = `Drift of ${ap}: ` + HINTS.drift.replace('Pick a species, then click', 'click');
   else if (S.tool === 'scale' && S.cal?.a && !S.cal.b) h = 'Now click the second point.';
   else if (S.tool === 'select' && S.g && !S.g.underlay) h = 'Start by importing your site plan from the Site plan menu, then set its scale. ' + HINTS.select;
   else if (S.tool === 'select' && S.g?.underlay && !S.g.underlay.calibrated) h = 'Your plan isn’t scaled yet. Use Set scale and click two points a known distance apart.';
@@ -769,16 +741,7 @@ function renderInspector() {
       <label class="pf"><span>Plants per m²</span><input id="a-density" class="n" type="number" min="0.1" max="100" step="0.1" data-f="density" value="${num(it.density, defaultDensity(p))}"></label>
       ${area}<span class="pv"><b style="color:var(--ink)">${driftQty(it)}</b> plants${p && !p.existing ? ' · ' + money(num(p.cost) * driftQty(it)) : p?.existing ? ' · existing' : ''}</span>
       ${smooth}${acts(p ? '<button class="btn sm" type="button" data-act="editSpecies">Edit species</button>' : '')}`;
-  } else if (it.kind === 'bed') {
-    el.innerHTML = `<span class="pk">${toolSwatch(TOOLS[3])} Planting bed</span>
-      <label class="pf"><span>Label</span><input id="a-label" type="text" data-f="label" value="${esc(it.label)}"></label>
-      ${area}${smooth}${acts()}`;
-  } else {
-    el.innerHTML = `<span class="pk">${toolSwatch(TOOLS[4])} Condition zone</span>
-      <label class="pf"><span>Light</span><select id="a-light" data-f="light">${opt(LIGHT, it.light, 'Not set')}</select></label>
-      <label class="pf"><span>Moisture</span><select id="a-moist" data-f="moisture">${opt(MOIST, it.moisture, 'Not set')}</select></label>
-      ${area}${smooth}${acts()}`;
-  }
+}
 }
 function renderGardenFields() {
   for (const [id, k] of [['g-name', 'name'], ['g-client', 'client'], ['g-w', 'width'], ['g-d', 'depth']]) {
@@ -970,6 +933,13 @@ function setPref(k, v) {
   const smp = $('pf-sample');
   if (smp) { smp.style.fontSize = Math.round(13 * S.prefs.labelSize) + 'px'; smp.textContent = (S.prefs.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender', botanical: 'Lavandula angustifolia' }[S.prefs.labelMode] || 'Lav ang'); }
 }
+function usageByPlant() {
+  const gs = S.gardens.map(g => (S.g && g.id === S.g.id) ? S.g : g);
+  if (S.g && !gs.some(g => g.id === S.g.id)) gs.push(S.g);
+  const m = new Map();
+  for (const g of gs) { const ids = new Set([...g.plantings.map(x => x.plantId), ...g.areas.map(x => x.plantId)]); for (const id of ids) (m.get(id) || m.set(id, []).get(id)).push(g.name); }
+  return m;
+}
 function gardensUsing(id) {
   const gs = S.gardens.map(g => (S.g && g.id === S.g.id) ? S.g : g);
   if (S.g && !gs.some(g => g.id === S.g.id)) gs.push(S.g);
@@ -981,7 +951,8 @@ function renderDatabase() {
   if (!L.options.length) L.innerHTML = '<option value="">All layers</option>' + Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   const q = DB.q.trim().toLowerCase();
   const fm = p => p.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : '';
-  let rows = S.plants.map(p => ({ p, n: gardensUsing(p.id).length }))
+  const usage = usageByPlant();
+  let rows = S.plants.map(p => ({ p, used: usage.get(p.id) || [], n: (usage.get(p.id) || []).length }))
     .filter(({ p }) => (!DB.layer || p.role === DB.layer) && (!DB.kind || (DB.kind === 'existing') === !!p.existing))
     .filter(({ p }) => !q || [p.common, p.botanical, p.cultivar, p.supplier, p.supply, ROLES[p.role], p.flowerColorName].join(' ').toLowerCase().includes(q));
   const key = { common: r => (r.p.common || '').toLowerCase(), botanical: r => (r.p.botanical || '').toLowerCase(), layer: r => Object.keys(ROLES).indexOf(r.p.role), flower: r => +r.p.flowerFrom || 99, height: r => num(r.p.height), spread: r => num(r.p.spread), cost: r => r.p.existing ? -1 : num(r.p.cost), used: r => r.n }[DB.sort];
@@ -990,7 +961,7 @@ function renderDatabase() {
   $('dbCount').textContent = `${rows.length} of ${S.plants.length} species`;
   $('dbTable').innerHTML = !S.plants.length ? `<tbody><tr><td class="empty">${S.loaded ? 'No plants yet. Use Add species to start your database.' : 'Loading your plants…'}</td></tr></tbody>`
     : !rows.length ? '<tbody><tr><td class="empty">No species match those filters.</td></tr></tbody>'
-    : `<thead><tr>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Supply</th><th>Supplier</th>${th('cost', 'Cost', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n }) => `<tr>
+    : `<thead><tr>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Supply</th><th>Supplier</th>${th('cost', 'Cost', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n, used }) => `<tr>
       <td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
       <td><i>${esc(p.botanical)}</i>${p.cultivar ? ` <i>${esc(p.cultivar)}</i>` : ''}</td>
       <td>${esc(ROLES[p.role] || '')}</td>
@@ -998,7 +969,7 @@ function renderDatabase() {
       <td class="n">${p.height != null && p.height !== '' ? num(p.height).toFixed(2) + ' m' : ''}</td><td class="n">${num(p.spread).toFixed(2)} m</td>
       <td>${esc(p.existing ? 'on site' : p.supply || '')}</td><td>${esc(p.existing ? '' : p.supplier || '')}</td>
       <td class="n">${p.existing ? '–' : money(num(p.cost))}</td>
-      <td class="n" title="${esc(gardensUsing(p.id).map(g => g.name).join(', '))}">${n || '–'}</td>
+      <td class="n" title="${esc(used.join(', '))}">${n || '–'}</td>
       <td class="n"><button class="btn sm" type="button" data-edit="${p.id}">Edit</button></td></tr>`).join('')}</tbody>`;
 }
 function getPage() { const h = location.hash.slice(1); return ['flowering', 'schedule', 'preferences', 'database'].includes(h) ? h : 'plan'; }
@@ -1131,16 +1102,13 @@ function zoomAt(factor, x, y) {
 function zoomBy(f) { const r = svg.getBoundingClientRect(); zoomAt(f, r.left + r.width / 2, r.top + r.height / 2); }
 function pxPerM() { return svg.getScreenCTM()?.a || 1; }
 const ptrs = new Map();
-function startPan(e, deselect) { S.drag = { pan: true, sx: e.clientX, sy: e.clientY, cx: S.cx, cy: S.cy, moved: false, deselect }; }
 function cancelDrag() {
   const d = S.drag; if (!d) return;
-  clearTimeout(d.hold);
   if (d.moved && d.before) { S.g = JSON.parse(d.before); S.history.pop(); }
   S.drag = null; svg.classList.remove('panning'); renderInspector(); refreshDerived();
 }
 function startPinch() {
   cancelDrag();
-  if (S.draw && S.draw.pts.length) S.draw.pts.pop();
   const [a, b] = [...ptrs.values()];
   S.pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: S.zoom, anchor: toXY((a.x + b.x) / 2, (a.y + b.y) / 2) };
 }
@@ -1151,22 +1119,6 @@ function movePinch() {
   renderMap(); const now = toXY(mx, my);
   S.cx += S.pinch.anchor.x - now.x; S.cy += S.pinch.anchor.y - now.y; renderMap();
 }
-function finishDraw() {
-  const d = S.draw; if (!d) return;
-  const pts = [];
-  for (const p of d.pts) { const q = pts[pts.length - 1]; if (!q || Math.hypot(p[0] - q[0], p[1] - q[1]) > 0.05) pts.push(p); }
-  if (pts.length > 3 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 0.05) pts.pop();
-  S.draw = null; S.hover = null;
-  if (pts.length < 3) { renderTools(); renderMap(); return; }
-  checkpoint();
-  const a = { id: uid(), kind: d.kind, pts, smooth: true };
-  if (d.kind === 'drift') { a.plantId = d.plantId; a.density = defaultDensity(plantById(d.plantId)); }
-  if (d.kind === 'bed') a.label = '';
-  if (d.kind === 'zone') { a.light = 'part'; a.moisture = ''; }
-  S.g.areas.push(a); S.sel = { kind: 'area', id: a.id };
-  saveGarden(); renderTools(); renderInspector(); refreshDerived();
-}
-const HOLD_MS = 300;
 function beginPan(d, e) { d.pan = true; d.sx = e ? e.clientX : d.sx; d.sy = e ? e.clientY : d.sy; d.cx = S.cx; d.cy = S.cy; svg.classList.add('panning'); }
 function toolClick(tool, p) {
   const sp = { x: snap(p.x), y: snap(p.y) };
@@ -1174,17 +1126,6 @@ function toolClick(tool, p) {
     if (!S.cal || S.cal.b) S.cal = { a: null, b: null };
     if (!S.cal.a) S.cal.a = { x: p.x, y: p.y }; else S.cal.b = { x: p.x, y: p.y };
     renderTools(); renderInspector(); renderMap(); return;
-  }
-  if (tool === 'drift' || tool === 'bed') {
-    if (tool === 'drift' && !S.activePlant) { renderTools(); return; }
-    const pt = [r2(p.x), r2(p.y)];
-    if (!S.draw) { S.draw = { kind: tool, pts: [pt], plantId: S.activePlant }; select(null); }
-    else {
-      const f = S.draw.pts[0];
-      if (S.draw.pts.length >= 3 && Math.hypot(f[0] - pt[0], f[1] - pt[1]) * pxPerM() < 10) { finishDraw(); return; }
-      S.draw.pts.push(pt);
-    }
-    renderTools(); renderMap(); return;
   }
   if (tool === 'plant') {
     if (!S.activePlant) { renderTools(); return; }
@@ -1226,7 +1167,7 @@ svg.addEventListener('pointermove', e => {
   if (S.pinch) { if (ptrs.size >= 2) movePinch(); return; }
   const d = S.drag;
   if (!d) {
-    if (S.draw || (S.cal?.a && !S.cal.b)) { const p = toM(e); S.hover = { x: r2(p.x), y: r2(p.y) }; renderMapSoon(); }
+    if (S.cal?.a && !S.cal.b) { const p = toM(e); S.hover = { x: r2(p.x), y: r2(p.y) }; renderMapSoon(); }
     return;
   }
   if (d.pan) {
@@ -1237,10 +1178,9 @@ svg.addEventListener('pointermove', e => {
   }
   if (d.pending) {
     if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) {
-      if (S.draw || (S.cal?.a && !S.cal.b)) { const p = toM(e); S.hover = { x: r2(p.x), y: r2(p.y) }; renderMapSoon(); }
+      if (S.cal?.a && !S.cal.b) { const p = toM(e); S.hover = { x: r2(p.x), y: r2(p.y) }; renderMapSoon(); }
       return;
     }
-    clearTimeout(d.hold);
     if (!d.marquee) { d.moved = true; beginPan(d); d.sx = d.sx; return; }
     d.moved = true; d.cur = toM(e); renderMapSoon(); return;
   }
@@ -1266,7 +1206,7 @@ svg.addEventListener('pointermove', e => {
 });
 function endDrag() {
   const d = S.drag; if (!d) return;
-  S.drag = null; clearTimeout(d.hold);
+  S.drag = null;
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
   if (d.pending) {
     if (d.marquee && d.moved) {
@@ -1289,7 +1229,6 @@ function onUp(e) { ptrs.delete(e.pointerId); if (S.pinch) { if (ptrs.size < 2) S
 svg.addEventListener('pointerup', onUp);
 svg.addEventListener('pointercancel', onUp);
 svg.addEventListener('pointerleave', () => { if (S.hover && !S.drag) { S.hover = null; renderMapSoon(); } });
-svg.addEventListener('dblclick', e => { if (S.draw) { e.preventDefault(); finishDraw(); } });
 svg.addEventListener('wheel', e => {
   if (!S.g) return;
   e.preventDefault();
@@ -1301,7 +1240,6 @@ svg.addEventListener('wheel', e => {
 
 /* ---------- controls ---------- */
 function setTool(t) {
-  if (S.draw && t !== S.tool) finishDraw();
   if (t !== 'scale') S.cal = null; else S.cal = { a: null, b: null };
   S.tool = t; S.hover = null; renderTools(); renderInspector(); renderMap();
 }
@@ -1310,8 +1248,7 @@ $('lib').addEventListener('click', e => {
   const ed = e.target.closest('[data-edit]'); if (ed) { openPlantEditor(ed.dataset.edit); return; }
   const li = e.target.closest('[data-pid]'); if (!li) return;
   S.activePlant = li.dataset.pid;
-  if (S.tool !== 'drift' && S.tool !== 'plant') S.tool = 'plant';
-  if (S.draw) S.draw.plantId = S.activePlant;
+  S.tool = 'plant';
   renderTools();
   for (const el of $('lib').querySelectorAll('[data-pid]')) el.setAttribute('aria-selected', el.dataset.pid === S.activePlant);
 });
@@ -1320,7 +1257,6 @@ $('lib').addEventListener('dblclick', e => {
   const li = e.target.closest('[data-pid]'); if (!li || !S.g) return;
   const id = li.dataset.pid, p = plantById(id);
   const found = [...S.g.plantings.filter(x => x.plantId === id).map(x => ({ kind: 'planting', id: x.id })), ...S.g.areas.filter(a => a.plantId === id).map(a => ({ kind: 'area', id: a.id }))];
-  if (S.draw) { S.draw = null; S.hover = null; }
   S.tool = 'select'; renderTools();
   if (p && !isVisible(p)) { if (p.existing) S.showExisting = true; S.layers.add(layerOf(p.role)); saveLayers(); renderLayers(); }
   if (!found.length) { select(null); $('hint').textContent = `${p?.common || 'This species'} isn’t on this plan yet.`; return; }
@@ -1444,9 +1380,8 @@ app.addEventListener('click', async e => {
     if (!(num(p.spread) > 0)) { $('plantErr').textContent = 'Mature spread must be more than 0 m.'; return; }
     const body = { ...p }; delete body._new; delete body.id; delete body.example;
     if (S.online) { b.disabled = true; try { await S.db.doc('plants/' + p.id).set(body); } catch (err) { b.disabled = false; $('plantErr').textContent = 'Couldn’t save: ' + (err?.message || 'try again'); return; } }
-    const i = S.plants.findIndex(x => x.id === p.id), rec = { id: p.id, ...body };
-    if (i >= 0) S.plants[i] = rec; else S.plants.push(rec);
-    S.editPlant = null; S.activePlant = p.id; if (S.tool !== 'drift') S.tool = 'plant'; renderAll();
+    upsertPlant({ id: p.id, ...body });
+    S.editPlant = null; S.activePlant = p.id; S.tool = 'plant'; renderAll();
   }
 });
 $('vMature').addEventListener('click', () => { S.view = 'mature'; renderAll(); });
@@ -1523,8 +1458,6 @@ $('copyBtn').addEventListener('click', async () => {
   catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch { b.textContent = 'Copy failed'; } ta.remove(); }
   setTimeout(() => { b.textContent = 'Copy for spreadsheet'; }, 1600);
 });
-document.addEventListener('keyup', e => { if (e.key === ' ') { S.space = false; svg.classList.remove('can-pan'); } });
-window.addEventListener('blur', () => { S.space = false; svg.classList.remove('can-pan'); });
 function plural(n, w) { return `${n} ${w}${n === 1 ? '' : 's'}`; }
 function openClear() {
   $('detailsModal').hidden = true;
@@ -1540,7 +1473,7 @@ $('clearNo').addEventListener('click', closeClear);
 $('clearModal').addEventListener('click', e => { if (e.target.id === 'clearModal') closeClear(); });
 $('clearYes').addEventListener('click', () => {
   checkpoint();
-  S.g.plantings = []; S.g.areas = []; S.sel = null; S.multi = []; S.draw = null; S.hover = null;
+  S.g.plantings = []; S.g.areas = []; S.sel = null; S.multi = []; S.hover = null;
   saveGarden(); closeClear(); renderAll();
   setStatus('Plan cleared. Press Undo to bring it back.');
 });
@@ -1554,11 +1487,6 @@ document.addEventListener('keydown', e => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-  if (S.draw) {
-    if (e.key === 'Enter') { e.preventDefault(); finishDraw(); return; }
-    if (e.key === 'Escape') { S.draw = null; S.hover = null; renderTools(); renderMap(); return; }
-    if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); S.draw.pts.pop(); if (!S.draw.pts.length) S.draw = null; renderTools(); renderMap(); return; }
-  }
   if (e.key === '+' || e.key === '=') { zoomBy(1.4); return; }
   if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
   if (e.key === '0') { resetView(); renderMap(); return; }
@@ -1578,7 +1506,7 @@ function normGarden(id, d) {
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
   const g = S.gardens.find(x => x.id === id); if (!g) return;
-  S.g = JSON.parse(JSON.stringify(g)); S.history = []; S.sel = null; S.draw = null; S.cal = null; S.confirm = null;
+  S.g = JSON.parse(JSON.stringify(g)); S.history = []; S.sel = null; S.cal = null; S.confirm = null;
   if (S.tool === 'scale') S.tool = 'select';
   store.set('gpm.last', id); resetView(); renderAll();
 }
@@ -1647,10 +1575,16 @@ const AV_FIELDS = [
 ];
 const normName = v => String(v || '').toLowerCase().replace(/['"‘’“”]/g, '').replace(/\s+/g, ' ').trim();
 const avKey = it => normName(it.b) + '|' + normName(it.sz);
+let mineIndex = null, mineIndexOf = null;
 function myPlantFor(it, supplier) {
-  const k = avKey(it);
-  return S.plants.find(p => !p.existing && normName(p.botanical) + '|' + normName(p.supply) === k && (!supplier || normName(p.supplier) === normName(supplier) || !p.supplier))
-    || S.plants.find(p => !p.existing && normName(p.botanical) + '|' + normName(p.supply) === k);
+  if (mineIndexOf !== S.plants) {
+    mineIndex = new Map();
+    for (const p of S.plants) { if (p.existing) continue; const k = normName(p.botanical) + '|' + normName(p.supply); (mineIndex.get(k) || mineIndex.set(k, []).get(k)).push(p); }
+    mineIndexOf = S.plants;
+  }
+  const list = mineIndex.get(avKey(it)); if (!list) return null;
+  const sup = normName(supplier);
+  return list.find(p => !supplier || normName(p.supplier) === sup || !p.supplier) || list[0];
 }
 function curList() { return AV.lists.find(l => l.id === AV.listId) || null; }
 async function loadListItems() {
@@ -1906,8 +1840,7 @@ $('avAdd').addEventListener('click', async () => {
     const id = mine?.id || uid();
     try {
       if (S.online) await S.db.doc('plants/' + id).set(base);
-      const i = S.plants.findIndex(x => x.id === id), rec = { id, ...base };
-      if (i >= 0) S.plants[i] = rec; else S.plants.push(rec);
+      upsertPlant({ id, ...base });
       if (mine) updated++; else added++;
     } catch { failed++; }
   }
