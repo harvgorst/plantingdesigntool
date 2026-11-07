@@ -347,7 +347,7 @@ const TOOLS = [
   { id: 'bed', label: 'Bed outline', key: 'B', sw: 'var(--bed)', blob: true },
 ];
 const HINTS = {
-  select: 'Click anything to edit it, drag to move it. Drag a white handle to reshape a curve. Drag empty space or scroll to pan; pinch or use + / − to zoom.',
+  select: 'Click to select, drag across empty space to select several. Press and hold empty space, then drag, to move the page. Scroll to pan; + / − to zoom.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
   drift: 'Pick a species, then click around the drift’s edge. Double-click, press Enter or click the first point to close it.',
   bed: 'Click around the bed’s edge to draw a curved outline. Double-click, press Enter or click the first point to close it.',
@@ -369,7 +369,7 @@ const S = {
   db: null, assets: null, online: false,
   plants: [], gardens: [], g: null,
   tool: 'select', activePlant: null, view: 'mature',
-  sel: null, editPlant: null, confirm: null,
+  sel: null, multi: [], editPlant: null, confirm: null,
   drag: null, history: [], loaded: false, filter: '',
   zoom: 1, cx: null, cy: null, pinch: null, space: false,
   prefs: { ...PREF_DEFAULTS }, prefsLoaded: false,
@@ -414,6 +414,7 @@ function segs(pts, closed) {
   }
   return out;
 }
+function normRect(a, b) { return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) }; }
 function pathD(pts, smooth, closed = true) {
   if (pts.length < 2) return '';
   const f = v => +v.toFixed(3);
@@ -440,7 +441,7 @@ function driftQty(a) { return Math.max(1, Math.round(areaOf(a) * num(a.density, 
 
 /* ---------- history & saving ---------- */
 function checkpoint() { if (!S.g) return; S.history.push(JSON.stringify(S.g)); if (S.history.length > 60) S.history.shift(); }
-function undo() { const prev = S.history.pop(); if (!prev) return; S.g = JSON.parse(prev); if (S.sel && !findSel()) S.sel = null; saveGarden(); renderAll(); }
+function undo() { const prev = S.history.pop(); if (!prev) return; S.g = JSON.parse(prev); S.multi = []; if (S.sel && !findSel()) S.sel = null; saveGarden(); renderAll(); }
 let saveTimer = null, saving = false, saveAgain = false;
 function saveGarden() {
   if (!S.g) return;
@@ -468,8 +469,28 @@ function findSel() {
   const list = S.sel.kind === 'area' ? S.g.areas : S.g.plantings;
   return list.find(x => x.id === S.sel.id) || null;
 }
-function select(kind, id) { S.sel = kind ? { kind, id } : null; if (S.confirm === 'underlay') S.confirm = null; renderInspector(); renderMap(); }
+function select(kind, id) { S.sel = kind ? { kind, id } : null; S.multi = []; if (S.confirm === 'underlay') S.confirm = null; renderInspector(); renderMap(); }
+function isSelected(kind, id) { return (S.sel?.kind === kind && S.sel.id === id) || S.multi.some(m => m.kind === kind && m.id === id); }
+function itemOf(m) { return (m.kind === 'area' ? S.g.areas : S.g.plantings).find(x => x.id === m.id) || null; }
+function selectedItems() { if (!S.g) return []; const list = S.multi.length ? S.multi : S.sel ? [S.sel] : []; return list.map(m => ({ ...m, it: itemOf(m) })).filter(m => m.it); }
+function selectMany(list) {
+  if (list.length <= 1) { select(list[0]?.kind || null, list[0]?.id); return; }
+  S.sel = null; S.multi = list; renderInspector(); renderMap();
+}
+function toggleSelect(kind, id) {
+  const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : [];
+  const i = cur.findIndex(m => m.kind === kind && m.id === id);
+  if (i >= 0) cur.splice(i, 1); else cur.push({ kind, id });
+  selectMany(cur);
+}
 function removeSel() {
+  if (S.multi.length) {
+    const items = selectedItems(); if (!items.length) return;
+    checkpoint();
+    const ids = new Set(items.map(m => m.id));
+    S.g.plantings = S.g.plantings.filter(x => !ids.has(x.id)); S.g.areas = S.g.areas.filter(x => !ids.has(x.id));
+    S.multi = []; S.sel = null; saveGarden(); renderAll(); return;
+  }
   const it = findSel(); if (!it) return;
   checkpoint();
   const key = S.sel.kind === 'area' ? 'areas' : 'plantings';
@@ -511,7 +532,7 @@ function renderMap() {
   const areas = [...g.areas].sort((a, b) => order[a.kind] - order[b.kind]);
   for (const a of areas) {
     const d = pathD(a.pts, a.smooth);
-    const isSel = S.sel?.kind === 'area' && S.sel.id === a.id;
+    const isSel = isSelected('area', a.id);
     const c = centreOf(a);
     if (a.kind === 'bed') {
       parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:var(--bed);stroke:${isSel ? 'var(--accent)' : 'var(--muted)'}" fill-opacity="${showUl ? 0.45 : 0.8}" stroke-width="${isSel ? 2.5 : 1.2}" vector-effect="non-scaling-stroke"/>${a.label && showL ? `<text x="${c.x}" y="${c.y}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-style:italic">${esc(a.label)}</text>` : ''}</g>`);
@@ -529,7 +550,7 @@ function renderMap() {
   for (const pl of pls) {
     const p = plantById(pl.plantId), r = radiusOf(pl), ex = !!p?.existing, st = pl.status || 'retain';
     const c = ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
-    const isSel = S.sel?.kind === 'planting' && S.sel.id === pl.id;
+    const isSel = isSelected('planting', pl.id);
     const lbl = (S.prefs.labelQty && pl.qty > 1 ? pl.qty + ' ' : '') + plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '');
     const k = r * 0.7071;
     parts.push(`<g data-kind="planting" data-id="${pl.id}" style="cursor:move">
@@ -540,6 +561,7 @@ function renderMap() {
       ${showL ? `<text x="${pl.x}" y="${pl.y - ls * 0.32}" font-size="${ls * 0.68}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${esc(lbl)}</text>` : ''}
     </g>`);
   }
+  if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
   // handles for the selected curve
   const sa = S.sel?.kind === 'area' ? findSel() : null;
   if (sa && S.tool === 'select') sa.pts.forEach((pt, i) => parts.push(`<circle data-kind="handle" data-id="${sa.id}" data-i="${i}" cx="${pt[0]}" cy="${pt[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
@@ -624,6 +646,16 @@ function renderInspector() {
       <span class="acts"><button class="btn sm primary" type="button" data-act="calApply">Apply scale</button><button class="btn sm" type="button" data-act="calCancel">Cancel</button></span>`;
     setTimeout(() => { const i = $('cal-m'); if (i) { i.focus(); i.select(); } }, 0);
     return;
+  }
+  if (S.multi.length) {
+    const items = selectedItems();
+    if (items.length > 1) {
+      hint.hidden = true; el.hidden = false;
+      const plants = items.filter(m => m.kind === 'planting').reduce((t, m) => t + (m.it.qty || 1), 0), drifts = items.filter(m => m.it.kind === 'drift').length, beds = items.filter(m => m.it.kind === 'bed').length;
+      const bits = [plants && plural(plants, 'plant'), drifts && plural(drifts, 'drift'), beds && plural(beds, 'bed outline')].filter(Boolean).join(', ');
+      el.innerHTML = `<span class="pk">${items.length} selected</span><span class="pv">${esc(bits)} · drag any of them to move them together, Shift-click to add or remove</span><span class="acts"><button class="btn sm" type="button" data-act="deselect">Deselect</button><button class="btn sm danger" type="button" data-act="delete">Remove all</button></span>`;
+      return;
+    }
   }
   const it = S.g ? findSel() : null;
   hint.hidden = !!it; el.hidden = !it;
@@ -998,8 +1030,8 @@ const ptrs = new Map();
 function startPan(e, deselect) { S.drag = { pan: true, sx: e.clientX, sy: e.clientY, cx: S.cx, cy: S.cy, moved: false, deselect }; }
 function cancelDrag() {
   const d = S.drag; if (!d) return;
-  if (d.placed) { S.history.pop(); S.g.plantings = S.g.plantings.filter(x => x.id !== d.placed); S.sel = null; }
-  else if (d.moved && d.before) { S.g = JSON.parse(d.before); }
+  clearTimeout(d.hold);
+  if (d.moved && d.before) { S.g = JSON.parse(d.before); S.history.pop(); }
   S.drag = null; svg.classList.remove('panning'); renderInspector(); refreshDerived();
 }
 function startPinch() {
@@ -1030,23 +1062,16 @@ function finishDraw() {
   S.g.areas.push(a); S.sel = { kind: 'area', id: a.id };
   saveGarden(); renderTools(); renderInspector(); refreshDerived();
 }
-svg.addEventListener('pointerdown', e => {
-  if (!S.g) return;
-  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  try { svg.setPointerCapture(e.pointerId); } catch {}
-  if (ptrs.size === 2) { startPinch(); return; }
-  if (ptrs.size > 2) return;
-  if (e.button === 1 || S.space) { e.preventDefault(); startPan(e, false); return; }
-  if (e.button > 0) return;
-  const p = toM(e), sp = { x: snap(p.x), y: snap(p.y) };
-  const hit = e.target.closest('[data-kind]');
-  const tool = S.tool;
+const HOLD_MS = 300;
+function beginPan(d, e) { d.pan = true; d.sx = e ? e.clientX : d.sx; d.sy = e ? e.clientY : d.sy; d.cx = S.cx; d.cy = S.cy; svg.classList.add('panning'); }
+function toolClick(tool, p) {
+  const sp = { x: snap(p.x), y: snap(p.y) };
   if (tool === 'scale') {
     if (!S.cal || S.cal.b) S.cal = { a: null, b: null };
     if (!S.cal.a) S.cal.a = { x: p.x, y: p.y }; else S.cal.b = { x: p.x, y: p.y };
     renderTools(); renderInspector(); renderMap(); return;
   }
-  if (tool === 'drift' || tool === 'bed' || tool === 'zone') {
+  if (tool === 'drift' || tool === 'bed') {
     if (tool === 'drift' && !S.activePlant) { renderTools(); return; }
     const pt = [r2(p.x), r2(p.y)];
     if (!S.draw) { S.draw = { kind: tool, pts: [pt], plantId: S.activePlant }; select(null); }
@@ -1057,24 +1082,41 @@ svg.addEventListener('pointerdown', e => {
     }
     renderTools(); renderMap(); return;
   }
-  if (tool === 'select' || (tool === 'plant' && hit && !S.activePlant)) {
-    if (!hit) { startPan(e, true); return; }
-    const kind = hit.dataset.kind, id = hit.dataset.id;
-    if (kind === 'handle') { S.drag = { handle: true, id, i: +hit.dataset.i, moved: false, before: JSON.stringify(S.g) }; return; }
-    select(kind, id);
-    const it = findSel(); if (!it) return;
-    S.drag = { move: true, kind, start: p, orig: kind === 'area' ? it.pts.map(q => q.slice()) : { x: it.x, y: it.y }, moved: false, before: JSON.stringify(S.g) };
-    return;
-  }
   if (tool === 'plant') {
     if (!S.activePlant) { renderTools(); return; }
     checkpoint();
     const pl = { id: uid(), plantId: S.activePlant, x: sp.x, y: sp.y, qty: 1 };
     S.g.plantings.push(pl);
-    S.sel = { kind: 'planting', id: pl.id };
-    S.drag = { move: true, kind: 'planting', start: p, orig: { x: pl.x, y: pl.y }, moved: true, placed: pl.id };
-    renderInspector(); refreshDerived();
+    S.sel = { kind: 'planting', id: pl.id }; S.multi = [];
+    saveGarden(); renderInspector(); refreshDerived();
   }
+}
+svg.addEventListener('pointerdown', e => {
+  if (!S.g) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { svg.setPointerCapture(e.pointerId); } catch {}
+  if (ptrs.size === 2) { startPinch(); return; }
+  if (ptrs.size > 2) return;
+  if (e.button === 1) { e.preventDefault(); S.drag = { moved: false }; beginPan(S.drag, e); return; }
+  if (e.button > 0) return;
+  const p = toM(e);
+  const hit = e.target.closest('[data-kind]');
+  const tool = S.tool;
+  const selecting = tool === 'select' || (tool === 'plant' && hit && !S.activePlant);
+  if (selecting && hit) {
+    const kind = hit.dataset.kind, id = hit.dataset.id;
+    if (kind === 'handle') { S.drag = { handle: true, id, i: +hit.dataset.i, moved: false, before: JSON.stringify(S.g) }; return; }
+    if (e.shiftKey) { toggleSelect(kind, id); return; }
+    if (!isSelected(kind, id)) select(kind, id);
+    const items = selectedItems(); if (!items.length) return;
+    S.drag = { move: true, start: p, moved: false, before: JSON.stringify(S.g),
+      items: items.map(m => ({ m, orig: m.kind === 'area' ? m.it.pts.map(q => q.slice()) : { x: m.it.x, y: m.it.y } })) };
+    return;
+  }
+  // empty space (or any click with a drawing tool): a click acts, a drag selects or pans, a press-and-hold pans
+  const d = { pending: tool, marquee: tool === 'select', start: p, cur: p, sx: e.clientX, sy: e.clientY, moved: false, shift: e.shiftKey };
+  d.hold = setTimeout(() => { if (S.drag === d && !d.moved) beginPan(d); }, HOLD_MS);
+  S.drag = d;
 });
 svg.addEventListener('pointermove', e => {
   if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -1085,10 +1127,19 @@ svg.addEventListener('pointermove', e => {
     return;
   }
   if (d.pan) {
-    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return;
-    d.moved = true; svg.classList.add('panning');
+    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return;
+    d.moved = true;
     const k = pxPerM(); S.cx = d.cx - (e.clientX - d.sx) / k; S.cy = d.cy - (e.clientY - d.sy) / k;
     renderMapSoon(); return;
+  }
+  if (d.pending) {
+    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) {
+      if (S.draw || (S.cal?.a && !S.cal.b)) { const p = toM(e); S.hover = { x: r2(p.x), y: r2(p.y) }; renderMapSoon(); }
+      return;
+    }
+    clearTimeout(d.hold);
+    if (!d.marquee) { d.moved = true; beginPan(d); d.sx = d.sx; return; }
+    d.moved = true; d.cur = toM(e); renderMapSoon(); return;
   }
   const p = toM(e);
   if (d.handle) {
@@ -1097,20 +1148,37 @@ svg.addEventListener('pointermove', e => {
     a.pts[d.i] = [r2(p.x), r2(p.y)]; renderMapSoon(); return;
   }
   if (d.move) {
-    const it = findSel(); if (!it) return;
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
     if (!d.moved && d.before) S.history.push(d.before);
     d.moved = true;
-    if (d.kind === 'area') it.pts = d.orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
-    else { it.x = snap(d.orig.x + dx); it.y = snap(d.orig.y + dy); }
+    const one = d.items.length === 1;
+    for (const { m, orig } of d.items) {
+      if (m.kind === 'area') m.it.pts = orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
+      else if (one) { m.it.x = snap(orig.x + dx); m.it.y = snap(orig.y + dy); }
+      else { m.it.x = r2(orig.x + dx); m.it.y = r2(orig.y + dy); }
+    }
     renderMapSoon();
   }
 });
 function endDrag() {
   const d = S.drag; if (!d) return;
-  S.drag = null;
-  if (d.pan) { svg.classList.remove('panning'); if (!d.moved && d.deselect) select(null); return; }
+  S.drag = null; clearTimeout(d.hold);
+  if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
+  if (d.pending) {
+    if (d.marquee && d.moved) {
+      const r = normRect(d.start, d.cur), inR = (x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+      const found = [
+        ...S.g.plantings.filter(pl => inR(pl.x, pl.y)).map(pl => ({ kind: 'planting', id: pl.id })),
+        ...S.g.areas.filter(a => a.pts.every(([x, y]) => inR(x, y))).map(a => ({ kind: 'area', id: a.id })),
+      ];
+      if (d.shift) { const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : []; for (const f of found) if (!cur.some(c => c.kind === f.kind && c.id === f.id)) cur.push(f); selectMany(cur); }
+      else selectMany(found);
+      return;
+    }
+    if (d.marquee) { if (!d.shift) select(null); else renderMap(); return; }
+    toolClick(d.pending, d.start); return;
+  }
   if (d.moved) { saveGarden(); renderInspector(); }
   refreshDerived();
 }
@@ -1221,6 +1289,7 @@ app.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'delete') removeSel();
+  if (act === 'deselect') select(null);
   if (act === 'resetPrefs') { S.prefs = { ...PREF_DEFAULTS, roleColors: {} }; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'resetRoleCols') { S.prefs.roleColors = {}; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'clearColour') { S.editPlant.flowerColor = null; S.editPlant.flowerColorName = null; renderLibrary(); }
@@ -1309,7 +1378,7 @@ $('clearNo').addEventListener('click', closeClear);
 $('clearModal').addEventListener('click', e => { if (e.target.id === 'clearModal') closeClear(); });
 $('clearYes').addEventListener('click', () => {
   checkpoint();
-  S.g.plantings = []; S.g.areas = []; S.sel = null; S.draw = null; S.hover = null;
+  S.g.plantings = []; S.g.areas = []; S.sel = null; S.multi = []; S.draw = null; S.hover = null;
   saveGarden(); closeClear(); renderAll();
   setStatus('Plan cleared. Press Undo to bring it back.');
 });
@@ -1330,9 +1399,9 @@ document.addEventListener('keydown', e => {
   if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
   if (e.key === '0') { resetView(); renderMap(); return; }
   if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setTool('select'); return; }
-  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel) { e.preventDefault(); removeSel(); } return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel || S.multi.length) { e.preventDefault(); removeSel(); } return; }
   if (e.key === 'Escape') { setTool('select'); select(null); return; }
-  const t = TOOLS.find(x => x.key.toLowerCase() === e.key.toLowerCase()); if (t) setTool(t.id);
+  const t = TOOLS.find(x => x.key.toLowerCase().split(' or ')[0] === e.key.toLowerCase()); if (t) setTool(t.id);
 });
 
 /* ---------- data ---------- */
