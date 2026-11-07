@@ -531,11 +531,13 @@ function renderMap() {
   const g = S.g;
   if (!g) { svg.innerHTML = ''; return; }
   const W = g.width, D = g.depth, M = Math.max(W, D);
-  const pad = M * 0.07, fs = M / 55 / S.zoom, px = (M / 900) / S.zoom;
+  const pad = M * 0.07, fs = M / 55 / S.zoom;
+  let px = (M / 900) / S.zoom;
   if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
   S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
   const vw = (W + pad * 2) / S.zoom, vh = (D + pad * 2) / S.zoom;
   svg.setAttribute('viewBox', `${S.cx - vw / 2} ${S.cy - vh / 2} ${vw} ${vh}`);
+  { const k = svg.getScreenCTM()?.a; if (k > 0) px = 1 / k; }  // metres per screen pixel
   $('zoomLbl').textContent = Math.round(S.zoom * 100) + '%';
   const u = g.underlay, showUl = u && !S.ulHidden && ulUrl(u);
   const parts = [];
@@ -582,7 +584,7 @@ function renderMap() {
         body = `<circle cx="${pl.x}" cy="${pl.y}" r="${R}" style="fill:${c};stroke:${c}" fill-opacity="0.06" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>${dots.join('')}`;
         ringR = R;
       } else {
-        body = `<circle cx="${pl.x}" cy="${pl.y}" r="${Math.max(pr, px * 7)}" fill="transparent"/><circle cx="${pl.x}" cy="${pl.y}" r="${pr}" style="fill:${c};stroke:${c}" fill-opacity="0.75" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+        body = `<circle cx="${pl.x}" cy="${pl.y}" r="${Math.max(pr, px * 11)}" fill="transparent"/><circle cx="${pl.x}" cy="${pl.y}" r="${pr}" style="fill:${c};stroke:${c}" fill-opacity="0.75" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
         ringR = Math.max(pr, px * 5);
       }
     } else {
@@ -1138,7 +1140,7 @@ svg.addEventListener('pointerdown', e => {
   const p = toM(e);
   const hit = e.target.closest('[data-kind]');
   const tool = S.tool;
-  const selecting = tool === 'select' || (tool === 'plant' && hit && !S.activePlant);
+  const selecting = tool === 'select' || (tool === 'plant' && hit && (hit.dataset.kind === 'planting' || hit.dataset.kind === 'handle' || !S.activePlant));
   if (selecting && hit) {
     const kind = hit.dataset.kind, id = hit.dataset.id;
     if (kind === 'handle') { S.drag = { handle: true, id, i: +hit.dataset.i, moved: false, before: JSON.stringify(S.g) }; return; }
