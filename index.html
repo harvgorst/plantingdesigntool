@@ -356,6 +356,8 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
     <label class="field"><span>Client</span><input id="g-client" type="text" data-g="client"></label>
     <div class="field"><span>Size</span><div class="row" style="flex-wrap:nowrap"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.5" data-g="width" style="width:5.5em"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.5" data-g="depth" style="width:5.5em"> m</div></div>
     <div class="field"><span>Area</span><output id="dims">—</output></div>
+    <div class="field"><span>North</span><div class="row" style="flex-wrap:nowrap"><input type="range" id="g-north-r" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="flex:1;accent-color:var(--accent)"><input id="g-north" type="number" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="width:4.8em"><span class="pv">°</span><svg id="g-north-dial" width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><circle r="13" fill="none" style="stroke:var(--line)"/><path id="g-north-needle" d="M0 -11 L4 5 L0 2 L-4 5 Z" style="fill:var(--ink)"/></svg></div></div>
+    <p class="note" style="margin:0">0° means north is straight up. You can also drag the north arrow on the plan.</p>
     <p class="note" id="sizeNote" style="margin:0"></p>
     <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:12px">
       <button class="btn sm" type="button" id="newGardenBtn">New garden</button>
@@ -641,7 +643,16 @@ function renderMap() {
   parts.push(`<rect x="0" y="0" width="${W}" height="${D}" fill="none" style="stroke:var(--ink)" stroke-opacity="${showUl ? 0.35 : 1}" stroke-width="${showUl ? 1 : 2}" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   const sb = M > 20 ? 5 : 2, sy = D + pad * 0.55;
   if (S.prefs.showScale) parts.push(`<g pointer-events="none"><rect x="0" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--ink)"/><rect x="${sb / 2}" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--panel);stroke:var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${sb + fs * 0.5}" y="${sy + fs * 0.35}" font-size="${fs * 0.9}" style="fill:var(--muted)">${sb} m</text></g>`);
-  if (S.prefs.showScale) parts.push(`<g pointer-events="none" transform="translate(${W + pad * 0.5} ${D - fs * 2})"><path d="M0 ${-fs * 1.4} L${fs * 0.55} ${fs * 0.4} L0 0 L${-fs * 0.55} ${fs * 0.4} Z" style="fill:var(--ink)"/><text y="${fs * 1.5}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--ink)">N</text></g>`);
+  if (S.prefs.showScale) {
+    const nx = W + pad * 0.5, ny = D - fs * 2.4, deg = num(g.north, 0), rad = deg * Math.PI / 180, isN = S.drag?.north;
+    const lx = nx + Math.sin(rad) * fs * 2.1, ly = ny - Math.cos(rad) * fs * 2.1;
+    parts.push(`<g data-kind="north" style="cursor:${isN ? 'grabbing' : 'grab'}"><title>Drag to turn north to match your site plan (Shift snaps to 15°)</title>
+      <circle cx="${nx}" cy="${ny}" r="${fs * 2.6}" fill="transparent"/>
+      ${isN ? `<circle cx="${nx}" cy="${ny}" r="${fs * 1.7}" fill="none" style="stroke:var(--accent)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}
+      <g transform="translate(${nx} ${ny}) rotate(${deg})"><path d="M0 ${-fs * 1.4} L${fs * 0.55} ${fs * 0.7} L0 ${fs * 0.3} L${-fs * 0.55} ${fs * 0.7} Z" style="fill:var(--ink)"/></g>
+      <text x="${lx}" y="${ly + fs * 0.32}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--ink)">N</text>
+      ${isN || deg ? `<text x="${nx}" y="${ny + fs * 2.4}" font-size="${fs * 0.7}" text-anchor="middle" style="fill:var(--muted)">${Math.round(deg)}°</text>` : ''}</g>`);
+  }
   svg.innerHTML = parts.join('');
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
 }
@@ -744,11 +755,12 @@ function renderInspector() {
 }
 }
 function renderGardenFields() {
-  for (const [id, k] of [['g-name', 'name'], ['g-client', 'client'], ['g-w', 'width'], ['g-d', 'depth']]) {
+  for (const [id, k] of [['g-name', 'name'], ['g-client', 'client'], ['g-w', 'width'], ['g-d', 'depth'], ['g-north', 'north'], ['g-north-r', 'north']]) {
     const el = $(id); el.disabled = !S.g;
     if (document.activeElement !== el) el.value = S.g ? (S.g[k] ?? '') : '';
   }
   if (!S.g) $('dims').textContent = '—';
+  else { const n = $('g-north'), r = $('g-north-r'); if (n && document.activeElement !== n && !S.g.north) n.value = 0; if (r && !S.g.north) r.value = 0; $('g-north-needle')?.setAttribute('transform', `rotate(${num(S.g.north, 0)})`); }
 }
 function monthSlider(p) {
   const on = !!p.flowerFrom, f = p.flowerFrom || 6, t = p.flowerTo || p.flowerFrom || 8;
@@ -1147,6 +1159,7 @@ svg.addEventListener('pointerdown', e => {
   const p = toM(e);
   const hit = e.target.closest('[data-kind]');
   const tool = S.tool;
+  if (hit?.dataset.kind === 'north') { S.drag = { north: true, moved: false, before: JSON.stringify(S.g) }; renderMap(); return; }
   const selecting = tool === 'select' || (tool === 'plant' && hit && (hit.dataset.kind === 'planting' || hit.dataset.kind === 'handle' || !S.activePlant));
   if (selecting && hit) {
     const kind = hit.dataset.kind, id = hit.dataset.id;
@@ -1185,6 +1198,13 @@ svg.addEventListener('pointermove', e => {
     d.moved = true; d.cur = toM(e); renderMapSoon(); return;
   }
   const p = toM(e);
+  if (d.north) {
+    const W = S.g.width, D = S.g.depth, M = Math.max(W, D), fs = M / 55 / S.zoom, pad = M * 0.07;
+    let deg = Math.atan2(p.x - (W + pad * 0.5), -(p.y - (D - fs * 2.4))) * 180 / Math.PI;
+    deg = ((Math.round(deg / (e.shiftKey ? 15 : 1)) * (e.shiftKey ? 15 : 1)) % 360 + 360) % 360;
+    if (!d.moved) { S.history.push(d.before); d.moved = true; }
+    S.g.north = deg; renderMapSoon(); renderGardenFields(); return;
+  }
   if (d.handle) {
     const a = S.g.areas.find(x => x.id === d.id); if (!a) return;
     if (!d.moved) { S.history.push(d.before); d.moved = true; }
@@ -1208,6 +1228,7 @@ function endDrag() {
   const d = S.drag; if (!d) return;
   S.drag = null;
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
+  if (d.north) { if (d.moved) saveGarden(); renderMap(); return; }
   if (d.pending) {
     if (d.marquee && d.moved) {
       const r = normRect(d.start, d.cur), inR = (x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
@@ -1291,7 +1312,8 @@ app.addEventListener('input', e => {
     if (!S.g) return;
     if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
     const k = t.dataset.g;
-    S.g[k] = (k === 'width' || k === 'depth') ? clamp(num(t.value, S.g[k]), 1, 500) : t.value;
+    S.g[k] = (k === 'width' || k === 'depth') ? clamp(num(t.value, S.g[k]), 1, 500) : k === 'north' ? ((Math.round(num(t.value, 0)) % 360) + 360) % 360 : t.value;
+    if (k === 'north') renderGardenFields();
     if (k === 'width' || k === 'depth') resetView();
     saveGarden(); refreshDerived(); if (k === 'name') renderPicker(); return;
   }
@@ -1498,7 +1520,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- data ---------- */
 function normGarden(id, d) {
-  return { id, name: d.name || 'Untitled garden', client: d.client || '', width: num(d.width, 10), depth: num(d.depth, 8),
+  return { id, name: d.name || 'Untitled garden', client: d.client || '', width: num(d.width, 10), depth: num(d.depth, 8), north: num(d.north, 0),
     underlay: d.underlay && d.underlay.natW ? d.underlay : null,
     areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind === 'drift' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
     plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example };
