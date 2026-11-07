@@ -196,6 +196,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .subtabs { align-self: end; }
 .avbar { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 14px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 10px; }
 .dbt td.ck, .dbt th.ck { width: 28px; }
+.dbt .cn { color: var(--muted); }
 .mine-tag { font-size: 11px; color: var(--accent); border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
 .mapgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 14px; }
 .mapgrid label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
@@ -1748,12 +1749,12 @@ async function renderAvailability() {
   const shown = rows.slice(0, 400);
   const allOn = shown.length && shown.every(r => AV.sel.has(r.it.id));
   $('avTable').innerHTML = !rows.length ? '<tbody><tr><td class="empty">No lines match.</td></tr></tbody>'
-    : `<thead><tr><th class="ck"><input type="checkbox" id="avAll" aria-label="Select all shown"${allOn ? ' checked' : ''}></th><th>Botanical name</th><th>Common name</th><th>Size</th><th>Code</th><th>Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${shown.map(({ it, mine }) => `<tr>
+    : `<thead><tr><th class="ck"><input type="checkbox" id="avAll" aria-label="Select all shown"${allOn ? ' checked' : ''}></th><th>Plant</th><th>Size</th><th>Code</th><th>Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${shown.map(({ it, mine }) => `<tr>
       <td class="ck"><input type="checkbox" data-av="${it.id}"${AV.sel.has(it.id) ? ' checked' : ''} aria-label="Select ${esc(it.b)}"></td>
-      <td><i>${esc(it.b)}</i></td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td>${esc(it.code)}</td><td>${esc(it.st)}</td>
+      <td><i>${esc(it.b)}</i>${it.c ? `<span class="cn"> · ${esc(it.c)}</span>` : ''}</td><td>${esc(it.sz)}</td><td>${esc(it.code)}</td><td>${esc(it.st)}</td>
       <td class="n">${it.pr != null ? money(it.pr) : ''}</td>
       <td>${mine ? `<span class="mine-tag" title="${esc(mine.common || mine.botanical)}${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · your price ' + money(num(mine.cost)) : ''}">In my plants${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · price differs' : ''}</span>` : ''}</td></tr>`).join('')}</tbody>
-      ${rows.length > shown.length ? `<tfoot><tr><td colspan="8" class="note" style="font-weight:400">Showing 400 of ${rows.length.toLocaleString('en-GB')} lines. Search to narrow the list.</td></tr></tfoot>` : ''}`;
+      ${rows.length > shown.length ? `<tfoot><tr><td colspan="7" class="note" style="font-weight:400">Showing 400 of ${rows.length.toLocaleString('en-GB')} lines. Search to narrow the list.</td></tr></tfoot>` : ''}`;
   renderAvBar();
 }
 function renderAvBar() {
