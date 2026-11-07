@@ -1604,7 +1604,7 @@ async function loadListItems() {
   $('avInfo').textContent = 'Loading list…';
   try {
     const snap = await S.db.collection('availability/' + l.id + '/chunks').get();
-    AV.items = snap.docs.sort((a, b) => +a.id - +b.id).flatMap(d => d.data().items || []);
+    AV.items = [...snap.docs].sort((a, b) => +a.id - +b.id).flatMap(d => d.data().items || []);
     AV.loadedFor = l.id;
   } catch (e) { AV.items = []; $('avInfo').textContent = 'Couldn’t load this list: ' + (e?.message || ''); }
 }
