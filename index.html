@@ -651,7 +651,7 @@ function renderMap() {
       ${isN ? `<circle cx="${nx}" cy="${ny}" r="${fs * 1.7}" fill="none" style="stroke:var(--accent)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}
       <g transform="translate(${nx} ${ny}) rotate(${deg})"><path d="M0 ${-fs * 1.4} L${fs * 0.55} ${fs * 0.7} L0 ${fs * 0.3} L${-fs * 0.55} ${fs * 0.7} Z" style="fill:var(--ink)"/></g>
       <text x="${lx}" y="${ly + fs * 0.32}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--ink)">N</text>
-      ${isN || deg ? `<text x="${nx}" y="${ny + fs * 2.4}" font-size="${fs * 0.7}" text-anchor="middle" style="fill:var(--muted)">${Math.round(deg)}°</text>` : ''}</g>`);
+      ${isN ? `<text x="${nx}" y="${ny + fs * 2.4}" font-size="${fs * 0.7}" text-anchor="middle" style="fill:var(--muted)">${Math.round(deg)}°</text>` : ''}</g>`);
   }
   svg.innerHTML = parts.join('');
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
