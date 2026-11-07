@@ -209,6 +209,61 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .mapgrid label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
 .mapgrid label > span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 .preview td, .preview th { white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.presview { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 20px; padding: 0; overflow: hidden; background: none; border: 0; }
+.presset { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.presset h2 { font-size: 22px; }
+.presset textarea { width: 100%; font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--panel); resize: vertical; }
+.presset .field { grid-template-columns: 84px 1fr; }
+.presset fieldset { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.presset legend { font-family: var(--f-display); font-weight: 600; font-size: 16px; padding: 0 4px; }
+.pageopts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 13.5px; }
+.bkline { display: grid; grid-template-columns: 1fr 88px 28px; gap: 6px; align-items: center; }
+.prespages { overflow: auto; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 4px 4px 24px; }
+.pwrap { flex: none; box-shadow: 0 6px 24px rgba(20, 18, 15, 0.14); border-radius: 2px; overflow: hidden; }
+.pwrap > .bpage { transform-origin: 0 0; }
+/* booklet page: A4 landscape at 96 dpi */
+.bpage { width: 1123px; height: 794px; background: #F8F4EC; color: #2F2B25; font-family: var(--f-body); position: relative; overflow: hidden; box-sizing: border-box; padding: 54px 64px 60px; display: flex; flex-direction: column; }
+.bpage .bh { display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8A8073; border-bottom: 1px solid #DDD3C2; padding-bottom: 10px; margin-bottom: 26px; }
+.bpage .bf { position: absolute; left: 64px; right: 64px; bottom: 26px; display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #A39888; }
+.bpage h3 { font-family: var(--f-display); font-weight: 500; font-size: 40px; line-height: 1; margin: 0 0 6px; letter-spacing: -0.01em; color: #2F2B25; }
+.bpage .bsub { font-size: 13px; color: #7B7266; margin: 0 0 22px; }
+.bpage .bbody { flex: 1; min-height: 0; display: flex; gap: 32px; }
+.bcover { padding: 0; flex-direction: row; }
+.bcover .cl { width: 40%; padding: 64px 48px 64px 64px; display: flex; flex-direction: column; justify-content: space-between; background: #EFE8DB; }
+.bcover .cl .eb { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: #667D5E; }
+.bcover .cl h1 { font-family: var(--f-display); font-weight: 500; font-size: 62px; line-height: 0.98; margin: 18px 0 0; letter-spacing: -0.015em; color: #2F2B25; }
+.bcover .meta { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; font-size: 13.5px; }
+.bcover .meta span:nth-child(odd) { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8073; padding-top: 3px; }
+.bcover .intro { font-size: 13.5px; line-height: 1.6; color: #4A443B; max-width: 34ch; white-space: pre-line; }
+.bcover .cr { flex: 1; display: flex; align-items: center; justify-content: center; padding: 48px; }
+.bcover .cr img, .bplan img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.bplan { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; background: #FFFDF8; border: 1px solid #E4DBCB; padding: 14px; }
+.blegend { width: 190px; flex: none; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; }
+.blegend .t { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8073; margin-bottom: 4px; }
+.blegend .d { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
+.bgrid { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 18px 22px; min-height: 0; }
+.bcard { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.bcard .ph { position: relative; flex: 1; min-height: 0; border-radius: 3px; overflow: hidden; background: #E9E1D2; }
+.bcard .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bcard .ph .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--f-display); font-size: 34px; color: #B4A893; font-style: italic; }
+.bcard .ph .add { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 11px; color: #8A8073; }
+.bcard .num { position: absolute; left: 8px; top: 8px; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 13px; background: #F8F4EC; color: #2F2B25; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+.bcard .bn { font-style: italic; font-size: 13.5px; line-height: 1.25; color: #2F2B25; }
+.bcard .cn { font-size: 11.5px; color: #7B7266; }
+.btable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.btable th { text-align: left; font-weight: 400; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8073; border-bottom: 1px solid #CFC4B1; padding: 0 8px 7px; }
+.btable td { border-bottom: 1px solid #E6DECF; padding: 7px 8px; vertical-align: top; }
+.btable .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.btable .no { width: 34px; color: #8A8073; }
+.btable i { color: #2F2B25; } .btable .cmn { color: #7B7266; }
+.btable tfoot td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
+.btable tr.total td { font-family: var(--f-display); font-size: 22px; font-weight: 600; border-top: 1px solid #2F2B25; padding-top: 10px; }
+.bcal { display: grid; grid-template-columns: 230px repeat(12, 1fr); font-size: 12px; align-items: center; }
+.bcal .mh { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8073; text-align: center; padding-bottom: 6px; border-bottom: 1px solid #CFC4B1; }
+.bcal .nm { padding: 6px 8px 6px 0; border-bottom: 1px solid #E6DECF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bcal .tr { grid-column: 2 / 14; height: 100%; border-bottom: 1px solid #E6DECF; background-image: linear-gradient(to right, #EAE2D4 1px, transparent 1px); background-size: calc(100% / 12) 100%; }
+.bcal .bar { height: 14px; border-radius: 7px; margin: 0 3px; box-shadow: inset 0 0 0 1px rgba(47, 43, 37, 0.18); align-self: center; }
+.bnotes { font-size: 12px; color: #6B6257; line-height: 1.6; white-space: pre-line; max-width: 70ch; }
 .rolecols { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px 12px; }
 .rolecol { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
 .rolecol input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); flex: none; }
@@ -255,7 +310,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 <div class="app">
   <header class="top">
     <h1>Garden Planting Map</h1>
-    <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true">Plan</button><button type="button" id="navSched" aria-pressed="false">Plant schedule</button><button type="button" id="navCal" aria-pressed="false">Flowering calendar</button><button type="button" id="navDb" aria-pressed="false">Plant database</button><button type="button" id="navPrefs" aria-pressed="false">Preferences</button></nav>
+    <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true">Plan</button><button type="button" id="navSched" aria-pressed="false">Plant schedule</button><button type="button" id="navCal" aria-pressed="false">Flowering calendar</button><button type="button" id="navDb" aria-pressed="false">Plant database</button><button type="button" id="navPres" aria-pressed="false">Presentation</button><button type="button" id="navPrefs" aria-pressed="false">Preferences</button></nav>
     <div class="spacer"></div>
     <div class="gbox"><select id="gardenSel" aria-label="Choose a garden"></select><button class="btn sm" id="detailsBtn" type="button">Garden details</button></div>
     <span id="status">Connecting…</span>
@@ -297,6 +352,11 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
   <section class="calview" id="calView" hidden aria-label="Flowering calendar"></section>
 
   <section class="calview" id="prefsView" hidden aria-labelledby="prefsH"></section>
+
+  <section class="calview presview" id="presView" hidden aria-labelledby="presH">
+    <aside class="presset" id="presSet"></aside>
+    <div class="prespages" id="presPages"></div>
+  </section>
 
   <section class="calview" id="dbView" hidden aria-labelledby="dbH">
     <div class="calhead"><div><span class="lbl">Plant database</span><h2 id="dbH">Plants</h2></div>
@@ -436,6 +496,7 @@ const store = { get(k) { try { return localStorage.getItem(k); } catch { return 
 function setStatus(t, err) { const el = $('status'); el.textContent = t; el.classList.toggle('err', !!err); }
 function plantLabel(p) {
   if (!p) return '?';
+  if (S.prefs.labelMode === 'number') { const n = paletteNumber(p.id); return n ? String(n) : code(p); }
   if (S.prefs.labelMode === 'common') return p.common || code(p);
   if (S.prefs.labelMode === 'botanical') return p.botanical || p.common || '?';
   return code(p);
@@ -603,7 +664,7 @@ function renderMap() {
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
     const ex = !!p?.existing, col = ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
     const dots = planted && !ex ? driftDots(a) : null, pr = potR(p);
-    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${pr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? `<text x="${c.x}" y="${c.y + ls * 0.25}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${S.prefs.labelQty ? driftQty(a) + ' ' : ''}${esc(plantLabel(p))}</text>` : ''}</g>`);
+    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${pr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? `<text x="${c.x}" y="${c.y + ls * 0.25}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-weight:${S.prefs.labelMode === 'number' ? 700 : 500};stroke:var(--ground);stroke-width:${ls * 0.14};paint-order:stroke;stroke-linejoin:round${ex ? ';font-style:italic' : ''}">${S.prefs.labelQty ? driftQty(a) + ' ' : ''}${esc(plantLabel(p))}</text>` : ''}</g>`);
   }
   // single plants and groups, largest first
   const pls = [...g.plantings].sort((a, b) => radiusOf(b) - radiusOf(a));
@@ -635,7 +696,7 @@ function renderMap() {
     }
     parts.push(`<g data-kind="planting" data-id="${pl.id}" style="cursor:move">${body}
       ${isSel ? `<circle cx="${pl.x}" cy="${pl.y}" r="${ringR + fs * 0.6}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}
-      ${showL ? `<text x="${pl.x}" y="${pl.y - (planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32)}" font-size="${ls * 0.68}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${esc(lbl)}</text>` : ''}
+      ${showL ? `<text x="${pl.x}" y="${pl.y - (planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32)}" font-size="${ls * 0.68}" text-anchor="middle" style="fill:var(--label);font-weight:${S.prefs.labelMode === 'number' ? 700 : 500};stroke:var(--ground);stroke-width:${ls * 0.14};paint-order:stroke;stroke-linejoin:round${ex ? ';font-style:italic' : ''}">${esc(lbl)}</text>` : ''}
     </g>`);
   }
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
@@ -808,6 +869,7 @@ function renderPlantEditor(el) {
     ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
+    <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div></div>
     <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing plants are drawn dashed at that size and left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets plant size in Design intent and the default drift density.'}</p>
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
     ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants and drifts first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
@@ -992,16 +1054,16 @@ function renderDatabase() {
       <td class="n" title="${esc(used.join(', '))}">${n || '–'}</td>
       <td class="n"><button class="btn sm" type="button" data-edit="${p.id}">Edit</button></td></tr>`).join('')}</tbody>`;
 }
-function getPage() { const h = location.hash.slice(1); return ['flowering', 'schedule', 'preferences', 'database'].includes(h) ? h : 'plan'; }
+function getPage() { const h = location.hash.slice(1); return ['flowering', 'schedule', 'preferences', 'database', 'presentation'].includes(h) ? h : 'plan'; }
 function applyPage() {
   const pg = getPage(), plan = pg === 'plan';
   document.querySelector('.app').classList.toggle('cal', !plan);
   for (const sel of ['.toolbar', '.props', '.work']) document.querySelector(sel).hidden = !plan;
-  $('calView').hidden = pg !== 'flowering'; $('schedView').hidden = pg !== 'schedule'; $('prefsView').hidden = pg !== 'preferences'; $('dbView').hidden = pg !== 'database'; $('navDb').setAttribute('aria-pressed', pg === 'database'); if (pg !== 'database') $('plantModal').hidden = true;
+  $('calView').hidden = pg !== 'flowering'; $('schedView').hidden = pg !== 'schedule'; $('prefsView').hidden = pg !== 'preferences'; $('presView').hidden = pg !== 'presentation'; $('navPres').setAttribute('aria-pressed', pg === 'presentation'); $('dbView').hidden = pg !== 'database'; $('navDb').setAttribute('aria-pressed', pg === 'database'); if (pg !== 'database') $('plantModal').hidden = true;
   $('navPlan').setAttribute('aria-pressed', plan); $('navSched').setAttribute('aria-pressed', pg === 'schedule'); $('navCal').setAttribute('aria-pressed', pg === 'flowering'); $('navPrefs').setAttribute('aria-pressed', pg === 'preferences');
-  if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'database') { showDbView(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
+  if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'presentation') renderPresentation(true); else if (pg === 'database') { showDbView(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
 }
-function renderAll() { renderLayers(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
+function renderAll() { renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
 function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
 
@@ -1281,6 +1343,214 @@ $('lib').addEventListener('click', e => {
   renderTools();
   for (const el of $('lib').querySelectorAll('[data-pid]')) el.setAttribute('aria-selected', el.dataset.pid === S.activePlant);
 });
+/* ---------- presentation booklet ---------- */
+const BK_DEFAULT = () => ({ subtitle: 'Planting proposal', designer: '', site: '', date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), intro: '',
+  pages: { cover: true, plan: true, palette: true, schedule: true, calendar: true, pricing: true }, numberPlan: true,
+  includeSupply: true, lines: [{ label: 'Planting design fee', amount: 0 }], vat: 0, notes: 'Plant prices are indicative and subject to availability at the time of ordering.' });
+const BK = { planImg: null, planKey: '', timer: null, busy: false, localPhotos: {} };
+function bk() { const d = BK_DEFAULT(), b = S.g?.booklet || {}; return { ...d, ...b, pages: { ...d.pages, ...(b.pages || {}) }, lines: Array.isArray(b.lines) ? b.lines : d.lines }; }
+const LAYER_ORDER = Object.keys(ROLES);
+function paletteRows() {
+  return scheduleRows().filter(r => r.p).sort((a, b) => (LAYER_ORDER.indexOf(layerOf(a.p.role)) - LAYER_ORDER.indexOf(layerOf(b.p.role))) || (a.p.botanical || a.p.common || '').localeCompare(b.p.botanical || b.p.common || ''))
+    .map((r, i) => ({ ...r, n: i + 1 }));
+}
+function paletteNumber(id) { const r = paletteRows().find(x => x.id === id); return r ? r.n : 0; }
+function photoUrl(p) { if (!p) return null; if (p.photoId) return '/_blob/' + p.photoId; return BK.localPhotos[p.id] || null; }
+async function shrinkImage(file, max = 1400) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('That image could not be read.')); img.src = url; });
+    const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return await new Promise(res => c.toBlob(res, 'image/jpeg', 0.86));
+  } finally { URL.revokeObjectURL(url); }
+}
+async function uploadPhoto(file) {
+  const blob = await shrinkImage(file);
+  if (S.assets) { const r = await S.assets.upload(blob, { type: 'image/jpeg' }); return { id: r.id }; }
+  return { local: URL.createObjectURL(blob) };
+}
+async function setPlantPhoto(plantId, file) {
+  const p = plantById(plantId); if (!p) return;
+  const r = await uploadPhoto(file);
+  if (r.local) { BK.localPhotos[plantId] = r.local; renderPresentation(); return; }
+  const rec = { ...p, photoId: r.id }; const body = { ...rec }; delete body.id;
+  if (S.online) await S.db.doc('plants/' + plantId).set(body);
+  upsertPlant(rec); renderPresentation();
+}
+document.body.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.dataset.photoEdit !== undefined && S.editPlant && t.files?.[0]) {
+    const f = t.files[0]; t.value = '';
+    try { const r = await uploadPhoto(f); if (r.local) BK.localPhotos[S.editPlant.id] = r.local; else S.editPlant.photoId = r.id; renderLibrary(); }
+    catch (err) { const pe = $('plantErr'); if (pe) pe.textContent = 'Couldn’t add the photo: ' + (err?.message || ''); }
+  }
+  if (t.dataset.photoFor && t.files?.[0]) {
+    const f = t.files[0], id = t.dataset.photoFor; t.value = '';
+    $('presMsg').textContent = 'Adding photo…';
+    try { await setPlantPhoto(id, f); $('presMsg').textContent = 'Photo added.'; } catch (err) { $('presMsg').textContent = 'Couldn’t add the photo: ' + (err?.message || ''); }
+  }
+});
+function bookletInput(t) {
+  if (!S.g) return;
+  const b = bk();
+  if (t.dataset.bk !== undefined) { const k = t.dataset.bk; b[k] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? num(t.value, 0) : t.value; }
+  if (t.dataset.bkpage !== undefined) b.pages = { ...b.pages, [t.dataset.bkpage]: t.checked };
+  if (t.dataset.bkline !== undefined) { const i = +t.dataset.bkline; b.lines = b.lines.map((l, j) => j === i ? { ...l, [t.dataset.bkfield]: t.dataset.bkfield === 'amount' ? num(t.value, 0) : t.value } : l); }
+  S.g.booklet = b; saveGarden();
+  clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 350);
+}
+async function planImage(numbered) {
+  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors]);
+  if (BK.planImg && BK.planKey === key) return BK.planImg;
+  const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
+  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null;
+  if (numbered) { S.prefs.labelMode = 'number'; S.prefs.labelQty = false; S.prefs.labelSize = Math.max(num(save.size, 1), 2); }
+  let markup;
+  try { renderMap(); markup = svg.innerHTML; var vb = svg.getAttribute('viewBox'); }
+  finally { Object.assign(S, { zoom: save.zoom, cx: save.cx, cy: save.cy, sel: save.sel, multi: save.multi, drag: save.drag, cal: save.cal }); S.prefs.labelMode = save.mode; S.prefs.labelQty = save.qty; S.prefs.labelSize = save.size; renderMap(); }
+  const cs = getComputedStyle(document.querySelector('.mapwrap'));
+  markup = markup.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#999');
+  const hrefs = [...new Set([...markup.matchAll(/href="([^"]+)"/g)].map(m => m[1]))];
+  for (const h of hrefs) {
+    try { const blob = await (await fetch(h)).blob(); const data = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); }); markup = markup.split(`href="${h}"`).join(`href="${data}"`); } catch {}
+  }
+  const [, , vw, vh] = vb.split(' ').map(Number);
+  const W = 2600, H = Math.round(W * vh / vw);
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vb}" width="${W}" height="${H}" font-family="Georgia, 'Times New Roman', serif">${markup}</svg>`;
+  const url = URL.createObjectURL(new Blob([doc], { type: 'image/svg+xml' }));
+  try {
+    const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
+    ctx.fillStyle = '#FFFDF8'; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, 0, 0, W, H);
+    BK.planImg = c.toDataURL('image/jpeg', 0.92); BK.planKey = key;
+  } catch { BK.planImg = null; }
+  finally { URL.revokeObjectURL(url); }
+  return BK.planImg;
+}
+const chunk = (a, n) => { const out = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
+function bookletPages(planImg, forExport) {
+  const b = bk(), g = S.g, title = g.name || 'Planting plan', pal = paletteRows(), exRows = existingRows().filter(r => r.retain + r.prune > 0);
+  const pages = [];
+  const head = sec => `<div class="bh"><span>${esc(b.subtitle || 'Planting proposal')} · ${esc(title)}</span><span>${esc(sec)}</span></div>`;
+  if (b.pages.cover) pages.push({ cls: 'bcover', html: `<div class="cl"><div><div class="eb">${esc(b.subtitle || 'Planting proposal')}</div><h1>${esc(title)}</h1></div>
+      <div style="display:flex;flex-direction:column;gap:22px">${b.intro ? `<div class="intro">${esc(b.intro)}</div>` : ''}
+      <div class="meta">${g.client ? `<span>Client</span><span>${esc(g.client)}</span>` : ''}${b.site ? `<span>Site</span><span>${esc(b.site)}</span>` : ''}${b.designer ? `<span>Designer</span><span>${esc(b.designer)}</span>` : ''}${b.date ? `<span>Date</span><span>${esc(b.date)}</span>` : ''}</div></div></div>
+      <div class="cr">${planImg ? `<img src="${planImg}" alt="">` : ''}</div>`, foot: false });
+  if (b.pages.plan) {
+    const used = LAYER_ORDER.filter(k => pal.some(r => layerOf(r.p.role) === k));
+    pages.push({ html: `${head('Planting plan')}<h3>Planting plan</h3><p class="bsub">${g.width} × ${g.depth} m${b.numberPlan ? ' · numbers refer to the plant palette' : ''}</p>
+      <div class="bbody"><div class="bplan">${planImg ? `<img src="${planImg}" alt="Planting plan">` : ''}</div>
+      <div class="blegend"><div class="t">Layers</div>${used.map(k => `<div><span class="d" style="background:var(--r-${k})"></span>${ROLES[k]}</div>`).join('')}${exRows.length ? `<div><span class="d" style="border:1.5px dashed var(--exist);background:none"></span>Existing plants</div>` : ''}
+      <div class="t" style="margin-top:14px">Plants</div><div>${pal.reduce((t, r) => t + r.qty, 0)} new plants</div><div>${pal.length} species</div></div></div>` });
+  }
+  if (b.pages.palette && pal.length) chunk(pal, 12).forEach((part, i, all) => pages.push({ html: `${head('Plant palette')}<h3>Plant palette${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Numbered to match the planting plan and schedule</p>
+      <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<label class="add" style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label>`}`}<div class="num">${r.n}</div></div><div class="bn">${esc(r.p.botanical || r.p.common)}</div><div class="cn">${esc(r.p.common && r.p.botanical ? r.p.common : '')}${r.p.common && r.p.botanical ? ' · ' : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
+  if (b.pages.schedule && (pal.length || exRows.length)) {
+    const rows = pal.map(r => `<tr><td class="no">${r.n}</td><td><i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}</span></td><td>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${esc(r.p.supply || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td></tr>`);
+    const total = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
+    const parts = chunk(rows, 15); if (!parts.length) parts.push([]);
+    parts.forEach((part, i) => pages.push({ html: `${head('Plant schedule')}<h3>Plant schedule${parts.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${parts.length}</span>` : ''}</h3><p class="bsub">New planting</p>
+      <table class="btable"><thead><tr><th class="no">No.</th><th>Plant</th><th>Layer</th><th>Supply</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${part.join('')}</tbody>
+      ${i === parts.length - 1 && pal.length ? `<tfoot><tr><td></td><td colspan="3">Plant supply</td><td class="n">${count}</td><td></td><td class="n">${money(total)}</td></tr></tfoot>` : ''}</table>
+      ${i === parts.length - 1 && exRows.length ? `<p class="bsub" style="margin:22px 0 8px">Existing plants</p><table class="btable"><thead><tr><th>Plant</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th></tr></thead><tbody>${existingRows().map(r => `<tr><td><i>${esc(r.p?.botanical || '')}</i> <span class="cmn">${esc(r.p?.common || '')}</span></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n">${r.remove || '–'}</td></tr>`).join('')}</tbody></table>` : ''}` }));
+  }
+  if (b.pages.calendar) {
+    const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && flowerMonths(p).length).sort((a, c) => (+a.flowerFrom - +c.flowerFrom));
+    if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Flowering calendar')}<h3>Flowering through the year${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">When each plant is in flower, shown in its flower colour</p>
+      <div class="bcal"><div></div>${MONTHS.map(m => `<div class="mh">${m}</div>`).join('')}
+      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span style="color:#8A8073;margin-right:6px">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i></div><div class="tr" style="grid-row:${row}"></div>${runs(flowerMonths(p)).map(([a, c]) => `<div class="bar" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(p.flowerColor || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
+  }
+  if (b.pages.pricing) {
+    const supply = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
+    const lines = [...(b.includeSupply ? [{ label: `Plant supply (${count} plants)`, amount: supply }] : []), ...b.lines.filter(l => l.label || num(l.amount))];
+    const sub = lines.reduce((t, l) => t + num(l.amount), 0), vat = num(b.vat) > 0 ? sub * num(b.vat) / 100 : 0;
+    pages.push({ html: `${head('Pricing')}<h3>Pricing</h3><p class="bsub">${esc(b.date || '')}</p>
+      <div class="bbody"><div style="flex:1;max-width:640px"><table class="btable"><thead><tr><th>Item</th><th class="n">Amount</th></tr></thead><tbody>${lines.map(l => `<tr><td>${esc(l.label)}</td><td class="n">${money(num(l.amount))}</td></tr>`).join('')}</tbody>
+      <tfoot>${vat ? `<tr><td>Subtotal</td><td class="n">${money(sub)}</td></tr><tr><td style="font-weight:400">VAT at ${num(b.vat)}%</td><td class="n" style="font-weight:400">${money(vat)}</td></tr>` : ''}<tr class="total"><td>Total</td><td class="n">${money(sub + vat)}</td></tr></tfoot></table></div>
+      ${b.notes ? `<div class="bnotes" style="flex:1">${esc(b.notes)}</div>` : ''}</div>` });
+  }
+  return pages.map((pg, i) => `<div class="bpage ${pg.cls || ''}">${pg.html}${pg.foot === false ? '' : `<div class="bf"><span>${esc([b.designer, b.date].filter(Boolean).join(' · '))}</span><span>${i + 1} / ${pages.length}</span></div>`}</div>`);
+}
+function renderPresentation(full) {
+  if (getPage() !== 'presentation') return;
+  const el = $('presSet');
+  if (!S.g) { el.innerHTML = '<p class="empty">Create a garden first.</p>'; $('presPages').innerHTML = ''; return; }
+  if (full || !el.dataset.for || el.dataset.for !== S.g.id) renderPresSettings();
+  renderPages();
+}
+function renderPresSettings() {
+  const b = bk(), el = $('presSet'); el.dataset.for = S.g.id;
+  const pg = (k, l) => `<label class="checks"><input type="checkbox" data-bkpage="${k}"${b.pages[k] ? ' checked' : ''}> ${l}</label>`;
+  el.innerHTML = `<div><span class="lbl">Presentation</span><h2 id="presH">Client booklet</h2></div>
+    <p class="note" style="margin:0">A4 landscape. The garden name and client come from Garden details.</p>
+    <label class="field"><span>Heading</span><input type="text" data-bk="subtitle" value="${esc(b.subtitle)}"></label>
+    <label class="field"><span>Site</span><input type="text" data-bk="site" value="${esc(b.site)}" placeholder="Address or site name"></label>
+    <label class="field"><span>Designer</span><input type="text" data-bk="designer" value="${esc(b.designer)}" placeholder="Your name or studio"></label>
+    <label class="field"><span>Date</span><input type="text" data-bk="date" value="${esc(b.date)}"></label>
+    <label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Introduction (cover)</span><textarea rows="3" data-bk="intro" placeholder="A short note about the planting concept">${esc(b.intro)}</textarea></label>
+    <fieldset><legend>Pages</legend><div class="pageopts">${pg('cover', 'Cover')}${pg('plan', 'Planting plan')}${pg('palette', 'Plant palette')}${pg('schedule', 'Plant schedule')}${pg('calendar', 'Flowering calendar')}${pg('pricing', 'Pricing')}</div>
+      <label class="checks"><input type="checkbox" data-bk="numberPlan"${b.numberPlan ? ' checked' : ''}> Number plants on the plan</label></fieldset>
+    <fieldset><legend>Pricing</legend>
+      <label class="checks"><input type="checkbox" data-bk="includeSupply"${b.includeSupply ? ' checked' : ''}> Include plant supply from the schedule</label>
+      ${b.lines.map((l, i) => `<div class="bkline"><input type="text" data-bkline="${i}" data-bkfield="label" value="${esc(l.label)}" placeholder="e.g. Site survey" aria-label="Item"><input type="number" step="0.01" data-bkline="${i}" data-bkfield="amount" value="${num(l.amount) || ''}" placeholder="0.00" aria-label="Amount"><button class="btn sm" type="button" data-bkdel="${i}" aria-label="Remove line">×</button></div>`).join('')}
+      <button class="btn sm" type="button" data-bkadd style="align-self:flex-start">Add line</button>
+      <label class="field"><span>VAT %</span><input type="number" min="0" max="50" step="0.5" data-bk="vat" value="${num(b.vat) || ''}" placeholder="None"></label>
+      <label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Notes</span><textarea rows="3" data-bk="notes">${esc(b.notes)}</textarea></label></fieldset>
+    <button class="btn primary" type="button" id="presPdf">Download PDF</button>
+    <p class="note" id="presMsg" style="margin:0" aria-live="polite">Click “Add photo” on a plant in the palette to add its close-up.</p>`;
+}
+$('presSet').addEventListener('click', e => {
+  if (!S.g) return;
+  const b = bk();
+  if (e.target.closest('[data-bkadd]')) { b.lines = [...b.lines, { label: '', amount: 0 }]; S.g.booklet = b; saveGarden(); renderPresSettings(); renderPages(); return; }
+  const del = e.target.closest('[data-bkdel]'); if (del) { b.lines = b.lines.filter((_, i) => i !== +del.dataset.bkdel); S.g.booklet = b; saveGarden(); renderPresSettings(); renderPages(); return; }
+  if (e.target.id === 'presPdf') exportPdf();
+});
+let pagesGen = 0;
+async function renderPages() {
+  if (getPage() !== 'presentation' || !S.g) return;
+  const gen = ++pagesGen, wrap = $('presPages');
+  const img = bk().pages.plan || bk().pages.cover ? await planImage(bk().numberPlan) : null;
+  if (gen !== pagesGen) return;
+  const pages = bookletPages(img, false);
+  const w = Math.min(wrap.clientWidth - 12, 1123), k = Math.max(0.3, w / 1123);
+  wrap.innerHTML = pages.length ? pages.map(h => `<div class="pwrap" style="width:${1123 * k}px;height:${794 * k}px">${h.replace('<div class="bpage', `<div style="transform:scale(${k})" class="bpage`)}</div>`).join('') : '<p class="empty">Turn on at least one page.</p>';
+}
+window.addEventListener('resize', () => { clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 200); });
+async function exportPdf() {
+  if (BK.busy || !S.g) return;
+  const msg = $('presMsg'), btn = $('presPdf');
+  const dl = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
+  BK.busy = true; btn.disabled = true; msg.textContent = 'Preparing the PDF…';
+  const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-20000px;top:0;width:1123px;';
+  try {
+    const base = 'https://cdnjs.cloudflare.com/ajax/libs/';
+    if (!window.html2canvas) await loadScript(base + 'html2canvas/1.4.1/html2canvas.min.js');
+    if (!window.jspdf) await loadScript(base + 'jspdf/2.5.1/jspdf.umd.min.js');
+    const img = await planImage(bk().numberPlan);
+    host.innerHTML = bookletPages(img, true).join(''); document.body.appendChild(host);
+    await Promise.all([...host.querySelectorAll('img')].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
+    await document.fonts?.ready;
+    const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+    const els = [...host.children];
+    for (let i = 0; i < els.length; i++) {
+      msg.textContent = `Building page ${i + 1} of ${els.length}…`;
+      const c = await window.html2canvas(els[i], { scale: 2, backgroundColor: '#F8F4EC', useCORS: true, logging: false, width: 1123, height: 794, windowWidth: 1123 });
+      if (i) pdf.addPage('a4', 'landscape');
+      pdf.addImage(c.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+    }
+    const blob = pdf.output('blob'), name = `${(S.g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} – planting proposal.pdf`;
+    if (!dl) { msg.textContent = 'The PDF is ready, but saving files isn’t available in this view. Open the page in claude.ai to download it.'; return; }
+    msg.textContent = 'Confirm the download to save your PDF.';
+    await dl.save({ filename: name, data: blob });
+    msg.textContent = 'PDF saved.';
+  } catch (e) {
+    msg.textContent = e?.code === 'declined' ? 'Download cancelled.' : e?.code === 'rate_limited' ? 'A download is already waiting for your confirmation.' : 'Couldn’t make the PDF: ' + (e?.message || 'try again');
+  } finally { host.remove(); BK.busy = false; btn.disabled = false; }
+}
+
 /* ---------- resizable split between plan and side panels ---------- */
 const SIDE_DEFAULT = 360;
 function setSideWidth(w, save) {
@@ -1362,6 +1632,7 @@ app.addEventListener('input', e => {
     const v = t.type === 'checkbox' ? t.checked : t.type === 'range' ? num(t.value, 1) : t.value;
     setPref(k, v); return;
   }
+  if (t.dataset.bk !== undefined || t.dataset.bkline !== undefined || t.dataset.bkpage !== undefined) { bookletInput(t); return; }
   if (t.dataset.mr && S.editPlant) {
     const p = S.editPlant;
     if (!p.flowerFrom) { p.flowerFrom = +$('sp-ff').value; p.flowerTo = +$('sp-ft').value; $('sp-nofl').checked = false; }
@@ -1406,6 +1677,7 @@ app.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'delete') removeSel();
+  if (act === 'clearPhoto' && S.editPlant) { S.editPlant.photoId = null; renderLibrary(); }
   if (act === 'deselect') select(null);
   if (act === 'resetPrefs') { S.prefs = { ...PREF_DEFAULTS, roleColors: {} }; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'resetRoleCols') { S.prefs.roleColors = {}; applyRoleColours(); savePrefs(); renderPrefs(); }
@@ -1615,6 +1887,7 @@ $('navPlan').addEventListener('click', () => { location.hash = 'plan'; });
 $('navCal').addEventListener('click', () => { location.hash = 'flowering'; });
 $('navSched').addEventListener('click', () => { location.hash = 'schedule'; });
 $('navPrefs').addEventListener('click', () => { location.hash = 'preferences'; });
+$('navPres').addEventListener('click', () => { location.hash = 'presentation'; });
 $('navDb').addEventListener('click', () => { location.hash = 'database'; });
 $('dbSearch').addEventListener('input', e => { DB.q = e.target.value; renderDatabase(); });
 $('dbLayer').addEventListener('change', e => { DB.layer = e.target.value; renderDatabase(); });
