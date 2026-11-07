@@ -51,6 +51,7 @@ h2 { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-heig
 .btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.danger { color: var(--crit); }
+.btn.on { border-color: var(--accent); background: var(--accent-soft); }
 .btn.danger.solid { background: var(--crit); border-color: var(--crit); color: var(--panel); }
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); background: rgba(20, 18, 15, 0.38); }
 .modal .card { max-width: 440px; width: 100%; overflow: visible; gap: 14px; padding: 22px; box-shadow: 0 18px 50px rgba(20, 18, 15, 0.25); }
@@ -186,6 +187,9 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .mi:disabled { opacity: .45; cursor: default; }
 .mi.danger { color: var(--crit); }
 .mi.ulop input { width: 110px; }
+.lrow { display: grid; grid-template-columns: auto 14px 1fr auto; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+.lrow:hover { background: var(--paper); }
+.lrow .n { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .rolecols { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px 12px; }
 .rolecol { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
 .rolecol input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); flex: none; }
@@ -251,6 +255,13 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
         <button class="mi" id="ulToggle" type="button">Hide plan</button>
         <button class="mi danger" id="ulRemove" type="button">Remove plan</button>
         <p class="note" style="margin:2px 4px 0">SVG, PDF (page 1), PNG or JPEG.</p>
+      </div>
+    </div>
+    <div class="menuwrap">
+      <button class="btn sm" id="layerBtn" type="button" aria-expanded="false" aria-controls="layerMenu">Layers: all ▾</button>
+      <div class="menu" id="layerMenu" hidden role="group" aria-label="Layers to show">
+        <div class="row" style="justify-content:space-between;padding:4px 6px 6px"><span class="lbl">Show on the plan</span><span class="row" style="gap:4px"><button class="btn sm" type="button" data-layers="all">All</button><button class="btn sm" type="button" data-layers="none">None</button></span></div>
+        <div id="layerList" style="display:flex;flex-direction:column;gap:1px"></div>
       </div>
     </div>
     <div class="seg" role="group" aria-label="Plant size shown">
@@ -344,7 +355,6 @@ const TOOLS = [
   { id: 'select', label: 'Select', key: 'V or Space' },
   { id: 'plant', label: 'Plant', key: 'P', sw: 'var(--r-shrub)', round: true },
   { id: 'drift', label: 'Drift', key: 'D', sw: 'var(--r-herbaceous)', blob: true },
-  { id: 'bed', label: 'Bed outline', key: 'B', sw: 'var(--bed)', blob: true },
 ];
 const HINTS = {
   select: 'Click to select, drag across empty space to select several. Press and hold empty space, then drag, to move the page. Scroll to pan; + / − to zoom.',
@@ -369,7 +379,7 @@ const S = {
   db: null, assets: null, online: false,
   plants: [], gardens: [], g: null,
   tool: 'select', activePlant: null, view: 'mature',
-  sel: null, multi: [], editPlant: null, confirm: null,
+  sel: null, multi: [], editPlant: null, layers: new Set(), showExisting: true, confirm: null,
   drag: null, history: [], loaded: false, filter: '',
   zoom: 1, cx: null, cy: null, pinch: null, space: false,
   prefs: { ...PREF_DEFAULTS }, prefsLoaded: false,
@@ -437,6 +447,17 @@ function centreOf(a) {
   if (Math.abs(A) < 1e-9) return { x: P[0][0], y: P[0][1] };
   return { x: cx / (3 * A), y: cy / (3 * A) };
 }
+const potR = p => Math.max(0.02, num(p?.potSpread, 0.2) / 2);
+function pointInPoly(x, y, P) { let ins = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, yi] = P[i], [xj, yj] = P[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; } return ins; }
+function driftDots(a) {
+  const P = sampled(a), dens = Math.max(0.05, num(a.density, defaultDensity(plantById(a.plantId)))), sp = 1 / Math.sqrt(dens * 0.866);
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of P) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const out = []; let row = 0;
+  for (let y = y0 + sp / 2; y < y1; y += sp * 0.866, row++) for (let x = x0 + (row % 2 ? sp : sp / 2); x < x1; x += sp) if (pointInPoly(x, y, P)) { out.push([x, y]); if (out.length > 900) return null; }
+  return out;
+}
+function isVisible(p) { if (!p) return true; if (p.existing && !S.showExisting) return false; return S.layers.has(layerOf(p.role)); }
 function driftQty(a) { return Math.max(1, Math.round(areaOf(a) * num(a.density, defaultDensity(plantById(a.plantId))))); }
 
 /* ---------- history & saving ---------- */
@@ -530,35 +551,47 @@ function renderMap() {
   // areas: beds, then zones, then drifts
   const order = { bed: 0, zone: 1, drift: 2 };
   const areas = [...g.areas].sort((a, b) => order[a.kind] - order[b.kind]);
+  const planted = S.view === 'planted';
   for (const a of areas) {
-    const d = pathD(a.pts, a.smooth);
-    const isSel = isSelected('area', a.id);
-    const c = centreOf(a);
-    if (a.kind === 'bed') {
-      parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:var(--bed);stroke:${isSel ? 'var(--accent)' : 'var(--muted)'}" fill-opacity="${showUl ? 0.45 : 0.8}" stroke-width="${isSel ? 2.5 : 1.2}" vector-effect="non-scaling-stroke"/>${a.label && showL ? `<text x="${c.x}" y="${c.y}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-style:italic">${esc(a.label)}</text>` : ''}</g>`);
-    } else if (a.kind === 'zone') {
-      const col = a.moisture === 'wet' ? 'var(--wet)' : a.light === 'sun' ? 'var(--sun)' : 'var(--shade)';
-      const text = [LIGHT[a.light], MOIST[a.moisture]].filter(Boolean).join(' · ') || 'Zone';
-      parts.push(`<g data-kind="area" data-id="${a.id}"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="0.12" stroke-width="${isSel ? 2.5 : 1.5}" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" pointer-events="none"/><path d="${d}" fill="none" stroke="transparent" stroke-width="12" vector-effect="non-scaling-stroke" pointer-events="stroke" style="cursor:move"/><text x="${c.x}" y="${c.y}" font-size="${fs * 0.95}" text-anchor="middle" style="fill:${col};cursor:move;font-style:italic">${esc(text)}</text></g>`);
-    } else {
-      const p = plantById(a.plantId), ex = !!p?.existing, col = ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
-      parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${ex ? 0.13 : S.view === 'mature' ? 0.32 : 0.18}" stroke-width="${isSel ? 2.5 : 1.5}" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${showL ? `<text x="${c.x}" y="${c.y + ls * 0.25}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${S.prefs.labelQty ? driftQty(a) + ' ' : ''}${esc(plantLabel(p))}</text>` : ''}</g>`);
-    }
+    if (a.kind !== 'drift') continue;
+    const p = plantById(a.plantId);
+    if (!isVisible(p)) continue;
+    const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
+    const ex = !!p?.existing, col = ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
+    const dots = planted && !ex ? driftDots(a) : null, pr = potR(p);
+    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${pr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? `<text x="${c.x}" y="${c.y + ls * 0.25}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${S.prefs.labelQty ? driftQty(a) + ' ' : ''}${esc(plantLabel(p))}</text>` : ''}</g>`);
   }
   // single plants and groups, largest first
   const pls = [...g.plantings].sort((a, b) => radiusOf(b) - radiusOf(a));
   for (const pl of pls) {
-    const p = plantById(pl.plantId), r = radiusOf(pl), ex = !!p?.existing, st = pl.status || 'retain';
+    const p = plantById(pl.plantId);
+    if (!isVisible(p)) continue;
+    const ex = !!p?.existing, st = pl.status || 'retain', qty = Math.max(1, pl.qty || 1);
     const c = ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
     const isSel = isSelected('planting', pl.id);
-    const lbl = (S.prefs.labelQty && pl.qty > 1 ? pl.qty + ' ' : '') + plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '');
-    const k = r * 0.7071;
-    parts.push(`<g data-kind="planting" data-id="${pl.id}" style="cursor:move">
-      <circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${c};stroke:${c}" fill-opacity="${ex ? 0.13 : S.view === 'mature' ? 0.3 : 0.55}" stroke-width="1.5" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
+    const lbl = (S.prefs.labelQty && qty > 1 ? qty + ' ' : '') + plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '');
+    let body, ringR;
+    if (planted && !ex) {
+      const pr = potR(p), R = (num(p?.spread, 0.5) / 2) * Math.sqrt(qty);
+      if (qty > 1) {
+        const dots = [];
+        for (let n = 0; n < qty; n++) { const rr = Math.max(0, R - pr) * Math.sqrt((n + 0.5) / qty), an = n * 2.39996; dots.push(`<circle cx="${+(pl.x + rr * Math.cos(an)).toFixed(3)}" cy="${+(pl.y + rr * Math.sin(an)).toFixed(3)}" r="${pr}" style="fill:${c}" fill-opacity="0.75"/>`); }
+        body = `<circle cx="${pl.x}" cy="${pl.y}" r="${R}" style="fill:${c};stroke:${c}" fill-opacity="0.06" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>${dots.join('')}`;
+        ringR = R;
+      } else {
+        body = `<circle cx="${pl.x}" cy="${pl.y}" r="${Math.max(pr, px * 7)}" fill="transparent"/><circle cx="${pl.x}" cy="${pl.y}" r="${pr}" style="fill:${c};stroke:${c}" fill-opacity="0.75" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+        ringR = Math.max(pr, px * 5);
+      }
+    } else {
+      const r = radiusOf(pl), k = r * 0.7071;
+      body = `<circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${c};stroke:${c}" fill-opacity="${ex ? 0.13 : 0.3}" stroke-width="1.5" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
       ${ex && st === 'remove' ? `<path d="M${pl.x - k} ${pl.y - k} L${pl.x + k} ${pl.y + k} M${pl.x + k} ${pl.y - k} L${pl.x - k} ${pl.y + k}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}
-      ${isSel ? `<circle cx="${pl.x}" cy="${pl.y}" r="${r + fs * 0.6}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}
-      <circle cx="${pl.x}" cy="${pl.y}" r="${fs * 0.18}" style="fill:${c}"/>
-      ${showL ? `<text x="${pl.x}" y="${pl.y - ls * 0.32}" font-size="${ls * 0.68}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${esc(lbl)}</text>` : ''}
+      <circle cx="${pl.x}" cy="${pl.y}" r="${fs * 0.18}" style="fill:${c}"/>`;
+      ringR = r;
+    }
+    parts.push(`<g data-kind="planting" data-id="${pl.id}" style="cursor:move">${body}
+      ${isSel ? `<circle cx="${pl.x}" cy="${pl.y}" r="${ringR + fs * 0.6}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}
+      ${showL ? `<text x="${pl.x}" y="${pl.y - (planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32)}" font-size="${ls * 0.68}" text-anchor="middle" style="fill:var(--label);font-weight:500${ex ? ';font-style:italic' : ''}">${esc(lbl)}</text>` : ''}
     </g>`);
   }
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
@@ -906,7 +939,7 @@ function applyPage() {
   $('navPlan').setAttribute('aria-pressed', plan); $('navSched').setAttribute('aria-pressed', pg === 'schedule'); $('navCal').setAttribute('aria-pressed', pg === 'flowering'); $('navPrefs').setAttribute('aria-pressed', pg === 'preferences');
   if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'database') { renderDatabase(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
 }
-function renderAll() { if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
+function renderAll() { renderLayers(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
 function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
 
@@ -1169,8 +1202,8 @@ function endDrag() {
     if (d.marquee && d.moved) {
       const r = normRect(d.start, d.cur), inR = (x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
       const found = [
-        ...S.g.plantings.filter(pl => inR(pl.x, pl.y)).map(pl => ({ kind: 'planting', id: pl.id })),
-        ...S.g.areas.filter(a => a.pts.every(([x, y]) => inR(x, y))).map(a => ({ kind: 'area', id: a.id })),
+        ...S.g.plantings.filter(pl => isVisible(plantById(pl.plantId)) && inR(pl.x, pl.y)).map(pl => ({ kind: 'planting', id: pl.id })),
+        ...S.g.areas.filter(a => isVisible(plantById(a.plantId)) && a.pts.every(([x, y]) => inR(x, y))).map(a => ({ kind: 'area', id: a.id })),
       ];
       if (d.shift) { const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : []; for (const f of found) if (!cur.some(c => c.kind === f.kind && c.id === f.id)) cur.push(f); selectMany(cur); }
       else selectMany(found);
@@ -1338,9 +1371,47 @@ function closeDetails() { $('detailsModal').hidden = true; $('detailsBtn').focus
 $('detailsBtn').addEventListener('click', openDetails);
 $('detailsDone').addEventListener('click', closeDetails);
 $('detailsModal').addEventListener('click', e => { if (e.target.id === 'detailsModal') closeDetails(); });
+function layerCounts() {
+  const c = {}; if (!S.g) return c;
+  const add = (p, q) => { if (!p) return; const k = p.existing ? 'existing' : layerOf(p.role); c[k] = (c[k] || 0) + q; };
+  for (const pl of S.g.plantings) add(plantById(pl.plantId), pl.qty || 1);
+  for (const a of S.g.areas) if (a.kind === 'drift') add(plantById(a.plantId), driftQty(a));
+  return c;
+}
+function renderLayers() {
+  const n = Object.keys(ROLES).filter(k => S.layers.has(k)).length, all = n === 7 && S.showExisting;
+  $('layerBtn').textContent = `Layers: ${all ? 'all' : n === 0 ? 'none' : n === 7 ? 'all, no existing' : n + ' of 7'} ▾`;
+  $('layerBtn').classList.toggle('on', !all);
+  if ($('layerMenu').hidden) return;
+  const cnt = layerCounts();
+  const row = (k, l, sw, on) => `<label class="lrow"><input type="checkbox" data-layer="${k}"${on ? ' checked' : ''}><span class="sw round" style="${sw}"></span><span>${l}</span><span class="n">${cnt[k] || ''}</span></label>`;
+  $('layerList').innerHTML = Object.entries(ROLES).map(([k, l]) => row(k, l, `background:var(--r-${k});border-color:var(--r-${k})`, S.layers.has(k))).join('')
+    + `<div style="border-top:1px solid var(--line);margin:4px 0"></div>` + row('existing', 'Existing plants', 'background:none;border:1.5px dashed var(--exist)', S.showExisting);
+}
+function saveLayers() { store.set('gpm.layers', JSON.stringify({ on: [...S.layers], existing: S.showExisting })); }
+(() => { try { const v = JSON.parse(store.get('gpm.layers') || 'null'); S.layers = new Set(v?.on || Object.keys(ROLES)); S.showExisting = v?.existing ?? true; } catch { S.layers = new Set(Object.keys(ROLES)); } })();
+$('layerBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('layerMenu').hidden; $('layerMenu').hidden = !open; $('layerBtn').setAttribute('aria-expanded', String(open)); renderLayers(); });
+$('layerMenu').addEventListener('change', e => {
+  const k = e.target.dataset.layer; if (!k) return;
+  if (k === 'existing') S.showExisting = e.target.checked; else if (e.target.checked) S.layers.add(k); else S.layers.delete(k);
+  afterLayerChange();
+});
+$('layerMenu').addEventListener('click', e => {
+  const b = e.target.closest('[data-layers]'); if (!b) return;
+  if (b.dataset.layers === 'all') { S.layers = new Set(Object.keys(ROLES)); S.showExisting = true; } else { S.layers = new Set(); S.showExisting = false; }
+  afterLayerChange();
+});
+function afterLayerChange() {
+  saveLayers();
+  const keep = m => isVisible(plantById(m.it.plantId));
+  if (S.multi.length) S.multi = selectedItems().filter(keep).map(({ kind, id }) => ({ kind, id }));
+  const it = findSel(); if (it && !isVisible(plantById(it.plantId))) S.sel = null;
+  renderLayers(); renderInspector(); renderMap();
+}
+function closeLayerMenu() { $('layerMenu').hidden = true; $('layerBtn').setAttribute('aria-expanded', 'false'); }
 function closeUlMenu() { $('ulMenu').hidden = true; $('ulMenuBtn').setAttribute('aria-expanded', 'false'); }
 $('ulMenuBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('ulMenu').hidden; $('ulMenu').hidden = !open; $('ulMenuBtn').setAttribute('aria-expanded', String(open)); });
-document.addEventListener('pointerdown', e => { if (!$('ulMenu').hidden && !e.target.closest('.menuwrap')) closeUlMenu(); }, true);
+document.addEventListener('pointerdown', e => { const w = e.target.closest('.menuwrap'); if (!$('ulMenu').hidden && !(w && w.contains($('ulMenu')))) closeUlMenu(); if (!$('layerMenu').hidden && !(w && w.contains($('layerMenu')))) closeLayerMenu(); }, true);
 $('newGardenBtn').addEventListener('click', startNewGarden);
 $('overlay').addEventListener('click', e => { if (e.target.id === 'ngCancel') { S.newGarden = false; renderOverlay(); } });
 $('overlay').addEventListener('submit', async e => {
@@ -1385,6 +1456,7 @@ $('clearYes').addEventListener('click', () => {
 document.addEventListener('keydown', e => {
   if (!$('detailsModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeDetails(); } return; }
   if (!$('ulMenu').hidden && e.key === 'Escape') { closeUlMenu(); $('ulMenuBtn').focus(); return; }
+  if (!$('layerMenu').hidden && e.key === 'Escape') { closeLayerMenu(); $('layerBtn').focus(); return; }
   if (!$('plantModal').hidden && e.key === 'Escape') { S.editPlant = null; S.confirm = null; renderLibrary(); return; }
   if (!$('clearModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeClear(); } return; }
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
@@ -1408,7 +1480,7 @@ document.addEventListener('keydown', e => {
 function normGarden(id, d) {
   return { id, name: d.name || 'Untitled garden', client: d.client || '', width: num(d.width, 10), depth: num(d.depth, 8),
     underlay: d.underlay && d.underlay.natW ? d.underlay : null,
-    areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind !== 'zone' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
+    areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind === 'drift' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
     plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example };
 }
 function openGarden(id) {
