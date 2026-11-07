@@ -159,6 +159,24 @@ table.sched.wide { font-size: 14px; min-width: 640px; }
 .months .bar { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; min-height: 2px; }
 .months .bar.zero { background: var(--line); }
 .months span { font-size: 10.5px; color: var(--muted); }
+.mslider { position: relative; display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
+.mslider .mcells { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; height: 14px; margin-top: 7px; }
+.mslider .mcells span { background: var(--line-soft); border-radius: 3px; }
+.mslider .mcells span.in { background: var(--accent); }
+.mslider.off .mcells span.in { background: var(--line); }
+.mslider input[type=range] { position: absolute; top: 0; left: calc(100% / 24); width: calc(100% * 11 / 12); height: 28px; margin: 0; background: none; -webkit-appearance: none; appearance: none; pointer-events: none; }
+.mslider input[type=range]::-webkit-slider-runnable-track { background: none; border: 0; height: 28px; }
+.mslider input[type=range]::-moz-range-track { background: none; border: 0; }
+.mslider input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; pointer-events: auto; width: 18px; height: 18px; margin-top: 5px; border-radius: 50%; background: var(--panel); border: 2px solid var(--accent); box-shadow: 0 1px 3px rgba(20, 18, 15, 0.25); cursor: grab; }
+.mslider input[type=range]::-moz-range-thumb { pointer-events: auto; width: 14px; height: 14px; border-radius: 50%; background: var(--panel); border: 2px solid var(--accent); cursor: grab; }
+.mslider.off input[type=range]::-webkit-slider-thumb { border-color: var(--muted); }
+.mslider.off input[type=range]::-moz-range-thumb { border-color: var(--muted); }
+.mslider input[type=range]:focus-visible { outline: none; }
+.mslider input[type=range]:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mslider .mlabels { display: grid; grid-template-columns: repeat(12, 1fr); text-align: center; font-size: 10px; color: var(--muted); margin-top: 6px; }
+.mslider .mrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; font-size: 12.5px; }
+.mslider .mrow label { white-space: nowrap; }
+.mslider #msl-txt { color: var(--ink); }
 .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
 .swatches button { aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 1px solid var(--bar-edge); cursor: pointer; padding: 0; }
 .swatches button[aria-pressed=true] { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -770,6 +788,23 @@ function renderGardenFields() {
   }
   if (!S.g) $('dims').textContent = '—';
 }
+function monthSlider(p) {
+  const on = !!p.flowerFrom, f = p.flowerFrom || 6, t = p.flowerTo || p.flowerFrom || 8;
+  return `<div class="mslider${on ? '' : ' off'}" id="msl">
+    <div class="mcells" id="msl-cells">${MONTHS.map((m, i) => `<span data-m="${i + 1}"></span>`).join('')}</div>
+    <input type="range" id="sp-ff" min="1" max="12" step="1" value="${f}" data-mr="flowerFrom" aria-label="Flowering from">
+    <input type="range" id="sp-ft" min="1" max="12" step="1" value="${t}" data-mr="flowerTo" aria-label="Flowering to">
+    <div class="mlabels">${MONTHS.map(m => `<span>${m[0]}</span>`).join('')}</div>
+    <div class="mrow"><span id="msl-txt"></span><label class="checks"><input type="checkbox" id="sp-nofl" data-mnone${on ? '' : ' checked'}> No flowers</label></div>
+  </div>`;
+}
+function paintMonthSlider() {
+  const p = S.editPlant, box = $('msl'); if (!p || !box) return;
+  const on = !!p.flowerFrom; box.classList.toggle('off', !on);
+  const ms = on ? flowerMonths(p) : [];
+  for (const c of box.querySelectorAll('[data-m]')) c.classList.toggle('in', ms.includes(+c.dataset.m));
+  $('msl-txt').textContent = on ? (ms.length === 12 ? 'All year' : `${MONTHS[p.flowerFrom - 1]} – ${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}${p.flowerTo && p.flowerTo < p.flowerFrom ? ' · over new year' : ''}`) : 'Not grown for flowers';
+}
 function renderPlantEditor(el) {
   const p = S.editPlant;
   const mo = v => `<option value="">None</option>` + MONTHS.map((m, i) => `<option value="${i + 1}"${+v === i + 1 ? ' selected' : ''}>${m}</option>`).join('');
@@ -781,7 +816,7 @@ function renderPlantEditor(el) {
     <div class="field"><span>On site</span><label class="checks"><input type="checkbox" id="sp-existing" data-pb="existing"${p.existing ? ' checked' : ''}> Existing plant, already in the garden</label></div>
     <label class="field"><span>Layer</span><select id="sp-role" data-p="role">${opt(ROLES, p.role)}</select></label>
     <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
-    <div class="field"><span>Flowers</span><div class="pair"><select id="sp-ff" aria-label="Flowering from" data-p="flowerFrom">${mo(p.flowerFrom)}</select><select id="sp-ft" aria-label="Flowering to" data-p="flowerTo">${mo(p.flowerTo)}</select></div></div>
+    <div class="field" style="align-items:start"><span style="padding-top:4px">Flowers</span>${monthSlider(p)}</div>
     <div class="field" style="align-items:start"><span style="padding-top:4px">Flower colour</span><div style="display:flex;flex-direction:column;gap:8px">
       <div class="swatches" role="group" aria-label="Flower colour">${FLOWER_COLOURS.map(([n, h]) => `<button type="button" data-color="${h}" data-cname="${n}" title="${n}" aria-label="${n}" aria-pressed="${(p.flowerColor || '').toLowerCase() === h.toLowerCase()}" style="background:${h}"></button>`).join('')}</div>
       <div class="colrow"><label style="display:inline-flex;gap:6px;align-items:center">Custom <input type="color" id="sp-col" data-p="flowerColor" value="${p.flowerColor || '#c9a7d9'}"></label><span id="colName">${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}"></span>${esc(p.flowerColorName || 'Custom colour')}` : 'No colour chosen'}</span>${p.flowerColor ? '<button class="btn sm" type="button" data-act="clearColour">Clear</button>' : ''}</div>
@@ -795,6 +830,7 @@ function renderPlantEditor(el) {
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
     ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants and drifts first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
     <p class="note" id="plantErr" style="margin:0;color:var(--crit)"></p>`;
+  paintMonthSlider();
 }
 function scheduleRows() {
   const m = new Map();
@@ -1333,6 +1369,16 @@ app.addEventListener('input', e => {
     const k = t.dataset.pref;
     const v = t.type === 'checkbox' ? t.checked : t.type === 'range' ? num(t.value, 1) : t.value;
     setPref(k, v); return;
+  }
+  if (t.dataset.mr && S.editPlant) {
+    const p = S.editPlant;
+    if (!p.flowerFrom) { p.flowerFrom = +$('sp-ff').value; p.flowerTo = +$('sp-ft').value; $('sp-nofl').checked = false; }
+    p[t.dataset.mr] = +t.value; paintMonthSlider(); return;
+  }
+  if (t.dataset.mnone !== undefined && S.editPlant) {
+    const p = S.editPlant;
+    if (t.checked) { p.flowerFrom = null; p.flowerTo = null; } else { p.flowerFrom = +$('sp-ff').value; p.flowerTo = +$('sp-ft').value; }
+    paintMonthSlider(); return;
   }
   if (t.dataset.p === 'flowerColor') { S.editPlant.flowerColor = t.value; S.editPlant.flowerColorName = 'Custom colour'; markSwatches(); return; }
   if (t.dataset.p) { const k = t.dataset.p; S.editPlant[k] = t.type === 'number' ? (t.value === '' ? null : num(t.value)) : (k === 'flowerFrom' || k === 'flowerTo') ? (t.value ? +t.value : null) : t.value; return; }
