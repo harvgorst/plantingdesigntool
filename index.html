@@ -87,7 +87,12 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 .insp .confirm-inline { flex-wrap: nowrap; }
 
 /* work area */
-.work { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; min-height: 0; }
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 14px var(--side-w, 360px); gap: 0; min-height: 0; }
+.splitter { cursor: col-resize; display: flex; align-items: center; justify-content: center; touch-action: none; border-radius: 6px; }
+.splitter::before { content: ""; width: 4px; height: 44px; border-radius: 2px; background: var(--line); transition: background .15s, height .15s; }
+.splitter:hover::before, .splitter.dragging::before, .splitter:focus-visible::before { background: var(--accent); height: 72px; }
+.splitter:focus-visible { outline: none; }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none !important; }
 .side { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; }
 .side > .card { flex: 1 1 0; }
 .card > * { flex-shrink: 0; }
@@ -232,13 +237,15 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 @media (max-width: 1200px) {
   html, body { height: auto; }
   .app { height: auto; grid-template-rows: none; }
-  .work { grid-template-columns: minmax(0, 1fr); }
+  .work { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .splitter { display: none; }
   .mapwrap { height: 66vh; min-height: 360px; }
   .side > .card { flex: none; }
   .card { overflow: visible; }
 }
 @media (max-width: 700px) {
-  .work { grid-template-columns: minmax(0, 1fr); }
+  .work { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .splitter { display: none; }
   .mapwrap { height: 60vh; }
   .tsep { display: none; }
 }
@@ -334,6 +341,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
       <div class="overlay" id="overlay" hidden></div>
     </section>
 
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Drag to resize the plan and plant library" title="Drag to resize · double-click to reset" tabindex="0"></div>
     <div class="side">
     <section class="card" aria-labelledby="libH">
       <div class="card-h"><h2 id="libH">Plant library</h2><a href="#database" class="note" style="margin-right:auto;margin-left:8px">Open database</a><button class="btn sm" id="addPlantBtn" type="button">Add species</button></div>
@@ -1273,6 +1281,33 @@ $('lib').addEventListener('click', e => {
   renderTools();
   for (const el of $('lib').querySelectorAll('[data-pid]')) el.setAttribute('aria-selected', el.dataset.pid === S.activePlant);
 });
+/* ---------- resizable split between plan and side panels ---------- */
+const SIDE_DEFAULT = 360;
+function setSideWidth(w, save) {
+  const work = document.querySelector('.work'), max = Math.max(260, work.clientWidth * 0.6);
+  const v = Math.round(clamp(w, 240, max));
+  work.style.setProperty('--side-w', v + 'px');
+  $('splitter').setAttribute('aria-valuenow', v);
+  if (save) store.set('gpm.sidew', String(v));
+  renderMapSoon();
+}
+(() => { const w = num(store.get('gpm.sidew'), 0); if (w) document.querySelector('.work').style.setProperty('--side-w', w + 'px'); })();
+$('splitter').addEventListener('pointerdown', e => {
+  if (e.button > 0) return;
+  e.preventDefault();
+  const sp = $('splitter'), right = document.querySelector('.work').getBoundingClientRect().right;
+  sp.setPointerCapture(e.pointerId); sp.classList.add('dragging'); document.body.classList.add('resizing');
+  const move = ev => setSideWidth(right - ev.clientX - 7, false);
+  const up = ev => { sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up); sp.removeEventListener('pointercancel', up); sp.classList.remove('dragging'); document.body.classList.remove('resizing'); setSideWidth(right - ev.clientX - 7, true); renderMap(); };
+  sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up); sp.addEventListener('pointercancel', up);
+});
+$('splitter').addEventListener('dblclick', () => { setSideWidth(SIDE_DEFAULT, true); renderMap(); });
+$('splitter').addEventListener('keydown', e => {
+  const cur = $('splitter').nextElementSibling.getBoundingClientRect().width;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); setSideWidth(cur + (e.shiftKey ? 80 : 20), true); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); setSideWidth(cur - (e.shiftKey ? 80 : 20), true); }
+});
+window.addEventListener('resize', () => renderMapSoon());
 $('lib').addEventListener('dblclick', e => {
   if (e.target.closest('[data-edit]')) return;
   const li = e.target.closest('[data-pid]'); if (!li || !S.g) return;
