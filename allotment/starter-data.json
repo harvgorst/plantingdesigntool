@@ -1,0 +1,883 @@
+{
+ "crops": {
+  "broad-bean": {
+   "name": "Broad bean",
+   "variety": "",
+   "group": "legumes",
+   "spacingCm": 20,
+   "rowCm": 45,
+   "sowIn": [
+    2,
+    3
+   ],
+   "sowOut": [
+    3,
+    4
+   ],
+   "plantOut": [
+    4,
+    4
+   ],
+   "harvest": [
+    6,
+    8
+   ],
+   "notes": "Pinch out tops once the first pods set to deter blackfly."
+  },
+  "runner-bean": {
+   "name": "Runner bean",
+   "variety": "",
+   "group": "legumes",
+   "spacingCm": 30,
+   "rowCm": 60,
+   "sowIn": [
+    4,
+    5
+   ],
+   "sowOut": [
+    5,
+    6
+   ],
+   "plantOut": [
+    6,
+    6
+   ],
+   "harvest": [
+    7,
+    10
+   ],
+   "notes": "Needs a frame or wigwam."
+  },
+  "french-bean": {
+   "name": "French bean",
+   "variety": "",
+   "group": "legumes",
+   "spacingCm": 15,
+   "rowCm": 45,
+   "sowIn": [
+    4,
+    5
+   ],
+   "sowOut": [
+    5,
+    7
+   ],
+   "plantOut": [
+    6,
+    6
+   ],
+   "harvest": [
+    7,
+    9
+   ],
+   "notes": ""
+  },
+  "pea": {
+   "name": "Pea",
+   "variety": "",
+   "group": "legumes",
+   "spacingCm": 8,
+   "rowCm": 60,
+   "sowIn": null,
+   "sowOut": [
+    3,
+    6
+   ],
+   "plantOut": null,
+   "harvest": [
+    6,
+    9
+   ],
+   "notes": "Sow a fresh row every 3 weeks."
+  },
+  "cabbage": {
+   "name": "Cabbage",
+   "variety": "",
+   "group": "brassicas",
+   "spacingCm": 45,
+   "rowCm": 45,
+   "sowIn": [
+    3,
+    5
+   ],
+   "sowOut": null,
+   "plantOut": [
+    5,
+    7
+   ],
+   "harvest": [
+    8,
+    11
+   ],
+   "notes": "Net against pigeons and cabbage white."
+  },
+  "kale": {
+   "name": "Kale",
+   "variety": "",
+   "group": "brassicas",
+   "spacingCm": 45,
+   "rowCm": 60,
+   "sowIn": [
+    4,
+    5
+   ],
+   "sowOut": null,
+   "plantOut": [
+    6,
+    7
+   ],
+   "harvest": [
+    9,
+    3
+   ],
+   "notes": ""
+  },
+  "psb": {
+   "name": "Purple sprouting broccoli",
+   "variety": "",
+   "group": "brassicas",
+   "spacingCm": 60,
+   "rowCm": 60,
+   "sowIn": [
+    4,
+    5
+   ],
+   "sowOut": null,
+   "plantOut": [
+    6,
+    7
+   ],
+   "harvest": [
+    2,
+    4
+   ],
+   "notes": ""
+  },
+  "sprouts": {
+   "name": "Brussels sprouts",
+   "variety": "",
+   "group": "brassicas",
+   "spacingCm": 60,
+   "rowCm": 75,
+   "sowIn": [
+    3,
+    4
+   ],
+   "sowOut": null,
+   "plantOut": [
+    5,
+    6
+   ],
+   "harvest": [
+    10,
+    2
+   ],
+   "notes": "Firm the soil well and stake."
+  },
+  "cauliflower": {
+   "name": "Cauliflower",
+   "variety": "",
+   "group": "brassicas",
+   "spacingCm": 60,
+   "rowCm": 60,
+   "sowIn": [
+    3,
+    5
+   ],
+   "sowOut": null,
+   "plantOut": [
+    5,
+    6
+   ],
+   "harvest": [
+    7,
+    11
+   ],
+   "notes": ""
+  },
+  "swede": {
+   "name": "Swede",
+   "variety": "",
+   "group": "brassicas",
+   "spacingCm": 25,
+   "rowCm": 40,
+   "sowIn": null,
+   "sowOut": [
+    5,
+    6
+   ],
+   "plantOut": null,
+   "harvest": [
+    10,
+    2
+   ],
+   "notes": ""
+  },
+  "radish": {
+   "name": "Radish",
+   "variety": "",
+   "group": "brassicas",
+   "spacingCm": 3,
+   "rowCm": 15,
+   "sowIn": null,
+   "sowOut": [
+    3,
+    9
+   ],
+   "plantOut": null,
+   "harvest": [
+    4,
+    10
+   ],
+   "notes": ""
+  },
+  "carrot": {
+   "name": "Carrot",
+   "variety": "",
+   "group": "roots",
+   "spacingCm": 5,
+   "rowCm": 20,
+   "sowIn": null,
+   "sowOut": [
+    4,
+    7
+   ],
+   "plantOut": null,
+   "harvest": [
+    7,
+    11
+   ],
+   "notes": "Cover with fleece against carrot fly."
+  },
+  "beetroot": {
+   "name": "Beetroot",
+   "variety": "",
+   "group": "roots",
+   "spacingCm": 10,
+   "rowCm": 30,
+   "sowIn": null,
+   "sowOut": [
+    4,
+    7
+   ],
+   "plantOut": null,
+   "harvest": [
+    6,
+    10
+   ],
+   "notes": ""
+  },
+  "parsnip": {
+   "name": "Parsnip",
+   "variety": "",
+   "group": "roots",
+   "spacingCm": 15,
+   "rowCm": 30,
+   "sowIn": null,
+   "sowOut": [
+    3,
+    5
+   ],
+   "plantOut": null,
+   "harvest": [
+    10,
+    2
+   ],
+   "notes": "Slow to germinate; use fresh seed."
+  },
+  "onion": {
+   "name": "Onion sets",
+   "variety": "",
+   "group": "alliums",
+   "spacingCm": 10,
+   "rowCm": 25,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    3,
+    4
+   ],
+   "harvest": [
+    7,
+    8
+   ],
+   "notes": ""
+  },
+  "garlic": {
+   "name": "Garlic",
+   "variety": "",
+   "group": "alliums",
+   "spacingCm": 15,
+   "rowCm": 30,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    10,
+    11
+   ],
+   "harvest": [
+    6,
+    7
+   ],
+   "notes": ""
+  },
+  "leek": {
+   "name": "Leek",
+   "variety": "",
+   "group": "alliums",
+   "spacingCm": 15,
+   "rowCm": 30,
+   "sowIn": [
+    2,
+    4
+   ],
+   "sowOut": null,
+   "plantOut": [
+    6,
+    7
+   ],
+   "harvest": [
+    10,
+    3
+   ],
+   "notes": ""
+  },
+  "shallot": {
+   "name": "Shallots",
+   "variety": "",
+   "group": "alliums",
+   "spacingCm": 15,
+   "rowCm": 30,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    2,
+    3
+   ],
+   "harvest": [
+    7,
+    7
+   ],
+   "notes": ""
+  },
+  "early-potato": {
+   "name": "First early potatoes",
+   "variety": "",
+   "group": "potatoes",
+   "spacingCm": 30,
+   "rowCm": 60,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    3,
+    4
+   ],
+   "harvest": [
+    6,
+    7
+   ],
+   "notes": "Chit from late January. Earth up as shoots appear."
+  },
+  "main-potato": {
+   "name": "Maincrop potatoes",
+   "variety": "",
+   "group": "potatoes",
+   "spacingCm": 38,
+   "rowCm": 75,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    4,
+    5
+   ],
+   "harvest": [
+    8,
+    10
+   ],
+   "notes": ""
+  },
+  "courgette": {
+   "name": "Courgette",
+   "variety": "",
+   "group": "cucurbits",
+   "spacingCm": 90,
+   "rowCm": 90,
+   "sowIn": [
+    4,
+    5
+   ],
+   "sowOut": null,
+   "plantOut": [
+    6,
+    6
+   ],
+   "harvest": [
+    7,
+    9
+   ],
+   "notes": ""
+  },
+  "squash": {
+   "name": "Winter squash",
+   "variety": "",
+   "group": "cucurbits",
+   "spacingCm": 120,
+   "rowCm": 120,
+   "sowIn": [
+    4,
+    5
+   ],
+   "sowOut": null,
+   "plantOut": [
+    6,
+    6
+   ],
+   "harvest": [
+    9,
+    10
+   ],
+   "notes": ""
+  },
+  "lettuce": {
+   "name": "Lettuce",
+   "variety": "",
+   "group": "salad",
+   "spacingCm": 25,
+   "rowCm": 30,
+   "sowIn": [
+    2,
+    4
+   ],
+   "sowOut": [
+    4,
+    8
+   ],
+   "plantOut": [
+    4,
+    5
+   ],
+   "harvest": [
+    5,
+    10
+   ],
+   "notes": ""
+  },
+  "spinach": {
+   "name": "Spinach",
+   "variety": "",
+   "group": "salad",
+   "spacingCm": 15,
+   "rowCm": 30,
+   "sowIn": null,
+   "sowOut": [
+    3,
+    8
+   ],
+   "plantOut": null,
+   "harvest": [
+    5,
+    10
+   ],
+   "notes": ""
+  },
+  "chard": {
+   "name": "Swiss chard",
+   "variety": "",
+   "group": "salad",
+   "spacingCm": 30,
+   "rowCm": 45,
+   "sowIn": null,
+   "sowOut": [
+    4,
+    7
+   ],
+   "plantOut": null,
+   "harvest": [
+    7,
+    11
+   ],
+   "notes": ""
+  },
+  "sweetcorn": {
+   "name": "Sweetcorn",
+   "variety": "",
+   "group": "other",
+   "spacingCm": 45,
+   "rowCm": 45,
+   "sowIn": [
+    4,
+    5
+   ],
+   "sowOut": null,
+   "plantOut": [
+    6,
+    6
+   ],
+   "harvest": [
+    8,
+    9
+   ],
+   "notes": "Plant in a block, not a single row, so it pollinates."
+  },
+  "tomato": {
+   "name": "Outdoor tomato",
+   "variety": "",
+   "group": "other",
+   "spacingCm": 45,
+   "rowCm": 60,
+   "sowIn": [
+    2,
+    4
+   ],
+   "sowOut": null,
+   "plantOut": [
+    5,
+    6
+   ],
+   "harvest": [
+    7,
+    10
+   ],
+   "notes": ""
+  },
+  "rhubarb": {
+   "name": "Rhubarb",
+   "variety": "",
+   "group": "perennial",
+   "spacingCm": 90,
+   "rowCm": 90,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    10,
+    3
+   ],
+   "harvest": [
+    4,
+    7
+   ],
+   "notes": ""
+  },
+  "strawberry": {
+   "name": "Strawberry",
+   "variety": "",
+   "group": "perennial",
+   "spacingCm": 35,
+   "rowCm": 75,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    7,
+    9
+   ],
+   "harvest": [
+    6,
+    7
+   ],
+   "notes": ""
+  },
+  "raspberry": {
+   "name": "Raspberry",
+   "variety": "",
+   "group": "perennial",
+   "spacingCm": 45,
+   "rowCm": 180,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    11,
+    3
+   ],
+   "harvest": [
+    7,
+    9
+   ],
+   "notes": ""
+  },
+  "asparagus": {
+   "name": "Asparagus",
+   "variety": "",
+   "group": "perennial",
+   "spacingCm": 45,
+   "rowCm": 45,
+   "sowIn": null,
+   "sowOut": null,
+   "plantOut": [
+    3,
+    4
+   ],
+   "harvest": [
+    4,
+    6
+   ],
+   "notes": "Don’t cut for the first two years."
+  }
+ },
+ "examplePlot": {
+  "name": "Example plot",
+  "site": "Half plot, example",
+  "year": 2026,
+  "width": 20,
+  "depth": 10,
+  "north": 0,
+  "areas": [
+   {
+    "id": "bed1",
+    "kind": "bed",
+    "name": "Bed 1",
+    "x": 0.5,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 6
+   },
+   {
+    "id": "bed2",
+    "kind": "bed",
+    "name": "Bed 2",
+    "x": 2.2,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 6
+   },
+   {
+    "id": "bed3",
+    "kind": "bed",
+    "name": "Bed 3",
+    "x": 3.9,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 6
+   },
+   {
+    "id": "bed4",
+    "kind": "bed",
+    "name": "Bed 4",
+    "x": 5.6,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 6
+   },
+   {
+    "id": "bed5",
+    "kind": "bed",
+    "name": "Bed 5",
+    "x": 7.3,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 6
+   },
+   {
+    "id": "bed6",
+    "kind": "bed",
+    "name": "Bed 6",
+    "x": 9.0,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 6
+   },
+   {
+    "id": "bed7",
+    "kind": "bed",
+    "name": "Fruit bed",
+    "x": 11,
+    "y": 0.8,
+    "w": 4,
+    "h": 6
+   },
+   {
+    "id": "f1",
+    "kind": "path",
+    "name": "Path",
+    "x": 0,
+    "y": 7.4,
+    "w": 20,
+    "h": 1
+   },
+   {
+    "id": "f2",
+    "kind": "shed",
+    "name": "Shed",
+    "x": 16.5,
+    "y": 0.8,
+    "w": 2.5,
+    "h": 2
+   },
+   {
+    "id": "f3",
+    "kind": "compost",
+    "name": "Compost bays",
+    "x": 16.5,
+    "y": 3.4,
+    "w": 2.5,
+    "h": 1.2
+   },
+   {
+    "id": "f4",
+    "kind": "water",
+    "name": "Water butt",
+    "x": 18.3,
+    "y": 5.1,
+    "w": 0.7,
+    "h": 0.7
+   }
+  ],
+  "crops": [
+   {
+    "id": "c1",
+    "cropId": "early-potato",
+    "x": 0.5,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 3,
+    "across": false
+   },
+   {
+    "id": "c2",
+    "cropId": "main-potato",
+    "x": 0.5,
+    "y": 3.8,
+    "w": 1.2,
+    "h": 3,
+    "across": false
+   },
+   {
+    "id": "c3",
+    "cropId": "broad-bean",
+    "x": 2.2,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 3,
+    "across": false
+   },
+   {
+    "id": "c4",
+    "cropId": "runner-bean",
+    "x": 2.2,
+    "y": 3.8,
+    "w": 1.2,
+    "h": 3,
+    "across": false
+   },
+   {
+    "id": "c5",
+    "cropId": "kale",
+    "x": 3.9,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 3,
+    "across": false
+   },
+   {
+    "id": "c6",
+    "cropId": "psb",
+    "x": 3.9,
+    "y": 3.8,
+    "w": 1.2,
+    "h": 3,
+    "across": false
+   },
+   {
+    "id": "c7",
+    "cropId": "carrot",
+    "x": 5.6,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 2,
+    "across": false
+   },
+   {
+    "id": "c8",
+    "cropId": "parsnip",
+    "x": 5.6,
+    "y": 2.8,
+    "w": 1.2,
+    "h": 2,
+    "across": false
+   },
+   {
+    "id": "c9",
+    "cropId": "beetroot",
+    "x": 5.6,
+    "y": 4.8,
+    "w": 1.2,
+    "h": 2,
+    "across": false
+   },
+   {
+    "id": "c10",
+    "cropId": "onion",
+    "x": 7.3,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 3,
+    "across": false
+   },
+   {
+    "id": "c11",
+    "cropId": "garlic",
+    "x": 7.3,
+    "y": 3.8,
+    "w": 1.2,
+    "h": 3,
+    "across": false
+   },
+   {
+    "id": "c12",
+    "cropId": "courgette",
+    "x": 9.0,
+    "y": 0.8,
+    "w": 1.2,
+    "h": 2,
+    "across": false
+   },
+   {
+    "id": "c13",
+    "cropId": "squash",
+    "x": 9.0,
+    "y": 2.8,
+    "w": 1.2,
+    "h": 2.4,
+    "across": false
+   },
+   {
+    "id": "c14",
+    "cropId": "lettuce",
+    "x": 9.0,
+    "y": 5.2,
+    "w": 1.2,
+    "h": 1.6,
+    "across": false
+   },
+   {
+    "id": "c15",
+    "cropId": "rhubarb",
+    "x": 11,
+    "y": 0.8,
+    "w": 2,
+    "h": 2,
+    "across": false
+   },
+   {
+    "id": "c16",
+    "cropId": "raspberry",
+    "x": 13,
+    "y": 0.8,
+    "w": 2,
+    "h": 6,
+    "across": false
+   },
+   {
+    "id": "c17",
+    "cropId": "strawberry",
+    "x": 11,
+    "y": 3,
+    "w": 2,
+    "h": 3.8,
+    "across": false
+   }
+  ],
+  "prevId": null,
+  "updatedAt": 1,
+  "example": true
+ }
+}

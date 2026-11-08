@@ -1,0 +1,1021 @@
+<title>Allotment Plot Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+/* Layout: the planting-plan studio from the Garden Planting Map, cut down for a vegetable plot. Title block and tabs, tool strip, properties bar, then the plot plan beside the crop list. A deliberately light drawing-office look in every theme. */
+:root {
+  --paper: #F3EFE3; --panel: #FBF8F1; --ink: #2F2B25; --muted: #7B7266; --line: #E0D7C6; --line-soft: #EBE4D6;
+  --accent: #5E7A4C; --accent-ink: #FFFDF8; --accent-soft: #E3E9D6;
+  --ground: #EEE8D9; --grid: #E1D8C6; --grid-major: #CFC2AB; --soil: #D9C3A3; --soil-edge: #9C7F5C;
+  --warn: #A06C1E; --crit: #A8402F; --label: #1E1B17;
+  --f-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --f-body: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  color-scheme: light;
+}
+html, body { height: 100%; }
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+button, input, select, output, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); height: 100%; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px; gap: 10px; }
+.app.page { grid-template-rows: auto minmax(0, 1fr); }
+h1 { font-family: var(--f-display); font-weight: 600; font-size: 24px; line-height: 1; margin: 0; padding: 6px 0; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-height: 1.1; margin: 0; text-wrap: balance; }
+.lbl, .pf > span, .field > span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
+.spacer { flex: 1; }
+#status { font-size: 12px; color: var(--muted); font-style: italic; white-space: nowrap; }
+#status.err { color: var(--crit); font-style: normal; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; border-bottom: 1px solid var(--line); }
+.tabs { display: flex; flex-wrap: wrap; gap: 0 22px; align-self: stretch; }
+.tabs button { border: 0; background: none; padding: 10px 0 9px; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; font-size: 14.5px; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-pressed=true] { color: var(--ink); border-bottom-color: var(--accent); }
+.gbox { display: flex; gap: 6px; align-items: center; }
+.gbox select { max-width: 240px; }
+
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 5px 12px; cursor: pointer; line-height: 1.3; }
+.btn:hover { border-color: var(--muted); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--crit); }
+.btn.danger.solid { background: var(--crit); border-color: var(--crit); color: var(--panel); }
+.btn.sm { padding: 3px 10px; font-size: 13px; }
+select, input[type=text], input[type=number], textarea { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 4px 8px; min-width: 0; }
+input[type=number] { font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: transparent; padding: 3px 10px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.tools { display: flex; flex-wrap: wrap; gap: 2px; }
+.tool { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; font-size: 14px; }
+.tool:hover { background: var(--paper); }
+.tool[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
+.tsep { width: 1px; align-self: stretch; background: var(--line); }
+.sw { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--muted); flex: none; display: inline-block; }
+.sw.round { border-radius: 50%; }
+.zoom { display: flex; align-items: center; gap: 6px; }
+#zoomLbl { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.menuwrap { position: relative; }
+.menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 25; min-width: 230px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(20, 18, 15, 0.16); padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+.menu label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+
+.props { display: flex; align-items: center; gap: 16px; height: 48px; padding: 0 14px; border-bottom: 1px solid var(--line); overflow: hidden; }
+.hint { color: var(--muted); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+.insp { display: flex; flex-wrap: nowrap; align-items: center; gap: 18px; flex: 1; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; white-space: nowrap; }
+.insp > * { flex: none; }
+.pk { white-space: nowrap; font-family: var(--f-display); font-size: 19px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.pf { display: inline-flex; align-items: center; gap: 7px; }
+.pf input[type=text] { width: 9em; }
+.pf input.n { width: 4.6em; }
+.pv { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.pv b { color: var(--ink); }
+.pv.warn { color: var(--warn); }
+.acts { display: flex; gap: 6px; margin-left: auto; padding-left: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 0 7px; background: var(--panel); color: var(--ink); }
+
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 14px var(--side-w, 340px); min-height: 0; }
+.splitter { cursor: col-resize; display: flex; align-items: center; justify-content: center; touch-action: none; border-radius: 6px; }
+.splitter::before { content: ""; width: 4px; height: 44px; border-radius: 2px; background: var(--line); transition: background .15s, height .15s; }
+.splitter:hover::before, .splitter.dragging::before, .splitter:focus-visible::before { background: var(--accent); height: 72px; }
+.splitter:focus-visible { outline: none; }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none !important; }
+.side { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; overflow: auto; flex: 1 1 0; }
+.card > * { flex-shrink: 0; }
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.lib { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.lib .gh { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); padding: 10px 7px 3px; cursor: default; display: flex; align-items: center; gap: 7px; }
+.lib li.c { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 9px; align-items: center; padding: 6px 7px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+.lib li.c:hover { background: var(--paper); }
+.lib li.c[aria-selected=true] { border-color: var(--accent); background: var(--accent-soft); }
+.lib .nm { min-width: 0; }
+.lib .nm b { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib .nm i { color: var(--muted); font-size: 12.5px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib .meta { font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; line-height: 1.3; }
+.empty { color: var(--muted); font-size: 13px; font-style: italic; }
+.ex { font-size: 9.5px; font-style: normal; text-transform: uppercase; letter-spacing: 0.08em; color: var(--warn); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 5px; vertical-align: 2px; }
+
+.mapwrap { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+#map { flex: 1; width: 100%; min-height: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+#map text { font-family: var(--f-body); }
+#map.panning, #map.panning * { cursor: grabbing !important; }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--panel); overflow: auto; }
+.overlay .card { max-width: 420px; width: 100%; overflow: visible; flex: none; }
+
+.field { display: grid; grid-template-columns: 108px 1fr; gap: 8px; align-items: center; font-size: 13.5px; }
+.field input, .field select, .field textarea { width: 100%; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.note { font-size: 12.5px; color: var(--muted); }
+.confirm { background: var(--paper); border-radius: 8px; padding: 10px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+.mrange { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; align-items: center; }
+.mrange span { color: var(--muted); font-size: 12px; }
+
+.modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); background: rgba(20, 18, 15, 0.38); }
+.modal .card { max-width: 460px; width: 100%; flex: none; max-height: 92vh; gap: 14px; padding: 22px; box-shadow: 0 18px 50px rgba(20, 18, 15, 0.25); }
+.modal h2 { font-size: 24px; }
+
+.pageview { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 18px; }
+.pagehead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
+.pagehead h2 { font-size: 26px; }
+table.sched { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 680px; }
+.sched th { text-align: left; font-weight: 400; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--line); padding: 7px 8px; }
+.sched td { padding: 7px 8px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+.sched td.n, .sched th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sched tfoot td { border-bottom: 0; font-weight: 600; padding-top: 9px; }
+.sched i { color: var(--muted); }
+.sched .ok { color: var(--accent); } .sched .bad { color: var(--warn); }
+.scroll { overflow-x: auto; }
+
+.todo { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.todo section { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.todo h3 { margin: 0; font-family: var(--f-display); font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.todo ul { margin: 0; padding: 0; list-style: none; font-size: 13.5px; display: flex; flex-direction: column; gap: 2px; }
+.todo .none { color: var(--muted); font-style: italic; font-size: 13px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 18px; height: 7px; border-radius: 4px; }
+.cal-grid { min-width: 720px; display: grid; grid-template-columns: minmax(160px, 220px) minmax(0, 1fr); column-gap: 14px; }
+.cal-months, .ctrack { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.cal-months span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-align: center; padding: 6px 0; }
+.cal-months span.now { color: var(--ink); font-weight: 600; }
+.cname { padding: 6px 0; border-top: 1px solid var(--line-soft); min-width: 0; }
+.cname b { font-weight: 600; } .cname i { color: var(--muted); font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctrack { grid-template-rows: repeat(4, 7px); row-gap: 3px; align-content: center; border-top: 1px solid var(--line-soft); background-image: linear-gradient(to right, var(--line-soft) 1px, transparent 1px); background-size: calc(100% / 12) 100%; position: relative; }
+.ctrack .bar { border-radius: 4px; margin: 0 2px; position: relative; }
+.ctrack .nowcol { grid-row: 1 / 5; background: var(--accent-soft); opacity: .6; }
+
+@media (max-width: 1100px) {
+  html, body { height: auto; }
+  .app, .app.page { height: auto; grid-template-rows: none; }
+  .work { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .splitter { display: none; }
+  .mapwrap { height: 64vh; min-height: 340px; }
+  .card { overflow: visible; flex: none; }
+}
+@media (max-width: 700px) { .tsep { display: none; } .mapwrap { height: 60vh; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <h1>Allotment Plot Planner</h1>
+    <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true">Plan</button><button type="button" id="navList" aria-pressed="false">Crop list &amp; rotation</button><button type="button" id="navCal" aria-pressed="false">Sowing calendar</button></nav>
+    <div class="spacer"></div>
+    <div class="gbox"><select id="plotSel" aria-label="Choose a plot"></select><button class="btn sm" id="detailsBtn" type="button">Plot details</button></div>
+    <span id="status">Connecting…</span>
+  </header>
+
+  <nav class="toolbar" aria-label="Tools">
+    <div class="tools" id="tools"></div>
+    <div class="tsep"></div>
+    <div class="menuwrap">
+      <button class="btn sm" id="viewBtn" type="button" aria-expanded="false" aria-controls="viewMenu">View ▾</button>
+      <div class="menu" id="viewMenu" hidden role="group" aria-label="View options">
+        <label><input type="checkbox" id="pv-labels" data-pref="labels"> Labels</label>
+        <label><input type="checkbox" id="pv-dots" data-pref="dots"> Plant positions</label>
+        <label><input type="checkbox" id="pv-grid" data-pref="grid"> 1 m grid</label>
+        <label><input type="checkbox" id="pv-last" data-pref="lastYear"> Last year’s crops on beds</label>
+        <label style="justify-content:space-between">Snap to <select id="pv-snap" data-pref="snap"><option value="0.05">5 cm</option><option value="0.1">10 cm</option><option value="0.25">25 cm</option><option value="0.5">50 cm</option></select></label>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn sm" id="undoBtn" type="button" title="Undo (Ctrl+Z)">Undo</button>
+    <div class="zoom"><div class="seg" role="group" aria-label="Zoom"><button type="button" id="zOut" aria-label="Zoom out" title="Zoom out (−)">−</button><button type="button" id="zFit" title="Fit whole plot (0)">Fit</button><button type="button" id="zIn" aria-label="Zoom in" title="Zoom in (+)">+</button></div><span id="zoomLbl">100%</span></div>
+  </nav>
+
+  <div class="props" aria-live="polite"><div class="insp" id="inspector" hidden></div><span class="hint" id="hint"></span></div>
+
+  <section class="pageview" id="listView" hidden aria-labelledby="listH"></section>
+  <section class="pageview" id="calView" hidden aria-labelledby="calH"></section>
+
+  <div class="work">
+    <section class="mapwrap" aria-label="Plot plan">
+      <svg id="map" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scaled plot plan"></svg>
+      <div class="overlay" id="overlay" hidden></div>
+    </section>
+    <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Drag to resize the plan and crop list" title="Drag to resize · double-click to reset" tabindex="0"></div>
+    <div class="side">
+      <section class="card" aria-labelledby="libH">
+        <div class="card-h"><h2 id="libH">Crops</h2><button class="btn sm" id="addCropBtn" type="button">Add crop</button></div>
+        <div id="libPane" style="display:flex;flex-direction:column;gap:8px">
+          <input type="text" id="libSearch" placeholder="Search crops" aria-label="Search crops">
+          <ul class="lib" id="lib"></ul>
+        </div>
+        <div id="editPane" style="display:flex;flex-direction:column;gap:10px" hidden></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="detailsModal" hidden role="dialog" aria-modal="true" aria-labelledby="detailsH">
+  <div class="card">
+    <div class="card-h"><h2 id="detailsH">Plot details</h2><button class="btn sm" type="button" id="detailsDone">Done</button></div>
+    <label class="field"><span>Name</span><input id="g-name" type="text" data-g="name"></label>
+    <label class="field"><span>Site &amp; plot no.</span><input id="g-site" type="text" data-g="site" placeholder="e.g. Elm Road allotments, plot 14b"></label>
+    <label class="field"><span>Season</span><input id="g-year" type="number" min="1990" max="2200" step="1" data-g="year"></label>
+    <div class="field"><span>Size</span><div class="row" style="flex-wrap:nowrap"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="200" step="0.5" data-g="width" style="width:5.5em"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="200" step="0.5" data-g="depth" style="width:5.5em"> m <output id="dims" class="pv"></output></div></div>
+    <div class="field"><span>North</span><div class="row" style="flex-wrap:nowrap"><input id="g-north" type="number" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="width:5em"><span class="pv">° · or drag the arrow on the plan</span></div></div>
+    <div class="confirm">
+      <b style="font-weight:600">Next season</b>
+      <span>Start a new plan for next year with the same beds, paths and sheds but no annual crops. Perennials and fruit come across. Each bed then shows what grew there this year, so you can rotate.</span>
+      <div class="row"><button class="btn sm primary" type="button" id="nextYearBtn">Start next year’s plan</button></div>
+    </div>
+    <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:12px">
+      <button class="btn sm" type="button" id="newPlotBtn">New plot</button>
+      <span class="row"><button class="btn sm danger" type="button" id="clearBtn">Clear crops…</button><button class="btn sm danger" type="button" id="delPlotBtn">Delete plan…</button></span>
+    </div>
+    <div class="confirm" id="dangerBox" hidden></div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const GROUPS = { legumes: 'Peas & beans', brassicas: 'Brassicas', potatoes: 'Potatoes', roots: 'Roots', alliums: 'Onion family', cucurbits: 'Squash family', salad: 'Salads & leaves', other: 'Other annuals', perennial: 'Perennials & fruit' };
+const GCOL = { legumes: '#6C8A3A', brassicas: '#4D6D8E', potatoes: '#9F8350', roots: '#C3753A', alliums: '#8C679E', cucurbits: '#C9982C', salad: '#5F9B5A', other: '#8A7F70', perennial: '#8A4558' };
+// four-course rotation: roots and the onion family share a slot
+const ROT = { legumes: 0, brassicas: 1, potatoes: 2, roots: 3, alliums: 3 };
+const ROT_NAMES = ['Peas & beans', 'Brassicas', 'Potatoes', 'Roots & onions'];
+const FEATURES = { path: 'Path', shed: 'Shed', greenhouse: 'Greenhouse', polytunnel: 'Polytunnel', compost: 'Compost bays', water: 'Water butt', seating: 'Seating', other: 'Other' };
+const FCOL = { path: '#E4DDCF', shed: '#C9BBA3', greenhouse: '#CFE0E4', polytunnel: '#DCE6E8', compost: '#AE9473', water: '#A7C7D2', seating: '#D9CDB8', other: '#D6CFC2' };
+const ACTS = [['sowIn', 'Sow under cover', '#9FB5D6'], ['sowOut', 'Sow outside', '#8DB277'], ['plantOut', 'Plant out', '#3F7448'], ['harvest', 'Harvest', '#D0873A']];
+const TOOLS = [
+  { id: 'select', label: 'Select', key: 'V' },
+  { id: 'bed', label: 'Bed', key: 'B' },
+  { id: 'crop', label: 'Crop', key: 'C' },
+  { id: 'feature', label: 'Path & shed', key: 'F' },
+];
+const PREF_DEFAULTS = { labels: true, dots: true, grid: true, lastYear: false, snap: 0.1 };
+
+const S = {
+  db: null, online: false, loaded: false,
+  crops: [], plots: [], g: null,
+  tool: 'select', activeCrop: null, featureKind: 'path',
+  sel: null, multi: [], editCrop: null, confirm: null,
+  drag: null, history: [], filter: '',
+  zoom: 1, cx: null, cy: null, pinch: null,
+  prefs: { ...PREF_DEFAULTS }, newPlot: false, calAll: false,
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const r2 = v => Math.round(v * 100) / 100;
+const snap = v => { const st = num(S.prefs.snap, 0.1); return Math.round(Math.round(v / st) * st * 1000) / 1000; };
+const snapPt = p => ({ x: snap(p.x), y: snap(p.y) });
+const plural = (n, w, ws) => `${n} ${n === 1 ? w : (ws || w + 's')}`;
+const fmtM = v => (Math.round(v * 100) / 100).toString();
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+try { S.prefs = { ...PREF_DEFAULTS, ...JSON.parse(store.get('apl.prefs') || '{}') }; } catch {}
+function setStatus(t, err) { const el = $('status'); el.textContent = t; el.classList.toggle('err', !!err); }
+const thisMonth = () => new Date().getMonth() + 1;
+
+/* ---------- crops ---------- */
+let cropIndex = null, cropIndexOf = null;
+const cropById = id => { if (cropIndexOf !== S.crops) { cropIndex = new Map(S.crops.map(c => [c.id, c])); cropIndexOf = S.crops; } return cropIndex.get(id); };
+const upsertCrop = rec => { S.crops = [...S.crops.filter(x => x.id !== rec.id), rec]; };
+const gcol = c => GCOL[c?.group] || GCOL.other;
+const cropName = c => c ? c.name + (c.variety ? ' ‘' + c.variety + '’' : '') : 'Missing crop';
+function monthsOf(r) {
+  if (!Array.isArray(r) || !r[0]) return [];
+  const f = +r[0], to = +(r[1] || r[0]), out = [];
+  for (let i = 0, m = f; i < 12; i++) { out.push(m); if (m === to) break; m = m % 12 + 1; }
+  return out;
+}
+function runs(ms) {
+  const set = new Set(ms), out = [];
+  for (let m = 1; m <= 12; m++) if (set.has(m) && !set.has(m - 1)) { let e = m; while (set.has(e + 1)) e++; out.push([m, e]); }
+  return out;
+}
+const rangeText = r => Array.isArray(r) && r[0] ? (r[1] && r[1] !== r[0] ? `${MONTHS[r[0] - 1]}–${MONTHS[r[1] - 1]}` : MONTHS[r[0] - 1]) : '';
+
+/* ---------- geometry ---------- */
+const inRect = (r, x, y) => x >= r.x - 1e-9 && x <= r.x + r.w + 1e-9 && y >= r.y - 1e-9 && y <= r.y + r.h + 1e-9;
+const normRect = (a, b) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) });
+function clipRect(r, b) { const x = Math.max(r.x, b.x), y = Math.max(r.y, b.y); return { x, y, w: Math.max(0, Math.min(r.x + r.w, b.x + b.w) - x), h: Math.max(0, Math.min(r.y + r.h, b.y + b.h) - y) }; }
+function bedAt(plot, x, y) { const bs = (plot?.areas || []).filter(a => a.kind === 'bed' && inRect(a, x, y)); return bs[bs.length - 1] || null; }
+const bedOf = (plot, b) => bedAt(plot, b.x + b.w / 2, b.y + b.h / 2);
+// plants in a crop block: rows run along the longer side unless turned
+function plantGrid(b, c) {
+  const sp = Math.max(0.02, num(c?.spacingCm, 30) / 100), rs = Math.max(0.02, num(c?.rowCm, 30) / 100);
+  const horiz = (b.w >= b.h) !== !!b.across;
+  const along = horiz ? b.w : b.h, across = horiz ? b.h : b.w;
+  const perRow = Math.max(1, Math.floor(along / sp + 1e-6)), rows = Math.max(1, Math.floor(across / rs + 1e-6));
+  return { n: perRow * rows, perRow, rows, horiz, sp, rs };
+}
+function plantDots(b, g) {
+  const out = []; if (g.n > 900) return null;
+  const a0 = (g.horiz ? b.w : b.h) - (g.perRow - 1) * g.sp, c0 = (g.horiz ? b.h : b.w) - (g.rows - 1) * g.rs;
+  for (let r = 0; r < g.rows; r++) for (let i = 0; i < g.perRow; i++) {
+    const a = Math.max(0, a0 / 2) + i * g.sp, c = Math.max(0, c0 / 2) + r * g.rs;
+    out.push(g.horiz ? [b.x + a, b.y + c] : [b.x + c, b.y + a]);
+  }
+  return out;
+}
+
+/* ---------- rotation ---------- */
+const prevPlot = () => S.g?.prevId ? S.plots.find(p => p.id === S.g.prevId) || null : null;
+function groupsIn(plot, bedId) {
+  const bed = plot?.areas.find(a => a.id === bedId); if (!bed) return [];
+  const gs = new Set(); for (const b of plot.crops) { if (bedOf(plot, b)?.id === bedId) { const c = cropById(b.cropId); if (c) gs.add(c.group); } }
+  return [...gs];
+}
+function rotInfo(bed) {
+  const now = groupsIn(S.g, bed.id), prev = prevPlot(), last = prev ? groupsIn(prev, bed.id) : null;
+  const lastIdx = new Set((last || []).filter(g => g in ROT).map(g => ROT[g]));
+  const clash = now.filter(g => g in ROT && lastIdx.has(ROT[g]));
+  const suggest = lastIdx.size ? [...new Set([...lastIdx].map(i => ROT_NAMES[(i + 1) % 4]))] : [];
+  return { now, last, clash, suggest };
+}
+
+/* ---------- history & saving ---------- */
+function checkpoint() { if (!S.g) return; S.history.push(JSON.stringify(S.g)); if (S.history.length > 60) S.history.shift(); }
+function undo() { const prev = S.history.pop(); if (!prev) return; S.g = JSON.parse(prev); S.multi = []; if (S.sel && !findSel()) S.sel = null; savePlot(); renderAll(); }
+let saveTimer = null, saving = false, saveAgain = false;
+function savePlot() {
+  if (!S.g) return;
+  S.g.updatedAt = Date.now();
+  const i = S.plots.findIndex(p => p.id === S.g.id); if (i >= 0) S.plots[i] = JSON.parse(JSON.stringify(S.g));
+  if (!S.online) { setStatus('Not saved in this view'); return; }
+  setStatus('Unsaved changes…');
+  clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 700);
+}
+async function flushSave() {
+  saveTimer = null;
+  if (saving) { saveAgain = true; return; }
+  saving = true; setStatus('Saving…');
+  const body = JSON.parse(JSON.stringify(S.g)); delete body.id;
+  try { await S.db.doc('plots/' + S.g.id).set(body); setStatus('Saved'); }
+  catch (e) { setStatus(e?.code === 'quota_exceeded' ? 'Storage full: delete an old plan' : 'Couldn’t save: ' + (e?.message || 'try again'), true); }
+  saving = false;
+  if (saveAgain) { saveAgain = false; flushSave(); }
+}
+const busy = () => saveTimer || saving || S.drag;
+
+/* ---------- selection ---------- */
+const listOf = kind => kind === 'area' ? S.g.areas : S.g.crops;
+function findSel() { if (!S.sel || !S.g) return null; return listOf(S.sel.kind).find(x => x.id === S.sel.id) || null; }
+function select(kind, id) { S.sel = kind ? { kind, id } : null; S.multi = []; renderInspector(); renderMap(); }
+function isSelected(kind, id) { return (S.sel?.kind === kind && S.sel.id === id) || S.multi.some(m => m.kind === kind && m.id === id); }
+function selectedItems() { if (!S.g) return []; const l = S.multi.length ? S.multi : S.sel ? [S.sel] : []; return l.map(m => ({ ...m, it: listOf(m.kind).find(x => x.id === m.id) })).filter(m => m.it); }
+function selectMany(list) { if (list.length <= 1) { select(list[0]?.kind || null, list[0]?.id); return; } S.sel = null; S.multi = list; renderInspector(); renderMap(); }
+function toggleSelect(kind, id) { const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : []; const i = cur.findIndex(m => m.kind === kind && m.id === id); if (i >= 0) cur.splice(i, 1); else cur.push({ kind, id }); selectMany(cur); }
+function removeSel() {
+  const items = selectedItems(); if (!items.length) return;
+  checkpoint();
+  const ids = new Set(items.map(m => m.id));
+  S.g.areas = S.g.areas.filter(x => !ids.has(x.id)); S.g.crops = S.g.crops.filter(x => !ids.has(x.id));
+  S.sel = null; S.multi = []; savePlot(); renderAll();
+}
+
+/* ---------- map ---------- */
+const svg = $('map');
+let rafPending = false;
+function renderMapSoon() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMap(); }); }
+function northPos(W, D, fs, pad) { return { nx: W + pad * 0.5, ny: D - fs * 2.4 }; }
+function renderMap() {
+  const g = S.g;
+  if (!g) { svg.innerHTML = ''; return; }
+  const W = g.width, D = g.depth, M = Math.max(W, D), pad = M * 0.07, fs = M / 55 / S.zoom;
+  if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
+  S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
+  const vw = (W + pad * 2) / S.zoom, vh = (D + pad * 2) / S.zoom;
+  svg.setAttribute('viewBox', `${S.cx - vw / 2} ${S.cy - vh / 2} ${vw} ${vh}`);
+  let px = M / 900 / S.zoom; { const k = svg.getScreenCTM()?.a; if (k > 0) px = 1 / k; }
+  $('zoomLbl').textContent = Math.round(S.zoom * 100) + '%';
+  const P = S.prefs, parts = [], ns = 'vector-effect="non-scaling-stroke"';
+  const txt = (x, y, size, s, extra = '', style = '') => `<text x="${x}" y="${y}" font-size="${size}" text-anchor="middle" ${extra} style="fill:var(--label);stroke:var(--ground);stroke-width:${size * 0.2};paint-order:stroke;stroke-linejoin:round;${style}" pointer-events="none">${esc(s)}</text>`;
+  parts.push(`<rect x="0" y="0" width="${W}" height="${D}" style="fill:var(--ground)"/>`);
+  if (P.grid) {
+    const maj = v => Math.abs(v / 5 - Math.round(v / 5)) < 1e-6;
+    for (let x = 1; x < W - 1e-6; x += 1) parts.push(`<line x1="${x}" y1="0" x2="${x}" y2="${D}" style="stroke:var(${maj(x) ? '--grid-major' : '--grid'})" stroke-width="1" ${ns} pointer-events="none"/>`);
+    for (let y = 1; y < D - 1e-6; y += 1) parts.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}" style="stroke:var(${maj(y) ? '--grid-major' : '--grid'})" stroke-width="1" ${ns} pointer-events="none"/>`);
+  }
+  const lab = M > 20 ? 5 : M > 10 ? 2 : 1;
+  for (let x = 0; x <= W + 1e-6; x += lab) parts.push(`<text x="${x}" y="${-fs * 0.7}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--muted)" pointer-events="none">${x}</text>`);
+  for (let y = lab; y <= D + 1e-6; y += lab) parts.push(`<text x="${-fs * 0.6}" y="${y + fs * 0.3}" font-size="${fs * 0.9}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${y}</text>`);
+  parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
+  // features under beds, beds under crops
+  const areas = [...g.areas].sort((a, b) => (a.kind === 'bed') - (b.kind === 'bed'));
+  const prev = P.lastYear ? prevPlot() : null;
+  for (const a of areas) {
+    const bed = a.kind === 'bed', sel = isSelected('area', a.id);
+    const ri = bed ? rotInfo(a) : null, clash = ri && ri.clash.length;
+    const fill = bed ? 'var(--soil)' : FCOL[a.kind] || FCOL.other;
+    const stroke = sel ? 'var(--accent)' : clash ? 'var(--warn)' : bed ? 'var(--soil-edge)' : '#A79C8B';
+    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><rect x="${a.x}" y="${a.y}" width="${a.w}" height="${a.h}" rx="${bed ? Math.min(a.w, a.h) * 0.03 : 0}" style="fill:${fill};stroke:${stroke}" stroke-width="${sel ? 2.5 : clash ? 2 : 1.2}" ${clash ? 'stroke-dasharray="6 3"' : ''} ${ns}/>`);
+    if (a.kind === 'path') parts.push(`<rect x="${a.x}" y="${a.y}" width="${a.w}" height="${a.h}" fill="none" style="stroke:#BDB2A0" stroke-width="1" stroke-dasharray="1 4" ${ns} pointer-events="none"/>`);
+    if (a.kind === 'greenhouse' || a.kind === 'polytunnel') parts.push(`<path d="M${a.x} ${a.y} L${a.x + a.w} ${a.y + a.h} M${a.x + a.w} ${a.y} L${a.x} ${a.y + a.h}" style="stroke:#9DB6BD" stroke-width="1" ${ns} pointer-events="none"/>`);
+    parts.push('</g>');
+  }
+  // crop blocks
+  for (const b of g.crops) {
+    const c = cropById(b.cropId), col = gcol(c), sel = isSelected('crop', b.id), pg = plantGrid(b, c);
+    const dots = P.dots ? plantDots(b, pg) : null, dr = Math.max(px * 2, Math.min(pg.sp, pg.rs) * 0.32);
+    parts.push(`<g data-kind="crop" data-id="${b.id}" style="cursor:move"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" style="fill:${col};stroke:${sel ? 'var(--accent)' : col}" fill-opacity="${dots ? 0.16 : 0.34}" stroke-width="${sel ? 2.5 : 1.2}" ${ns}/>`
+      + (dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${+dr.toFixed(3)}" style="fill:${col}" fill-opacity="0.8"/>`).join('') : '') + '</g>');
+  }
+  // labels on top of everything so they stay readable
+  if (P.labels) {
+    for (const a of areas) {
+      const bed = a.kind === 'bed', tall = a.h > a.w * 1.6, cx = a.x + a.w / 2, cy = a.y + a.h / 2;
+      if (bed) {
+        const ri = rotInfo(a);
+        parts.push(txt(cx, a.y - fs * 0.35, fs * 0.72, a.name || 'Bed', '', 'font-weight:600'));
+        if (ri.clash.length) parts.push(txt(cx, a.y + a.h + fs * 0.85, fs * 0.6, 'rotation clash', '', 'fill:var(--warn);font-style:italic'));
+        if (prev) { const lg = groupsIn(prev, a.id); if (lg.length) parts.push(txt(cx, a.y + a.h + fs * (ri.clash.length ? 1.6 : 0.85), fs * 0.58, 'last year: ' + lg.map(x => GROUPS[x]).join(', '), '', 'fill:var(--muted);font-style:italic')); }
+      } else parts.push(txt(cx, cy + fs * 0.22, fs * 0.66, a.name || FEATURES[a.kind] || '', tall ? `transform="rotate(-90 ${cx} ${cy})"` : '', 'fill:#4A443B'));
+    }
+    for (const b of g.crops) {
+      const c = cropById(b.cropId), pg = plantGrid(b, c), cx = b.x + b.w / 2, cy = b.y + b.h / 2, tall = b.h > b.w * 1.4;
+      parts.push(txt(cx, cy + fs * 0.24, fs * 0.68, `${pg.n} ${c ? c.name : 'Missing crop'}`, tall ? `transform="rotate(-90 ${cx} ${cy})"` : '', 'font-weight:500'));
+    }
+  }
+  const d = S.drag;
+  if (d?.draw && d.moved) { const r = normRect(d.start, d.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.1" stroke-width="1.5" stroke-dasharray="5 3" ${ns} pointer-events="none"/>`, txt(r.x + r.w / 2, r.y - fs * 0.4, fs * 0.7, `${fmtM(r.w)} × ${fmtM(r.h)} m`, '', 'fill:var(--accent)')); }
+  if (d?.marquee && d.moved && !d.pan) { const r = normRect(d.start, d.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" ${ns} pointer-events="none"/>`); }
+  if (d?.resize && d.moved) { const it = d.it; parts.push(txt(it.x + it.w / 2, it.y - fs * 0.4, fs * 0.7, `${fmtM(it.w)} × ${fmtM(it.h)} m`, '', 'fill:var(--accent)')); }
+  // corner handles on a single selected rectangle
+  const one = !S.multi.length && findSel();
+  if (one) [[one.x, one.y], [one.x + one.w, one.y], [one.x + one.w, one.y + one.h], [one.x, one.y + one.h]].forEach(([x, y], i) =>
+    parts.push(`<rect data-kind="handle" data-of="${S.sel.kind}" data-id="${one.id}" data-i="${i}" x="${x - px * 5}" y="${y - px * 5}" width="${px * 10}" height="${px * 10}" style="fill:var(--panel);stroke:var(--accent);cursor:${i % 2 ? 'nesw-resize' : 'nwse-resize'}" stroke-width="2" ${ns}/>`));
+  parts.push(`<rect x="0" y="0" width="${W}" height="${D}" fill="none" style="stroke:var(--ink)" stroke-width="2" ${ns} pointer-events="none"/>`);
+  const sb = M > 20 ? 5 : 2, sy = D + pad * 0.55;
+  parts.push(`<g pointer-events="none"><rect x="0" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--ink)"/><rect x="${sb / 2}" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--panel);stroke:var(--ink)" stroke-width="1" ${ns}/><text x="${sb + fs * 0.5}" y="${sy + fs * 0.35}" font-size="${fs * 0.9}" style="fill:var(--muted)">${sb} m</text></g>`);
+  const { nx, ny } = northPos(W, D, fs, pad), deg = num(g.north, 0), rad = deg * Math.PI / 180, isN = d?.north;
+  parts.push(`<g data-kind="north" style="cursor:${isN ? 'grabbing' : 'grab'}"><title>Drag to turn north (Shift snaps to 15°)</title><circle cx="${nx}" cy="${ny}" r="${fs * 2.6}" fill="transparent"/>
+    <g transform="translate(${nx} ${ny}) rotate(${deg})"><path d="M0 ${-fs * 1.4} L${fs * 0.55} ${fs * 0.7} L0 ${fs * 0.3} L${-fs * 0.55} ${fs * 0.7} Z" style="fill:var(--ink)"/></g>
+    <text x="${nx + Math.sin(rad) * fs * 2.1}" y="${ny - Math.cos(rad) * fs * 2.1 + fs * 0.32}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--ink)">N</text>
+    ${isN ? `<text x="${nx}" y="${ny + fs * 2.4}" font-size="${fs * 0.7}" text-anchor="middle" style="fill:var(--muted)">${Math.round(deg)}°</text>` : ''}</g>`);
+  svg.innerHTML = parts.join('');
+}
+
+/* ---------- panels ---------- */
+function toolSwatch(t) {
+  if (t.id === 'select') return '<span class="sw" style="border:0;background:none;line-height:12px">↖</span>';
+  if (t.id === 'bed') return '<span class="sw" style="background:var(--soil);border-color:var(--soil-edge)"></span>';
+  if (t.id === 'feature') return `<span class="sw" style="background:${FCOL.path}"></span>`;
+  const c = cropById(S.activeCrop); return `<span class="sw round" style="background:${c ? gcol(c) : GCOL.salad};border-color:${c ? gcol(c) : GCOL.salad}"></span>`;
+}
+function renderTools() {
+  $('tools').innerHTML = TOOLS.map(t => `<button type="button" class="tool" data-tool="${t.id}" aria-pressed="${S.tool === t.id}" title="${t.label} (${t.key})">${toolSwatch(t)}${t.label}</button>`).join('');
+  const c = cropById(S.activeCrop);
+  const h = {
+    select: 'Click to select; drag a corner to resize. Drag empty ground to move the page, Shift-drag to select several. Scroll to pan, Ctrl-scroll or + / − to zoom.',
+    bed: 'Drag on the plan to draw a bed. Beds keep their place from year to year, so each one builds up a crop history for rotation.',
+    feature: 'Drag on the plan to draw a path, shed, greenhouse, compost bay or water butt. Choose which in the bar above once it’s drawn.',
+    crop: c ? `Planting ${cropName(c)}: drag inside a bed for a block of rows (${num(c.spacingCm)} cm apart, rows ${num(c.rowCm)} cm apart). A click plants one.` : 'Pick a crop from the list on the right first.',
+  }[S.tool];
+  $('hint').textContent = S.g && !S.g.areas.length && S.tool === 'select' ? 'Start with the Bed tool: drag out each bed, then add paths and the shed. ' + h : h;
+  $('hint').title = $('hint').textContent;
+}
+function renderLibrary() {
+  $('libPane').hidden = !!S.editCrop; $('editPane').hidden = !S.editCrop; $('addCropBtn').hidden = !!S.editCrop;
+  if (S.editCrop) { renderCropEditor(); return; }
+  $('editPane').innerHTML = '';
+  const q = S.filter.trim().toLowerCase();
+  if (!S.crops.length) { $('lib').innerHTML = `<li class="empty">${S.loaded ? 'No crops yet. Use Add crop to start your list. Crops are shared by all your plots.' : 'Loading your crops…'}</li>`; return; }
+  const list = S.crops.filter(c => !q || [c.name, c.variety, GROUPS[c.group]].join(' ').toLowerCase().includes(q));
+  if (!list.length) { $('lib').innerHTML = `<li class="empty">No crops match “${esc(S.filter)}”.</li>`; return; }
+  const used = new Set((S.g?.crops || []).map(b => b.cropId));
+  $('lib').innerHTML = Object.entries(GROUPS).map(([k, l]) => {
+    const cs = list.filter(c => (GROUPS[c.group] ? c.group : 'other') === k).sort((a, b) => a.name.localeCompare(b.name));
+    if (!cs.length) return '';
+    return `<li class="gh"><span class="sw round" style="background:${GCOL[k]};border-color:${GCOL[k]}"></span>${l}${k in ROT ? '' : ' · no rotation'}</li>` + cs.map(c => `<li class="c" data-cid="${c.id}" aria-selected="${S.activeCrop === c.id}" title="Click to plant · double-click to find it on the plan"><span class="sw round" style="background:${gcol(c)};border-color:${gcol(c)}"></span><span class="nm"><b>${esc(c.name)}</b><i>${esc(c.variety || [rangeText(c.sowIn || c.sowOut || c.plantOut) && 'sow ' + rangeText(c.sowIn || c.sowOut || c.plantOut), rangeText(c.harvest) && 'pick ' + rangeText(c.harvest)].filter(Boolean).join(' · '))}</i></span><span class="meta">${num(c.spacingCm)} × ${num(c.rowCm)} cm${used.has(c.id) ? '<br>on plan' : ''}</span><button type="button" class="btn sm" data-edit="${c.id}" aria-label="Edit ${esc(c.name)}">Edit</button></li>`).join('');
+  }).join('');
+}
+function opt(map, v) { return Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${esc(l)}</option>`).join(''); }
+function cropOpts(sel) { return S.crops.slice().sort((a, b) => a.name.localeCompare(b.name)).map(c => `<option value="${c.id}"${c.id === sel ? ' selected' : ''}>${esc(cropName(c))}</option>`).join(''); }
+function renderInspector() {
+  const el = $('inspector'), hint = $('hint');
+  const items = selectedItems();
+  if (items.length > 1) {
+    hint.hidden = true; el.hidden = false;
+    const nb = items.filter(m => m.kind === 'crop').length, na = items.length - nb;
+    el.innerHTML = `<span class="pk">${items.length} selected</span><span class="pv">${[na && plural(na, 'bed or feature', 'beds or features'), nb && plural(nb, 'crop block')].filter(Boolean).join(', ')} · drag any of them to move them together</span><span class="acts"><button class="btn sm" type="button" data-act="deselect">Deselect</button><button class="btn sm danger" type="button" data-act="delete">Remove all</button></span>`;
+    return;
+  }
+  const it = findSel();
+  hint.hidden = !!it; el.hidden = !it;
+  if (!it) { el.innerHTML = ''; return; }
+  const size = `<span class="pf"><span>Size</span><input id="i-w" class="n" type="number" min="0.05" step="0.05" data-f="w" value="${it.w}" aria-label="Width in metres"><span class="pv">×</span><input id="i-h" class="n" type="number" min="0.05" step="0.05" data-f="h" value="${it.h}" aria-label="Length in metres"><span class="pv">m</span></span>`;
+  const rm = (extra = '') => `<span class="acts">${extra}<button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
+  if (S.sel.kind === 'crop') {
+    const c = cropById(it.cropId), pg = plantGrid(it, c), bed = bedOf(S.g, it);
+    el.innerHTML = `<span class="pk"><span class="sw round" style="background:${gcol(c)};border-color:${gcol(c)}"></span>${esc(c?.name || 'Missing crop')}</span>
+      <label class="pf"><span>Crop</span><select id="i-crop" data-f="cropId">${cropOpts(it.cropId)}</select></label>
+      <label class="pf"><span>Variety</span><input id="i-var" type="text" data-f="variety" value="${esc(it.variety || '')}" placeholder="${esc(c?.variety || 'e.g. Nantes 2')}"></label>
+      ${size}
+      <span class="pv" id="i-count"><b>${pg.n}</b> plants · ${pg.rows} ${pg.rows === 1 ? 'row' : 'rows'} of ${pg.perRow}</span>
+      <label class="pf"><input type="checkbox" id="i-across" data-f="across"${it.across ? ' checked' : ''}><span>Turn rows</span></label>
+      <span class="pv">${bed ? 'in ' + esc(bed.name) : 'not in a bed'}</span>
+      ${rm(c ? '<button class="btn sm" type="button" data-act="editCrop">Edit crop</button>' : '')}`;
+    return;
+  }
+  if (it.kind === 'bed') {
+    const ri = rotInfo(it), empty = !S.g.crops.some(b => bedOf(S.g, b)?.id === it.id), ac = cropById(S.activeCrop);
+    const chips = gs => gs.map(g => `<span class="chip"><span class="sw round" style="background:${GCOL[g]};border-color:${GCOL[g]};width:8px;height:8px"></span>${GROUPS[g]}</span>`).join(' ');
+    el.innerHTML = `<span class="pk"><span class="sw" style="background:var(--soil);border-color:var(--soil-edge)"></span>Bed</span>
+      <label class="pf"><span>Name</span><input id="i-name" type="text" data-f="name" value="${esc(it.name || '')}"></label>
+      ${size}<span class="pv" id="i-area">${r2(it.w * it.h)} m²</span>
+      <span class="pv">This year: ${ri.now.length ? chips(ri.now) : '<i>empty</i>'}</span>
+      ${ri.last ? `<span class="pv">Last year: ${ri.last.length ? chips(ri.last) : '<i>empty</i>'}</span>` : ''}
+      ${ri.clash.length ? `<span class="pv warn">Same family as last year: ${ri.clash.map(g => GROUPS[g]).join(', ')}</span>` : ri.suggest.length ? `<span class="pv">Next in rotation: <b>${ri.suggest.join(' or ')}</b></span>` : ''}
+      ${rm(empty && ac ? `<button class="btn sm" type="button" data-act="fillBed">Fill with ${esc(ac.name)}</button>` : '')}`;
+    return;
+  }
+  el.innerHTML = `<span class="pk"><span class="sw" style="background:${FCOL[it.kind] || FCOL.other}"></span>${esc(FEATURES[it.kind] || 'Feature')}</span>
+    <label class="pf"><span>Type</span><select id="i-kind" data-f="kind">${opt(FEATURES, it.kind)}</select></label>
+    <label class="pf"><span>Label</span><input id="i-name" type="text" data-f="name" value="${esc(it.name || '')}"></label>
+    ${size}<span class="pv" id="i-area">${r2(it.w * it.h)} m²</span>${rm()}`;
+}
+function updateInspectorNumbers() {
+  const it = findSel(); if (!it) return;
+  const a = $('i-area'); if (a) a.textContent = r2(it.w * it.h) + ' m²';
+  const n = $('i-count'); if (n) { const pg = plantGrid(it, cropById(it.cropId)); n.innerHTML = `<b>${pg.n}</b> plants · ${pg.rows} ${pg.rows === 1 ? 'row' : 'rows'} of ${pg.perRow}`; }
+  for (const [id, k] of [['i-w', 'w'], ['i-h', 'h']]) { const e = $(id); if (e && document.activeElement !== e) e.value = it[k]; }
+}
+function monthSel(id, key, idx, v) { return `<select id="${id}" data-cm="${key}" data-ci="${idx}" aria-label="${idx ? 'to' : 'from'}"><option value="">—</option>${MONTHS.map((m, i) => `<option value="${i + 1}"${+v === i + 1 ? ' selected' : ''}>${m}</option>`).join('')}</select>`; }
+function renderCropEditor() {
+  const c = S.editCrop, used = plotsUsing(c.id);
+  const mr = (k, l) => { const r = c[k] || []; return `<div class="field"><span>${l}</span><div class="mrange">${monthSel('ce-' + k + '-0', k, 0, r[0])}<span>to</span>${monthSel('ce-' + k + '-1', k, 1, r[1])}</div></div>`; };
+  $('editPane').innerHTML = `<div class="card-h"><h2 style="font-size:17px">${c._new ? 'New crop' : 'Edit crop'}</h2></div>
+    <label class="field"><span>Crop</span><input id="ce-name" type="text" data-c="name" value="${esc(c.name)}" placeholder="e.g. Carrot"></label>
+    <label class="field"><span>Usual variety</span><input id="ce-var" type="text" data-c="variety" value="${esc(c.variety || '')}" placeholder="optional"></label>
+    <label class="field"><span>Family</span><select id="ce-group" data-c="group">${opt(GROUPS, c.group)}</select></label>
+    <div class="field"><span>Spacing (cm)</span><div class="pair"><input id="ce-sp" type="number" min="1" max="500" step="1" data-c="spacingCm" value="${c.spacingCm ?? ''}" aria-label="Plants apart in the row, cm" title="Plants apart in the row"><input id="ce-row" type="number" min="1" max="500" step="1" data-c="rowCm" value="${c.rowCm ?? ''}" aria-label="Rows apart, cm" title="Rows apart"></div></div>
+    <p class="note" style="margin:-4px 0 0 116px">In the row, then between rows.</p>
+    ${mr('sowIn', 'Sow under cover')}${mr('sowOut', 'Sow outside')}${mr('plantOut', 'Plant out')}${mr('harvest', 'Harvest')}
+    <label class="field" style="align-items:start"><span style="padding-top:4px">Notes</span><textarea id="ce-notes" rows="2" data-c="notes" placeholder="e.g. net against carrot fly">${esc(c.notes || '')}</textarea></label>
+    <p class="note" style="margin:0">Leave a month range blank if it doesn’t apply. Ranges can run over the new year, such as Oct to Feb.</p>
+    <div class="row"><button class="btn primary" type="button" data-act="saveCrop">Save crop</button><button class="btn" type="button" data-act="cancelCrop">Cancel</button>${c._new ? '' : '<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeleteCrop">Delete</button>'}</div>
+    ${S.confirm === 'crop' ? `<div class="confirm">${used.length ? `${esc(c.name)} is planted in ${esc(used.map(plotLabel).join(', '))}. Remove it from those plans first.` : `Delete ${esc(c.name)} from your crops?`}<div class="row">${used.length ? '' : '<button class="btn danger sm" type="button" data-act="deleteCrop">Delete crop</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
+    <p class="note" id="cropErr" style="margin:0;color:var(--crit)"></p>`;
+}
+function plotsUsing(id) { const ps = S.plots.map(p => p.id === S.g?.id ? S.g : p); return ps.filter(p => p.crops.some(b => b.cropId === id)); }
+const plotLabel = p => (p.name || 'Untitled plot') + (p.year ? ' · ' + p.year : '');
+function renderPicker() {
+  const sel = $('plotSel');
+  const ps = S.plots.slice().sort((a, b) => a.name.localeCompare(b.name) || (b.year || 0) - (a.year || 0));
+  sel.innerHTML = (ps.length ? ps.map(p => `<option value="${p.id}"${p.id === S.g?.id ? ' selected' : ''}>${esc(plotLabel(p))}</option>`).join('') : '<option value="">No plots yet</option>') + '<option value="__new">+ New plot…</option>';
+}
+function renderOverlay() {
+  const ov = $('overlay');
+  if (S.newPlot || (S.loaded && !S.g)) {
+    ov.hidden = false;
+    ov.innerHTML = `<form class="card" id="newPlotForm"><h2>New plot</h2>
+      <label class="field"><span>Name</span><input id="np-name" type="text" required placeholder="e.g. My allotment"></label>
+      <label class="field"><span>Site &amp; plot no.</span><input id="np-site" type="text" placeholder="e.g. Elm Road, plot 14b"></label>
+      <label class="field"><span>Season</span><input id="np-year" type="number" min="1990" max="2200" step="1" value="${new Date().getFullYear() + (thisMonth() >= 10 ? 1 : 0)}"></label>
+      <div class="field"><span>Size (m)</span><div class="pair"><input id="np-w" aria-label="Width in metres" type="number" min="1" max="200" step="0.5" value="10" required><input id="np-d" aria-label="Length in metres" type="number" min="1" max="200" step="0.5" value="25" required></div></div>
+      <p class="note" style="margin:0">A full plot is traditionally 10 rods, about 250 m² (10 × 25 m). A half plot is about 125 m². Width runs left to right on the plan.</p>
+      <div class="row"><button class="btn primary" type="submit">Create plot</button>${S.g ? '<button class="btn" type="button" id="npCancel">Cancel</button>' : ''}</div></form>`;
+    setTimeout(() => $('np-name')?.focus(), 0);
+  } else if (!S.loaded) { ov.hidden = false; ov.innerHTML = '<p class="empty">Loading your plots…</p>'; }
+  else { ov.hidden = true; ov.innerHTML = ''; }
+}
+function renderPlotFields() {
+  for (const [id, k] of [['g-name', 'name'], ['g-site', 'site'], ['g-year', 'year'], ['g-w', 'width'], ['g-d', 'depth'], ['g-north', 'north']]) {
+    const el = $(id); el.disabled = !S.g;
+    if (document.activeElement !== el) el.value = S.g ? (S.g[k] ?? '') : '';
+  }
+  $('dims').textContent = S.g ? `· ${r2(S.g.width * S.g.depth)} m²` : '';
+}
+
+/* ---------- crop list & rotation page ---------- */
+function listRows() {
+  const m = new Map();
+  for (const b of S.g?.crops || []) {
+    const c = cropById(b.cropId), pg = plantGrid(b, c), bed = bedOf(S.g, b);
+    const r = m.get(b.cropId) || { c, plants: 0, area: 0, rows: 0, beds: new Set(), vars: new Set() };
+    r.plants += pg.n; r.rows += pg.rows; r.area += b.w * b.h; if (bed) r.beds.add(bed.name || 'Bed'); const v = b.variety || c?.variety; if (v) r.vars.add(v);
+    m.set(b.cropId, r);
+  }
+  const order = Object.keys(GROUPS);
+  return [...m.values()].sort((a, b) => order.indexOf(a.c?.group) - order.indexOf(b.c?.group) || (a.c?.name || '').localeCompare(b.c?.name || ''));
+}
+function renderList() {
+  const el = $('listView');
+  if (!S.g) { el.innerHTML = '<p class="empty">Create a plot to see its crop list.</p>'; return; }
+  const rows = listRows(), prev = prevPlot();
+  const beds = S.g.areas.filter(a => a.kind === 'bed').sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true }));
+  const tot = rows.reduce((t, r) => ({ plants: t.plants + r.plants, area: t.area + r.area }), { plants: 0, area: 0 });
+  const bedArea = beds.reduce((t, a) => t + a.w * a.h, 0);
+  const chips = gs => gs.length ? gs.map(g => `<span class="chip"><span class="sw round" style="background:${GCOL[g]};border-color:${GCOL[g]};width:8px;height:8px"></span>${GROUPS[g]}</span>`).join(' ') : '<i>empty</i>';
+  el.innerHTML = `<div class="pagehead"><div><span class="lbl">Crop list · ${esc(S.g.year || '')}</span><h2 id="listH">${esc(S.g.name)}${S.g.site ? ' · ' + esc(S.g.site) : ''}</h2></div>
+      <div class="row"><span class="note">${rows.length ? `${plural(rows.length, 'crop')} · ${tot.plants} plants · ${r2(tot.area)} of ${r2(bedArea)} m² of beds planted` : ''}</span><button class="btn sm" id="copyBtn" type="button">Copy for spreadsheet</button></div></div>
+    <div class="scroll"><table class="sched">${rows.length ? `<thead><tr><th>Crop</th><th>Variety</th><th>Family</th><th>Beds</th><th class="n">Rows</th><th class="n">Plants</th><th class="n">Area</th><th>Sow</th><th>Plant out</th><th>Harvest</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td><span class="sw round" style="background:${gcol(r.c)};border-color:${gcol(r.c)};margin-right:6px;vertical-align:-1px"></span>${esc(r.c?.name || 'Missing crop')}</td><td><i>${esc([...r.vars].join(', '))}</i></td><td>${esc(GROUPS[r.c?.group] || '')}</td><td>${esc([...r.beds].join(', ') || '–')}</td><td class="n">${r.rows}</td><td class="n">${r.plants}</td><td class="n">${r2(r.area)} m²</td><td>${esc([rangeText(r.c?.sowIn) && rangeText(r.c?.sowIn) + ' under cover', rangeText(r.c?.sowOut) && rangeText(r.c?.sowOut) + ' outside'].filter(Boolean).join('; '))}</td><td>${esc(rangeText(r.c?.plantOut))}</td><td>${esc(rangeText(r.c?.harvest))}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="5">Total</td><td class="n">${tot.plants}</td><td class="n">${r2(tot.area)} m²</td><td colspan="3"></td></tr></tfoot>` : '<tbody><tr><td class="empty">The list fills in as you plant crops on the plan.</td></tr></tbody>'}</table></div>
+    <div class="pagehead" style="margin-top:6px"><div><span class="lbl">Crop rotation</span><h2>Beds year on year</h2></div>
+      <p class="note" style="margin:0;max-width:62ch">${prev ? `Compared with ${esc(plotLabel(prev))}.` : 'This plan has no previous year yet. When the season ends, use Plot details › Start next year’s plan and this table will compare the two.'} Four-course order: Peas &amp; beans → Brassicas → Potatoes → Roots &amp; onions. Salads, squashes and perennials sit outside the rotation.</p></div>
+    <div class="scroll"><table class="sched">${beds.length ? `<thead><tr><th>Bed</th><th class="n">Size</th>${prev ? '<th>Last year</th>' : ''}<th>This year</th><th>Rotation</th></tr></thead><tbody>${beds.map(a => { const ri = rotInfo(a); return `<tr><td>${esc(a.name || 'Bed')}</td><td class="n">${fmtM(a.w)} × ${fmtM(a.h)} m</td>${prev ? `<td>${ri.last ? chips(ri.last) : '<i>new bed</i>'}</td>` : ''}<td>${chips(ri.now)}</td><td>${ri.clash.length ? `<span class="bad">Same family as last year (${esc(ri.clash.map(g => GROUPS[g]).join(', '))})</span>` : ri.suggest.length ? `${ri.now.some(g => g in ROT) ? '<span class="ok">Rotated</span> · ' : ''}next in turn: ${esc(ri.suggest.join(' or '))}` : ri.now.length ? '<span class="ok">Fine</span>' : '<i>–</i>'}</td></tr>`; }).join('')}</tbody>` : '<tbody><tr><td class="empty">Draw some beds on the plan first.</td></tr></tbody>'}</table></div>`;
+}
+
+/* ---------- sowing calendar page ---------- */
+function renderCalendar() {
+  const el = $('calView');
+  if (!S.g) { el.innerHTML = '<p class="empty">Create a plot to see its sowing calendar.</p>'; return; }
+  const usedIds = new Set(S.g.crops.map(b => b.cropId));
+  const list = (S.calAll ? S.crops : S.crops.filter(c => usedIds.has(c.id))).slice();
+  const first = c => Math.min(...ACTS.map(([k]) => monthsOf(c[k])[0] || 99));
+  list.sort((a, b) => first(a) - first(b) || a.name.localeCompare(b.name));
+  const m = thisMonth();
+  const todo = ACTS.map(([k, l, col]) => ({ k, l, col, cs: list.filter(c => monthsOf(c[k]).includes(m)) }));
+  el.innerHTML = `<div class="pagehead"><div><span class="lbl">Sowing calendar · ${esc(S.g.year || '')}</span><h2 id="calH">${esc(S.g.name)}</h2></div>
+      <label class="row note" style="gap:6px"><input type="checkbox" id="calAll"${S.calAll ? ' checked' : ''}> Show every crop, not just the ones on this plan</label></div>
+    <div><h2 style="font-size:21px;margin-bottom:10px">Jobs for ${MONTHS_LONG[m - 1]}</h2>
+    <div class="todo">${todo.map(t => `<section><h3><span class="sw round" style="background:${t.col};border-color:${t.col}"></span>${t.l}</h3>${t.cs.length ? `<ul>${t.cs.map(c => `<li>${esc(cropName(c))}</li>`).join('')}</ul>` : '<span class="none">Nothing this month</span>'}</section>`).join('')}</div></div>
+    ${list.length ? `<div class="legend">${ACTS.map(([, l, col]) => `<span><i style="background:${col}"></i>${l}</span>`).join('')}</div>
+    <div class="scroll"><div class="cal-grid"><div></div><div class="cal-months">${MONTHS.map((x, i) => `<span class="${i + 1 === m ? 'now' : ''}">${x}</span>`).join('')}</div>
+      ${list.map(c => `<div class="cname"><b>${esc(c.name)}</b><i>${esc(c.variety || GROUPS[c.group] || '')}</i></div><div class="ctrack"><div class="nowcol" style="grid-column:${m}"></div>${ACTS.map(([k, l, col], lane) => runs(monthsOf(c[k])).map(([a, b]) => `<div class="bar" style="grid-row:${lane + 1};grid-column:${a} / ${b + 1};background:${col}" title="${esc(c.name)}: ${l.toLowerCase()} ${rangeText(c[k])}"></div>`).join('')).join('')}</div>`).join('')}
+    </div></div>` : `<p class="empty">${S.calAll ? 'No crops in your list yet.' : 'Plant crops on the plan and their sowing, planting and harvest months appear here.'}</p>`}`;
+}
+
+/* ---------- pages ---------- */
+function getPage() { const h = location.hash.slice(1); return ['list', 'calendar'].includes(h) ? h : 'plan'; }
+function applyPage() {
+  const pg = getPage(), plan = pg === 'plan';
+  document.querySelector('.app').classList.toggle('page', !plan);
+  for (const s of ['.toolbar', '.props', '.work']) document.querySelector(s).hidden = !plan;
+  $('listView').hidden = pg !== 'list'; $('calView').hidden = pg !== 'calendar';
+  $('navPlan').setAttribute('aria-pressed', plan); $('navList').setAttribute('aria-pressed', pg === 'list'); $('navCal').setAttribute('aria-pressed', pg === 'calendar');
+  if (pg === 'list') renderList(); else if (pg === 'calendar') renderCalendar(); else { renderMap(); renderInspector(); }
+}
+function renderAll() {
+  renderPlotFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderOverlay();
+  if (getPage() === 'list') renderList(); if (getPage() === 'calendar') renderCalendar();
+  $('clearBtn').disabled = !S.g?.crops.length; $('delPlotBtn').disabled = !S.g; $('nextYearBtn').disabled = !S.g;
+}
+function refreshDerived() { renderMap(); $('clearBtn').disabled = !S.g?.crops.length; }
+
+/* ---------- pointer ---------- */
+function toXY(x, y) { const pt = svg.createSVGPoint(); pt.x = x; pt.y = y; const m = svg.getScreenCTM(); return m ? pt.matrixTransform(m.inverse()) : { x: 0, y: 0 }; }
+const toM = e => toXY(e.clientX, e.clientY);
+const ZMIN = 0.6, ZMAX = 20;
+function resetView() { S.zoom = 1; S.cx = null; S.cy = null; }
+function zoomAt(f, x, y) { if (!S.g) return; const z = clamp(S.zoom * f, ZMIN, ZMAX); if (z === S.zoom) return; const before = toXY(x, y); S.zoom = z; renderMap(); const after = toXY(x, y); S.cx += before.x - after.x; S.cy += before.y - after.y; renderMap(); }
+function zoomBy(f) { const r = svg.getBoundingClientRect(); zoomAt(f, r.left + r.width / 2, r.top + r.height / 2); }
+const pxPerM = () => svg.getScreenCTM()?.a || 1;
+const ptrs = new Map();
+function cancelDrag() { const d = S.drag; if (!d) return; if (d.moved && d.before) { S.g = JSON.parse(d.before); S.history.pop(); } S.drag = null; svg.classList.remove('panning'); renderInspector(); refreshDerived(); }
+function beginPan(d, e) { d.pan = true; if (e) { d.sx = e.clientX; d.sy = e.clientY; } d.cx = S.cx; d.cy = S.cy; svg.classList.add('panning'); }
+svg.addEventListener('pointerdown', e => {
+  if (!S.g) return;
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { svg.setPointerCapture(e.pointerId); } catch {}
+  if (ptrs.size === 2) { cancelDrag(); const [a, b] = [...ptrs.values()]; S.pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: S.zoom, anchor: toXY((a.x + b.x) / 2, (a.y + b.y) / 2) }; return; }
+  if (ptrs.size > 2) return;
+  if (e.button === 1) { e.preventDefault(); S.drag = { moved: false }; beginPan(S.drag, e); return; }
+  if (e.button > 0) return;
+  const p = toM(e), hit = e.target.closest('[data-kind]'), tool = S.tool, k = hit?.dataset.kind;
+  if (k === 'north') { S.drag = { north: true, moved: false, before: JSON.stringify(S.g) }; renderMap(); return; }
+  if (k === 'handle') {
+    const it = listOf(hit.dataset.of).find(x => x.id === hit.dataset.id); if (!it) return;
+    const cs = [[it.x, it.y], [it.x + it.w, it.y], [it.x + it.w, it.y + it.h], [it.x, it.y + it.h]], f = cs[(+hit.dataset.i + 2) % 4];
+    S.drag = { resize: true, it, fixed: { x: f[0], y: f[1] }, moved: false, before: JSON.stringify(S.g) }; return;
+  }
+  const grab = hit && (tool === 'select' || (tool === 'crop' && k === 'crop') || ((tool === 'bed' || tool === 'feature') && k === 'area'));
+  if (grab) {
+    const id = hit.dataset.id;
+    if (e.shiftKey) { toggleSelect(k, id); return; }
+    if (!isSelected(k, id)) select(k, id);
+    const items = selectedItems(), extra = [];
+    // a bed carries its crops with it
+    for (const m of items) if (m.kind === 'area' && m.it.kind === 'bed') for (const b of S.g.crops) if (!items.some(x => x.id === b.id) && !extra.some(x => x.id === b.id) && inRect(m.it, b.x + b.w / 2, b.y + b.h / 2)) extra.push({ kind: 'crop', id: b.id, it: b });
+    S.drag = { move: true, start: p, moved: false, before: JSON.stringify(S.g), items: [...items, ...extra].map(m => ({ it: m.it, ox: m.it.x, oy: m.it.y })) };
+    return;
+  }
+  if (tool === 'select') S.drag = { pending: true, marquee: e.shiftKey, start: p, cur: p, sx: e.clientX, sy: e.clientY, moved: false, add: e.ctrlKey || e.metaKey };
+  else { const sp = snapPt(p); S.drag = { draw: tool, start: sp, cur: sp, sx: e.clientX, sy: e.clientY, moved: false }; }
+});
+svg.addEventListener('pointermove', e => {
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (S.pinch) {
+    if (ptrs.size < 2) return;
+    const [a, b] = [...ptrs.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    S.zoom = clamp(S.pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / S.pinch.d0, ZMIN, ZMAX); renderMap();
+    const now = toXY(mx, my); S.cx += S.pinch.anchor.x - now.x; S.cy += S.pinch.anchor.y - now.y; renderMap(); return;
+  }
+  const d = S.drag; if (!d) return;
+  if (d.pan) { if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return; d.moved = true; const k = pxPerM(); S.cx = d.cx - (e.clientX - d.sx) / k; S.cy = d.cy - (e.clientY - d.sy) / k; renderMapSoon(); return; }
+  if (d.pending) { if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return; d.moved = true; if (!d.marquee) { beginPan(d); return; } d.cur = toM(e); renderMapSoon(); return; }
+  if (d.draw) { if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return; d.moved = true; d.cur = snapPt(toM(e)); renderMapSoon(); return; }
+  const p = toM(e);
+  if (d.north) {
+    const W = S.g.width, D = S.g.depth, M = Math.max(W, D), fs = M / 55 / S.zoom, { nx, ny } = northPos(W, D, fs, M * 0.07);
+    const st = e.shiftKey ? 15 : 1; let deg = Math.atan2(p.x - nx, -(p.y - ny)) * 180 / Math.PI; deg = ((Math.round(deg / st) * st) % 360 + 360) % 360;
+    if (!d.moved) { S.history.push(d.before); d.moved = true; }
+    S.g.north = deg; renderMapSoon(); renderPlotFields(); return;
+  }
+  if (d.resize) {
+    if (!d.moved) { S.history.push(d.before); d.moved = true; }
+    const r = normRect(d.fixed, snapPt(p)), it = d.it;
+    it.x = r.w >= 0.05 ? r.x : (p.x < d.fixed.x ? d.fixed.x - 0.05 : d.fixed.x); it.w = Math.max(0.05, r2(r.w));
+    it.y = r.h >= 0.05 ? r.y : (p.y < d.fixed.y ? d.fixed.y - 0.05 : d.fixed.y); it.h = Math.max(0.05, r2(r.h));
+    renderMapSoon(); updateInspectorNumbers(); return;
+  }
+  if (d.move) {
+    const dx = p.x - d.start.x, dy = p.y - d.start.y;
+    if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
+    if (!d.moved) S.history.push(d.before);
+    d.moved = true;
+    const f = d.items[0], sdx = snap(f.ox + dx) - f.ox, sdy = snap(f.oy + dy) - f.oy;
+    for (const m of d.items) { m.it.x = r2(m.ox + sdx); m.it.y = r2(m.oy + sdy); }
+    renderMapSoon();
+  }
+});
+function finishDraw(d) {
+  if (d.draw === 'crop') {
+    const c = cropById(S.activeCrop); if (!c) { renderTools(); return; }
+    const bed = bedAt(S.g, d.start.x, d.start.y);
+    let r;
+    if (d.moved) r = normRect(d.start, d.cur);
+    else { const sp = num(c.spacingCm, 30) / 100, rs = num(c.rowCm, 30) / 100; r = { x: snap(d.start.x - sp / 2), y: snap(d.start.y - rs / 2), w: sp, h: rs }; }
+    if (bed) r = clipRect(r, bed);
+    r = { x: r2(r.x), y: r2(r.y), w: r2(r.w), h: r2(r.h) };
+    if (r.w < 0.02 || r.h < 0.02) return;
+    checkpoint();
+    const b = { id: uid(), cropId: c.id, ...r, across: false };
+    S.g.crops.push(b); S.sel = { kind: 'crop', id: b.id }; S.multi = [];
+  } else {
+    if (!d.moved) { $('hint').textContent = 'Drag to draw: press, pull out the shape, then let go.'; return; }
+    const r = normRect(d.start, d.cur); if (r.w < 0.05 || r.h < 0.05) return;
+    checkpoint();
+    const kind = d.draw === 'bed' ? 'bed' : S.featureKind;
+    const n = S.g.areas.filter(a => a.kind === 'bed').length + 1;
+    const a = { id: uid(), kind, name: kind === 'bed' ? 'Bed ' + n : FEATURES[kind], x: r2(r.x), y: r2(r.y), w: r2(r.w), h: r2(r.h) };
+    S.g.areas.push(a); S.sel = { kind: 'area', id: a.id }; S.multi = [];
+  }
+  savePlot(); renderInspector(); refreshDerived(); renderLibrary();
+}
+function endDrag() {
+  const d = S.drag; if (!d) return;
+  S.drag = null;
+  if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
+  if (d.north) { if (d.moved) savePlot(); renderMap(); return; }
+  if (d.draw) { finishDraw(d); renderMap(); return; }
+  if (d.pending) {
+    if (d.marquee && d.moved) {
+      const r = normRect(d.start, d.cur), inside = it => inRect(r, it.x, it.y) && inRect(r, it.x + it.w, it.y + it.h);
+      const found = [...S.g.areas.filter(inside).map(a => ({ kind: 'area', id: a.id })), ...S.g.crops.filter(inside).map(b => ({ kind: 'crop', id: b.id }))];
+      if (d.add) { const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : []; for (const f of found) if (!cur.some(c => c.id === f.id)) cur.push(f); selectMany(cur); } else selectMany(found);
+      return;
+    }
+    select(null); return;
+  }
+  if (d.moved) { savePlot(); renderInspector(); }
+  refreshDerived();
+}
+function onUp(e) { ptrs.delete(e.pointerId); if (S.pinch) { if (ptrs.size < 2) S.pinch = null; return; } endDrag(); }
+svg.addEventListener('pointerup', onUp);
+svg.addEventListener('pointercancel', onUp);
+svg.addEventListener('wheel', e => {
+  if (!S.g) return; e.preventDefault();
+  if (e.ctrlKey) { zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); return; }
+  const k = pxPerM(), u = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? svg.clientHeight : 1;
+  S.cx += (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * u / k; S.cy += (e.shiftKey && !e.deltaX ? 0 : e.deltaY) * u / k; renderMapSoon();
+}, { passive: false });
+
+/* ---------- controls ---------- */
+function setTool(t) { S.tool = t; renderTools(); renderInspector(); renderMap(); }
+$('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
+$('lib').addEventListener('click', e => {
+  const ed = e.target.closest('[data-edit]'); if (ed) { openCropEditor(ed.dataset.edit); return; }
+  const li = e.target.closest('[data-cid]'); if (!li) return;
+  S.activeCrop = li.dataset.cid; S.tool = 'crop'; renderTools(); renderInspector();
+  for (const el of $('lib').querySelectorAll('[data-cid]')) el.setAttribute('aria-selected', el.dataset.cid === S.activeCrop);
+});
+$('lib').addEventListener('dblclick', e => {
+  if (e.target.closest('[data-edit]') || !S.g) return;
+  const li = e.target.closest('[data-cid]'); if (!li) return;
+  const found = S.g.crops.filter(b => b.cropId === li.dataset.cid).map(b => ({ kind: 'crop', id: b.id }));
+  S.tool = 'select'; renderTools();
+  if (!found.length) { select(null); $('hint').textContent = `${cropById(li.dataset.cid)?.name || 'This crop'} isn’t on this plan yet.`; return; }
+  selectMany(found);
+});
+$('libSearch').addEventListener('input', e => { S.filter = e.target.value; renderLibrary(); });
+$('addCropBtn').addEventListener('click', () => openCropEditor(null));
+function openCropEditor(id) {
+  const c = id ? cropById(id) : null;
+  S.editCrop = c ? JSON.parse(JSON.stringify(c)) : { id: uid(), _new: true, name: '', variety: '', group: 'salad', spacingCm: 30, rowCm: 30, sowIn: null, sowOut: null, plantOut: null, harvest: null, notes: '' };
+  S.confirm = null; renderLibrary(); setTimeout(() => $('ce-name')?.focus(), 0);
+}
+const SIDE_DEFAULT = 340;
+function setSideWidth(w, save) { const work = document.querySelector('.work'), v = Math.round(clamp(w, 240, Math.max(260, work.clientWidth * 0.6))); work.style.setProperty('--side-w', v + 'px'); if (save) store.set('apl.sidew', String(v)); renderMapSoon(); }
+(() => { const w = num(store.get('apl.sidew'), 0); if (w) document.querySelector('.work').style.setProperty('--side-w', w + 'px'); })();
+$('splitter').addEventListener('pointerdown', e => {
+  if (e.button > 0) return; e.preventDefault();
+  const sp = $('splitter'), right = document.querySelector('.work').getBoundingClientRect().right;
+  sp.setPointerCapture(e.pointerId); sp.classList.add('dragging'); document.body.classList.add('resizing');
+  const move = ev => setSideWidth(right - ev.clientX - 7, false);
+  const up = ev => { sp.removeEventListener('pointermove', move); sp.removeEventListener('pointerup', up); sp.removeEventListener('pointercancel', up); sp.classList.remove('dragging'); document.body.classList.remove('resizing'); setSideWidth(right - ev.clientX - 7, true); };
+  sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up); sp.addEventListener('pointercancel', up);
+});
+$('splitter').addEventListener('dblclick', () => setSideWidth(SIDE_DEFAULT, true));
+$('splitter').addEventListener('keydown', e => { const cur = $('splitter').nextElementSibling.getBoundingClientRect().width; if (e.key === 'ArrowLeft') { e.preventDefault(); setSideWidth(cur + 20, true); } if (e.key === 'ArrowRight') { e.preventDefault(); setSideWidth(cur - 20, true); } });
+window.addEventListener('resize', () => renderMapSoon());
+
+// view menu
+function syncViewMenu() { for (const k of ['labels', 'dots', 'grid', 'lastYear']) $('pv-' + (k === 'lastYear' ? 'last' : k)).checked = !!S.prefs[k]; $('pv-snap').value = String(S.prefs.snap); }
+function closeViewMenu() { $('viewMenu').hidden = true; $('viewBtn').setAttribute('aria-expanded', 'false'); }
+$('viewBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('viewMenu').hidden; $('viewMenu').hidden = !open; $('viewBtn').setAttribute('aria-expanded', String(open)); syncViewMenu(); });
+$('viewMenu').addEventListener('change', e => { const k = e.target.dataset.pref; if (!k) return; S.prefs[k] = k === 'snap' ? num(e.target.value, 0.1) : e.target.checked; store.set('apl.prefs', JSON.stringify(S.prefs)); renderMap(); });
+document.addEventListener('pointerdown', e => { if (!$('viewMenu').hidden && !e.target.closest('.menuwrap')) closeViewMenu(); }, true);
+
+const app = document.body;
+let fieldCheckpointed = false;
+app.addEventListener('focusin', () => { fieldCheckpointed = false; });
+app.addEventListener('input', e => {
+  const t = e.target;
+  if (t.dataset.g) {
+    if (!S.g) return;
+    if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
+    const k = t.dataset.g;
+    S.g[k] = (k === 'width' || k === 'depth') ? clamp(num(t.value, S.g[k]), 1, 200) : k === 'north' ? ((Math.round(num(t.value, 0)) % 360) + 360) % 360 : k === 'year' ? Math.round(num(t.value, S.g.year)) : t.value;
+    if (k === 'width' || k === 'depth') resetView();
+    savePlot(); refreshDerived(); renderPlotFields(); if (k === 'name' || k === 'year') renderPicker(); return;
+  }
+  if (t.dataset.c) { const k = t.dataset.c; S.editCrop[k] = t.type === 'number' ? (t.value === '' ? null : num(t.value)) : t.value; return; }
+  if (t.dataset.cm) { const k = t.dataset.cm, r = (S.editCrop[k] || [null, null]).slice(); r[+t.dataset.ci] = t.value ? +t.value : null; if (!r[0] && r[1]) r[0] = r[1]; S.editCrop[k] = r[0] ? [r[0], r[1] || r[0]] : null; return; }
+  if (t.id === 'calAll') { S.calAll = t.checked; renderCalendar(); return; }
+  if (t.dataset.f) {
+    const it = findSel(); if (!it) return;
+    if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
+    const k = t.dataset.f;
+    if (k === 'w' || k === 'h') { if (t.value === '') return; it[k] = clamp(r2(num(t.value, it[k])), 0.05, 200); }
+    else if (k === 'across') it.across = t.checked;
+    else if (k === 'kind') { if (!it.name || it.name === FEATURES[it.kind]) it.name = FEATURES[t.value]; it.kind = t.value; S.featureKind = t.value; }
+    else it[k] = t.value;
+    savePlot(); refreshDerived();
+    if (k === 'kind' || k === 'cropId') renderInspector(); else updateInspectorNumbers();
+    if (k === 'cropId') renderLibrary();
+  }
+});
+app.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act;
+  if (act === 'delete') removeSel();
+  if (act === 'deselect') select(null);
+  if (act === 'editCrop') { const it = findSel(); if (it?.cropId) openCropEditor(it.cropId); }
+  if (act === 'fillBed') {
+    const bed = findSel(), c = cropById(S.activeCrop); if (!bed || !c) return;
+    checkpoint(); const blk = { id: uid(), cropId: c.id, x: bed.x, y: bed.y, w: bed.w, h: bed.h, across: false };
+    S.g.crops.push(blk); S.sel = { kind: 'crop', id: blk.id }; savePlot(); renderAll();
+  }
+  if (act === 'cancelCrop') { S.editCrop = null; S.confirm = null; renderLibrary(); }
+  if (act === 'askDeleteCrop') { S.confirm = 'crop'; renderLibrary(); }
+  if (act === 'cancelConfirm') { S.confirm = null; renderLibrary(); }
+  if (act === 'deleteCrop') {
+    const id = S.editCrop.id;
+    if (S.online) { try { await S.db.doc('crops/' + id).delete(); } catch (err) { $('cropErr').textContent = 'Couldn’t delete: ' + (err?.message || 'try again'); return; } }
+    S.crops = S.crops.filter(c => c.id !== id); if (S.activeCrop === id) S.activeCrop = null;
+    S.editCrop = null; S.confirm = null; renderAll();
+  }
+  if (act === 'saveCrop') {
+    const c = S.editCrop;
+    if (!(c.name || '').trim()) { $('cropErr').textContent = 'Give the crop a name.'; return; }
+    if (!(num(c.spacingCm) > 0) || !(num(c.rowCm) > 0)) { $('cropErr').textContent = 'Both spacings must be more than 0 cm.'; return; }
+    const body = { ...c, name: c.name.trim() }; delete body._new; delete body.id;
+    if (S.online) { b.disabled = true; try { await S.db.doc('crops/' + c.id).set(body); } catch (err) { b.disabled = false; $('cropErr').textContent = 'Couldn’t save: ' + (err?.message || 'try again'); return; } }
+    upsertCrop({ id: c.id, ...body });
+    S.editCrop = null; S.activeCrop = c.id; S.tool = 'crop'; renderAll();
+  }
+});
+$('listView').addEventListener('click', async e => {
+  if (e.target.id !== 'copyBtn') return;
+  const head = ['Crop', 'Variety', 'Family', 'Beds', 'Rows', 'Plants', 'Area (m²)', 'Sow under cover', 'Sow outside', 'Plant out', 'Harvest'];
+  const text = [head.join('\t'), ...listRows().map(r => [r.c?.name, [...r.vars].join(', '), GROUPS[r.c?.group], [...r.beds].join(', '), r.rows, r.plants, r2(r.area), rangeText(r.c?.sowIn), rangeText(r.c?.sowOut), rangeText(r.c?.plantOut), rangeText(r.c?.harvest)].map(v => String(v ?? '').replace(/[\t\n]/g, ' ')).join('\t'))].join('\n');
+  const bt = e.target;
+  try { await navigator.clipboard.writeText(text); bt.textContent = 'Copied'; }
+  catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); bt.textContent = 'Copied'; } catch { bt.textContent = 'Copy failed'; } ta.remove(); }
+  setTimeout(() => { bt.textContent = 'Copy for spreadsheet'; }, 1600);
+});
+$('undoBtn').addEventListener('click', undo);
+$('zIn').addEventListener('click', () => zoomBy(1.4));
+$('zOut').addEventListener('click', () => zoomBy(1 / 1.4));
+$('zFit').addEventListener('click', () => { resetView(); renderMap(); });
+$('plotSel').addEventListener('change', e => { if (e.target.value === '__new') { e.target.value = S.g?.id || ''; startNewPlot(); } else openPlot(e.target.value); });
+function startNewPlot() { closeDetails(); if (getPage() !== 'plan') location.hash = 'plan'; S.newPlot = true; renderOverlay(); }
+function openDetails() { if (!S.g) { startNewPlot(); return; } renderPlotFields(); $('dangerBox').hidden = true; $('detailsModal').hidden = false; $('g-name').focus(); }
+function closeDetails() { $('detailsModal').hidden = true; }
+$('detailsBtn').addEventListener('click', openDetails);
+$('detailsDone').addEventListener('click', () => { closeDetails(); $('detailsBtn').focus(); });
+$('detailsModal').addEventListener('click', e => { if (e.target.id === 'detailsModal') closeDetails(); });
+$('newPlotBtn').addEventListener('click', startNewPlot);
+async function createPlot(g) {
+  if (S.online) { const body = { ...g }; delete body.id; try { await S.db.doc('plots/' + g.id).set(body); } catch (err) { setStatus('Couldn’t create the plan: ' + (err?.message || ''), true); return false; } setStatus('Saved'); }
+  if (saveTimer) { clearTimeout(saveTimer); await flushSave(); }
+  S.plots.push(JSON.parse(JSON.stringify(g))); S.newPlot = false; S.g = g; S.history = []; S.sel = null; S.multi = [];
+  store.set('apl.last', g.id); resetView(); S.tool = 'select'; renderAll(); return true;
+}
+$('overlay').addEventListener('click', e => { if (e.target.id === 'npCancel') { S.newPlot = false; renderOverlay(); } });
+$('overlay').addEventListener('submit', async e => {
+  e.preventDefault();
+  await createPlot({ id: uid(), name: $('np-name').value.trim() || 'My allotment', site: $('np-site').value.trim(), year: Math.round(num($('np-year').value, new Date().getFullYear())), width: clamp(num($('np-w').value, 10), 1, 200), depth: clamp(num($('np-d').value, 25), 1, 200), north: 0, areas: [], crops: [], prevId: null, updatedAt: Date.now() });
+});
+$('nextYearBtn').addEventListener('click', async () => {
+  if (!S.g) return;
+  const g = S.g, year = (g.year || new Date().getFullYear()) + 1;
+  const dup = S.plots.find(p => p.prevId === g.id);
+  if (dup) { closeDetails(); openPlot(dup.id); setStatus(`Opened the ${year} plan you already started`); return; }
+  const keep = g.crops.filter(b => cropById(b.cropId)?.group === 'perennial').map(b => ({ ...b, id: uid() }));
+  if (await createPlot({ id: uid(), name: g.name, site: g.site, year, width: g.width, depth: g.depth, north: g.north, areas: JSON.parse(JSON.stringify(g.areas)), crops: keep, prevId: g.id, updatedAt: Date.now() })) { closeDetails(); setStatus(`Started ${year}: beds show what grew in ${year - 1}`); }
+});
+$('clearBtn').addEventListener('click', () => {
+  const box = $('dangerBox'); box.hidden = false;
+  box.innerHTML = `<span>Remove all ${plural(S.g.crops.length, 'crop block')} from <b>${esc(plotLabel(S.g))}</b>? Beds, paths and sheds stay. Press Undo straight afterwards if you change your mind.</span><div class="row"><button class="btn sm danger solid" type="button" id="clearYes">Clear crops</button><button class="btn sm" type="button" id="dangerNo">Cancel</button></div>`;
+});
+$('delPlotBtn').addEventListener('click', () => {
+  const box = $('dangerBox'); box.hidden = false;
+  box.innerHTML = `<span>Delete the plan <b>${esc(plotLabel(S.g))}</b> for good? Other years of this plot are kept. This can’t be undone.</span><div class="row"><button class="btn sm danger solid" type="button" id="delYes">Delete plan</button><button class="btn sm" type="button" id="dangerNo">Cancel</button></div>`;
+});
+$('dangerBox').addEventListener('click', async e => {
+  if (e.target.id === 'dangerNo') { $('dangerBox').hidden = true; return; }
+  if (e.target.id === 'clearYes') { checkpoint(); S.g.crops = []; S.sel = null; S.multi = []; savePlot(); closeDetails(); renderAll(); setStatus('Crops cleared. Press Undo to bring them back.'); }
+  if (e.target.id === 'delYes') {
+    const id = S.g.id; clearTimeout(saveTimer); saveTimer = null;
+    if (S.online) { try { await S.db.doc('plots/' + id).delete(); } catch (err) { setStatus('Couldn’t delete: ' + (err?.message || ''), true); return; } }
+    S.plots = S.plots.filter(p => p.id !== id); S.g = null; closeDetails();
+    const next = S.plots[0]; if (next) openPlot(next.id); else renderAll();
+  }
+});
+document.addEventListener('keydown', e => {
+  if (!$('detailsModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeDetails(); } return; }
+  if (!$('viewMenu').hidden && e.key === 'Escape') { closeViewMenu(); $('viewBtn').focus(); return; }
+  const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
+  if (typing || e.ctrlKey || e.metaKey || e.altKey || getPage() !== 'plan') return;
+  if (e.key === 'Escape' && S.editCrop) { S.editCrop = null; S.confirm = null; renderLibrary(); return; }
+  if (e.key === '+' || e.key === '=') { zoomBy(1.4); return; }
+  if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
+  if (e.key === '0') { resetView(); renderMap(); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel || S.multi.length) { e.preventDefault(); removeSel(); } return; }
+  if (e.key === 'Escape') { setTool('select'); select(null); return; }
+  const t = TOOLS.find(x => x.key.toLowerCase() === e.key.toLowerCase()); if (t) setTool(t.id);
+});
+$('navPlan').addEventListener('click', () => { location.hash = 'plan'; });
+$('navList').addEventListener('click', () => { location.hash = 'list'; });
+$('navCal').addEventListener('click', () => { location.hash = 'calendar'; });
+window.addEventListener('hashchange', applyPage);
+
+/* ---------- data ---------- */
+const rect = a => ({ x: num(a.x), y: num(a.y), w: Math.max(0.05, num(a.w, 1)), h: Math.max(0.05, num(a.h, 1)) });
+function normPlot(id, d) {
+  return { id, name: d.name || 'Untitled plot', site: d.site || '', year: d.year ? Math.round(num(d.year)) : null, width: num(d.width, 10), depth: num(d.depth, 25), north: num(d.north, 0),
+    areas: Array.isArray(d.areas) ? d.areas.map(a => ({ ...a, ...rect(a), kind: a.kind === 'bed' || FEATURES[a.kind] ? a.kind : 'other' })) : [],
+    crops: Array.isArray(d.crops) ? d.crops.filter(b => b.cropId).map(b => ({ ...b, ...rect(b) })) : [],
+    prevId: d.prevId || null, updatedAt: d.updatedAt || 0, example: !!d.example };
+}
+const normCrop = (id, d) => ({ id, ...d, name: d.name || 'Unnamed', group: GROUPS[d.group] ? d.group : 'other', spacingCm: num(d.spacingCm, 30), rowCm: num(d.rowCm, 30) });
+function openPlot(id) {
+  if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
+  const g = S.plots.find(x => x.id === id); if (!g) return;
+  S.g = JSON.parse(JSON.stringify(g)); S.history = []; S.sel = null; S.multi = []; S.confirm = null;
+  store.set('apl.last', id); resetView(); renderAll();
+}
+async function init() {
+  renderAll();
+  const db = window.claude?.use ? await window.claude.use('db').catch(() => null) : null;
+  if (!db) { S.loaded = true; S.online = false; setStatus('Not saved in this view'); renderAll(); return; }
+  S.db = db; S.online = true; setStatus('Loading…');
+  let gotCrops = false, gotPlots = false;
+  const timer = setTimeout(() => { if (!S.loaded) setStatus('Still loading… check your connection', true); }, 10000);
+  const ready = () => { if (gotCrops && gotPlots && !S.loaded) { clearTimeout(timer); S.loaded = true; setStatus('Saved'); renderAll(); } };
+  db.collection('crops').onSnapshot(snap => {
+    S.crops = snap.docs.map(d => normCrop(d.id, d.data()));
+    gotCrops = true;
+    if (S.loaded) { if (!S.editCrop) renderLibrary(); refreshDerived(); renderInspector(); renderTools(); }
+    ready();
+  }, err => setStatus('Crops unavailable: ' + (err?.message || ''), true));
+  db.collection('plots').onSnapshot(snap => {
+    S.plots = snap.docs.map(d => normPlot(d.id, d.data()));
+    gotPlots = true;
+    if (!S.g) {
+      const last = store.get('apl.last');
+      const pick = S.plots.find(p => p.id === last) || S.plots.find(p => !p.example) || S.plots[0];
+      if (pick) S.g = JSON.parse(JSON.stringify(pick));
+      if (S.loaded) renderAll();
+    } else if (!busy() && !snap.metadata.hasPendingWrites) {
+      const remote = S.plots.find(p => p.id === S.g.id);
+      if (remote && remote.updatedAt > (S.g.updatedAt || 0)) { S.g = JSON.parse(JSON.stringify(remote)); if (S.sel && !findSel()) S.sel = null; renderAll(); }
+      else renderPicker();
+    } else renderPicker();
+    ready();
+  }, err => setStatus('Plots unavailable: ' + (err?.message || ''), true));
+}
+applyPage();
+init();
+})();
+</script>
