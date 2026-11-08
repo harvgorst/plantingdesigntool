@@ -2,8 +2,9 @@
 
 A planting-only design tool for garden designers. Import an existing site plan, draw plants, drifts and curved beds over it at true scale, and get a costed plant schedule and a flowering calendar.
 
-The live version runs as a claude.ai artifact:
+The live versions run as claude.ai artifacts (the planting map, then the allotment planner):
 https://claude.ai/artifact/2aTBjBBXxP2rNoepiPnhLe
+https://claude.ai/artifact/HvDRAMj77NnfNquNM2ghVE
 
 ## What it does
 
@@ -28,6 +29,7 @@ Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbace
 
 It saves plots and crops through the artifact `db` capability. `allotment/starter-data.json` holds the starter crop list (typical UK spacings and months) and the example plot that were loaded into the live version.
 
+## Files
 
 - `index.html`: the whole app (HTML, CSS and JavaScript in one file).
 - `allotment/index.html`: the Allotment Plot Planner (one file).
