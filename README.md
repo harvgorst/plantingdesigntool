@@ -17,9 +17,21 @@ https://claude.ai/artifact/2aTBjBBXxP2rNoepiPnhLe
 
 Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbaceous, Ground cover, Tubers & bulbs, Climbers.
 
-## Files
+## Allotment Plot Planner
+
+`allotment/index.html` is a separate, simpler tool built from the same layout, for vegetable plots and allotments.
+
+- **Plan**: set the plot size, draw beds, paths, sheds, compost bays and water butts as rectangles, then drag out blocks of a crop inside a bed. Plant numbers come from the crop's in-row and between-row spacing, and rows can be turned. Moving a bed moves its crops with it.
+- **Crop list & rotation**: crops, varieties, beds, rows, plant numbers and area, with a copy for spreadsheets. Each bed is compared with the previous year's plan on a four-course rotation (Peas & beans → Brassicas → Potatoes → Roots & onions) and clashes are flagged on the plan.
+- **Sowing calendar**: this month's jobs (sow under cover, sow outside, plant out, harvest) and a year chart for every crop on the plan.
+- **Next season**: Plot details › Start next year's plan copies the beds and perennials into a new year so rotation can be checked.
+
+It saves plots and crops through the artifact `db` capability. `allotment/starter-data.json` holds the starter crop list (typical UK spacings and months) and the example plot that were loaded into the live version.
+
 
 - `index.html`: the whole app (HTML, CSS and JavaScript in one file).
+- `allotment/index.html`: the Allotment Plot Planner (one file).
+- `allotment/starter-data.json`: starter crops and the example plot for the allotment planner.
 - `example/example-site-plan.svg`: the example site plan used by the example garden.
 
 ## Storage
