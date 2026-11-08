@@ -367,6 +367,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
         <select id="dbKind" aria-label="New or existing plants"><option value="">New and existing</option><option value="new">New plants only</option><option value="existing">Existing plants only</option></select>
         <span class="spacer"></span><span class="note" id="dbCount"></span><button class="btn sm" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div>
       <div style="overflow-x:auto"><table class="sched wide dbt" id="dbTable"></table></div>
+      <div class="avbar" id="dbBar" hidden><b id="dbSelN">0 selected</b><span class="note" id="dbBarMsg"></span><span class="spacer"></span><button class="btn sm" type="button" id="dbSelClear">Clear selection</button><button class="btn sm danger" type="button" id="dbSelRemove">Remove selected</button></div>
     </div>
     <div id="dbAvail" hidden style="display:flex;flex-direction:column;gap:14px">
       <p class="note" style="margin:0;max-width:75ch">Supplier availability lists are kept separately from your plants. Tick the lines you want and add them to My plants. The price, supplier, pot size and code come across with them.</p>
@@ -1027,7 +1028,7 @@ function gardensUsing(id) {
   if (S.g && !gs.some(g => g.id === S.g.id)) gs.push(S.g);
   return gs.filter(g => g.plantings.some(x => x.plantId === id) || g.areas.some(x => x.plantId === id));
 }
-const DB = { q: '', layer: '', kind: '', sort: 'common', dir: 1, view: 'mine' };
+const DB = { q: '', layer: '', kind: '', sort: 'common', dir: 1, view: 'mine', sel: new Set(), arm: false };
 function renderDatabase() {
   const L = $('dbLayer');
   if (!L.options.length) L.innerHTML = '<option value="">All layers</option>' + Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
@@ -1041,10 +1042,12 @@ function renderDatabase() {
   rows.sort((a, b) => { const x = key(a), y = key(b); return (x < y ? -1 : x > y ? 1 : 0) * DB.dir; });
   const th = (k, l, n) => `<th${n ? ' class="n"' : ''}><button type="button" class="sortb" data-sort="${k}">${l}${DB.sort === k ? (DB.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`;
   $('dbCount').textContent = `${rows.length} of ${S.plants.length} species`;
+  for (const id of [...DB.sel]) if (!plantById(id)) DB.sel.delete(id);
+  renderDbBar();
   $('dbTable').innerHTML = !S.plants.length ? `<tbody><tr><td class="empty">${S.loaded ? 'No plants yet. Use Add species to start your database.' : 'Loading your plants…'}</td></tr></tbody>`
     : !rows.length ? '<tbody><tr><td class="empty">No species match those filters.</td></tr></tbody>'
-    : `<thead><tr>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Supply</th><th>Supplier</th>${th('cost', 'Cost', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n, used }) => `<tr>
-      <td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
+    : `<thead><tr><th class="ck"><input type="checkbox" id="dbAll" aria-label="Select all shown"${rows.length && rows.every(r => DB.sel.has(r.p.id)) ? ' checked' : ''}></th>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Supply</th><th>Supplier</th>${th('cost', 'Cost', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n, used }) => `<tr>
+      <td class="ck"><input type="checkbox" data-dbsel="${p.id}"${DB.sel.has(p.id) ? ' checked' : ''} aria-label="Select ${esc(p.common || p.botanical)}"></td><td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
       <td><i>${esc(p.botanical)}</i>${p.cultivar ? ` <i>${esc(p.cultivar)}</i>` : ''}</td>
       <td>${esc(ROLES[p.role] || '')}</td>
       <td>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || '')}"></span>` : ''}${fm(p)}</td>
@@ -2178,6 +2181,33 @@ $('avAdd').addEventListener('click', async () => {
   $('avProgress').textContent = `${added ? plural(added, 'plant') + ' added' : ''}${added && updated ? ', ' : ''}${updated ? plural(updated, 'plant') + ' updated' : ''}${failed ? ` · ${failed} couldn’t be saved` : ''}. Find them under My plants.`;
   renderAvailability(); renderLibrary();
   setTimeout(() => { if (!AV.busy && !AV.sel.size) $('avBar').hidden = true; }, 6000);
+});
+function renderDbBar() {
+  const n = DB.sel.size; $('dbBar').hidden = !n && !$('dbBarMsg').textContent;
+  $('dbSelN').textContent = `${n} selected`;
+  $('dbSelRemove').textContent = DB.arm ? `Click again to remove ${n}` : 'Remove selected';
+  $('dbSelRemove').disabled = !n; $('dbSelClear').disabled = !n;
+}
+$('dbTable').addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'dbAll') { for (const cb of $('dbTable').querySelectorAll('[data-dbsel]')) { cb.checked = t.checked; if (t.checked) DB.sel.add(cb.dataset.dbsel); else DB.sel.delete(cb.dataset.dbsel); } }
+  else if (t.dataset.dbsel) { if (t.checked) DB.sel.add(t.dataset.dbsel); else DB.sel.delete(t.dataset.dbsel); }
+  else return;
+  DB.arm = false; $('dbBarMsg').textContent = ''; renderDbBar();
+});
+$('dbSelClear').addEventListener('click', () => { DB.sel.clear(); DB.arm = false; $('dbBarMsg').textContent = ''; renderDatabase(); });
+$('dbSelRemove').addEventListener('click', async () => {
+  if (!DB.sel.size) return;
+  if (!DB.arm) { DB.arm = true; renderDbBar(); setTimeout(() => { if (DB.arm) { DB.arm = false; renderDbBar(); } }, 4000); return; }
+  DB.arm = false;
+  const usage = usageByPlant(), ids = [...DB.sel], keep = ids.filter(id => (usage.get(id) || []).length), go = ids.filter(id => !keep.includes(id));
+  let removed = 0, failed = 0;
+  for (const id of go) { try { if (S.online) await S.db.doc('plants/' + id).delete(); removed++; } catch { failed++; } }
+  const gone = new Set(go.slice(0, removed));
+  S.plants = S.plants.filter(p => !gone.has(p.id)); if (gone.has(S.activePlant)) S.activePlant = null;
+  DB.sel = new Set(keep);
+  $('dbBarMsg').textContent = [removed && `${plural(removed, 'species')} removed.`.replace('speciess', 'species'), keep.length && `${keep.length} kept because ${keep.length === 1 ? 'it is' : 'they are'} used in a garden (still ticked).`, failed && `${failed} couldn’t be removed.`].filter(Boolean).join(' ');
+  renderDatabase(); renderLibrary();
 });
 $('dbTable').addEventListener('click', e => {
   const sb = e.target.closest('[data-sort]'); if (sb) { const k = sb.dataset.sort; DB.dir = DB.sort === k ? -DB.dir : 1; DB.sort = k; renderDatabase(); return; }
