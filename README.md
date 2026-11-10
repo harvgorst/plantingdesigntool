@@ -1,6 +1,6 @@
-# Garden Planting Map
+# SevenLayers
 
-A planting-only design tool for garden designers. Import an existing site plan, draw plants, drifts and curved beds over it at true scale, and get a costed plant schedule and a flowering calendar.
+SevenLayers is a planting-only design tool for garden designers. Import an existing site plan, draw plants, drifts and curved beds over it at true scale, and get a costed plant schedule and a flowering calendar.
 
 The live version runs as a claude.ai artifact:
 https://claude.ai/artifact/2aTBjBBXxP2rNoepiPnhLe
