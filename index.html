@@ -1,4 +1,5 @@
 <title>SevenLayers</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2040%2032%22%3E%3Cg%20transform%3D%22translate%282%208%29%20rotate%28-14%209%209%29%22%3E%3Crect%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%224%22%20fill%3D%22%23667D5E%22%20stroke%3D%22%232F2B25%22%20stroke-width%3D%221.3%22/%3E%3Cg%20fill%3D%22%23FFFDF8%22%3E%3Ccircle%20cx%3D%224.6%22%20cy%3D%224.6%22%20r%3D%221.9%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%229%22%20r%3D%221.9%22/%3E%3Ccircle%20cx%3D%2213.4%22%20cy%3D%2213.4%22%20r%3D%221.9%22/%3E%3C/g%3E%3C/g%3E%3Cg%20transform%3D%22translate%2819%205%29%20rotate%2811%209%209%29%22%3E%3Crect%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%224%22%20fill%3D%22%23FBF8F1%22%20stroke%3D%22%232F2B25%22%20stroke-width%3D%221.3%22/%3E%3Cg%20fill%3D%22%232F2B25%22%3E%3Ccircle%20cx%3D%224.6%22%20cy%3D%224.6%22%20r%3D%221.9%22/%3E%3Ccircle%20cx%3D%2213.4%22%20cy%3D%224.6%22%20r%3D%221.9%22/%3E%3Ccircle%20cx%3D%224.6%22%20cy%3D%2213.4%22%20r%3D%221.9%22/%3E%3Ccircle%20cx%3D%2213.4%22%20cy%3D%2213.4%22%20r%3D%221.9%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -184,6 +185,13 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .dbt td { vertical-align: middle; }
 .top { flex-wrap: wrap; align-items: center; gap: 8px 28px; padding-bottom: 0; }
 .top h1 { font-size: 24px; padding: 6px 0; }
+.top h1 { display: inline-flex; align-items: center; gap: 9px; }
+.logo { flex: none; overflow: visible; --da: var(--accent); --pa: var(--accent-ink); --db: var(--panel); --pb: var(--ink); --de: var(--ink); }
+.logo .da { fill: var(--da); stroke: var(--de); stroke-width: 1.3; }
+.logo .db { fill: var(--db); stroke: var(--de); stroke-width: 1.3; }
+.logo .pa { fill: var(--pa); } .logo .pb { fill: var(--pb); }
+.logo > g:first-child { transform: translate(2px, 8px) rotate(-14deg); transform-origin: 9px 9px; transition: transform .3s; }
+.top h1:hover .logo > g:first-child { transform: translate(2px, 8px) rotate(-34deg); }
 .tabs { display: flex; flex-wrap: wrap; gap: 0 22px; align-self: stretch; }
 .tabs button { border: 0; background: none; padding: 10px 0 9px; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; font-size: 14.5px; }
 .tabs button:hover { color: var(--ink); }
@@ -342,10 +350,10 @@ html[data-skin=xp] :focus-visible { outline: 1px dotted #000; outline-offset: -4
 html[data-skin=xp] .app { background: var(--paper); box-shadow: var(--w-raised), 6px 8px 0 rgba(0, 0, 0, .35); margin: 12px; height: calc(100% - 24px); padding: 4px 6px 6px; gap: 6px; }
 html[data-skin=xp] .top { background: var(--w-title) 0 0 / 100% 24px no-repeat; border: 0; padding: 0; row-gap: 4px; column-gap: 12px; }
 html[data-skin=xp] .top h1 { order: 1; flex: 1 0 100%; font-family: var(--f-display); font-weight: 700; font-size: 12px; letter-spacing: 0; color: #FFF; padding: 0 6px; height: 24px; display: flex; align-items: center; gap: 6px; }
-html[data-skin=xp] .top h1::before { content: ""; width: 14px; height: 14px; background: radial-gradient(circle at 40% 35%, #B8F5A0, #2E8B57 60%, #145A32); border-radius: 50% 0; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
 html[data-skin=xp] .tabs { order: 3; gap: 0; align-self: end; padding-left: 2px; }
 html[data-skin=xp] .top .spacer { order: 4; }
 html[data-skin=xp] .top .gbox { order: 5; }
+html[data-skin=xp] .logo { width: 22px; height: 18px; --da: #FFFFFF; --pa: #0A246A; --db: #D4D0C8; --pb: #000; --de: #000; }
 html[data-skin=xp] #status { order: 6; font-style: normal; color: #000; padding: 2px 8px; box-shadow: inset -1px -1px #FFF, inset 1px 1px #808080; min-width: 90px; }
 html[data-skin=xp] #status.err { color: var(--crit); }
 html[data-skin=xp] .tabs button { color: #000; background: var(--paper); border: 0; border-radius: 3px 3px 0 0; padding: 3px 10px 4px; margin-top: 3px; font-size: 12px; box-shadow: inset 1px 1px #FFF, inset -1px 0 #404040, inset -2px 0 #808080; }
@@ -420,6 +428,7 @@ html[data-skin=root] { color-scheme: dark;
 html[data-skin=root] body { font-size: 13px; letter-spacing: 0; }
 html[data-skin=root] :is(h1, h2):not(.bpage *) { font-weight: 400; letter-spacing: 0.02em; }
 html[data-skin=root] .top h1 { font-size: 20px; color: var(--accent); }
+html[data-skin=root] .logo { --db: transparent; --pb: var(--accent); --de: var(--accent); }
 html[data-skin=root] h1 .jp { display: inline; margin-right: 10px; padding: 0 6px; background: var(--accent); color: var(--accent-ink); }
 html[data-skin=root] .top h1::after { content: "_"; margin-left: 2px; animation: rootblink 1.1s steps(1) infinite; }
 @keyframes rootblink { 50% { opacity: 0; } }
@@ -475,7 +484,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
 
 <div class="app">
   <header class="top">
-    <h1><span class="jp" aria-hidden="true">庭</span>SevenLayers</h1>
+    <h1><svg class="logo" viewBox="0 0 40 32" width="34" height="27" aria-hidden="true" focusable="false"><g transform="translate(2 8) rotate(-14 9 9)"><rect class="da" width="18" height="18" rx="4"/><g class="pa"><circle cx="4.6" cy="4.6" r="1.9"/><circle cx="9" cy="9" r="1.9"/><circle cx="13.4" cy="13.4" r="1.9"/></g></g><g transform="translate(19 5) rotate(11 9 9)"><rect class="db" width="18" height="18" rx="4"/><g class="pb"><circle cx="4.6" cy="4.6" r="1.9"/><circle cx="13.4" cy="4.6" r="1.9"/><circle cx="4.6" cy="13.4" r="1.9"/><circle cx="13.4" cy="13.4" r="1.9"/></g></g></svg><span class="jp" aria-hidden="true">庭</span>SevenLayers</h1>
     <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true"><span class="jp" aria-hidden="true">計画</span>Plan</button><button type="button" id="navSched" aria-pressed="false"><span class="jp" aria-hidden="true">植栽表</span>Plant schedule</button><button type="button" id="navCal" aria-pressed="false"><span class="jp" aria-hidden="true">花暦</span>Flowering calendar</button><button type="button" id="navDb" aria-pressed="false"><span class="jp" aria-hidden="true">図鑑</span>Plant database</button><button type="button" id="navPres" aria-pressed="false"><span class="jp" aria-hidden="true">発表</span>Presentation</button><button type="button" id="navPrefs" aria-pressed="false"><span class="jp" aria-hidden="true">設定</span>Preferences</button></nav>
     <div class="spacer"></div>
     <div class="gbox"><select id="gardenSel" aria-label="Choose a garden"></select><button class="btn sm" id="detailsBtn" type="button">Garden details</button></div>
