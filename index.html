@@ -318,67 +318,96 @@ html[data-skin=woodwork] .modal { background: rgba(10, 7, 4, 0.6); }
 html[data-skin=woodwork] .btn.primary { color: #241B15; }
 html[data-skin=woodwork] .card, html[data-skin=woodwork] .toolbar { box-shadow: inset 0 1px 0 rgba(255, 240, 215, 0.04); }
 
-/* XP: a nod to the classic early-2000s desktop: blue title bars, beige window faces, glossy buttons, Tahoma */
+/* XP: a classic Windows 2000-style window (grey bevels, navy title bar, Tahoma) on a faintly vaporwave desktop */
 html[data-skin=xp] { color-scheme: light;
-  --paper: #ECE9D8; --panel: #FFFFFF; --ink: #000000; --muted: #5A5A5A; --line: #ACA899; --line-soft: #E3E0D0;
-  --accent: #316AC5; --accent-ink: #FFFFFF; --accent-soft: #C7D9F4;
-  --ground: #FFFFFF; --grid: #E4E8F0; --grid-major: #C8D0DE;
-  --warn: #B36B00; --crit: #C1272D; --bar-edge: rgba(0, 0, 0, 0.25);
-  --f-display: "Trebuchet MS", Tahoma, Verdana, "DejaVu Sans", sans-serif;
-  --f-body: Tahoma, Verdana, "Segoe UI", "DejaVu Sans", sans-serif;
-  --f-mono: "Lucida Console", "Courier New", monospace; }
-html[data-skin=xp] body { font-size: 12.5px; background: linear-gradient(#5A8EDB, #3A6EA5 160px, #3A6EA5) fixed; }
-html[data-skin=xp] .app { gap: 0; padding-block: 10px; }
-html[data-skin=xp] .app > * { background: #ECE9D8; }
-html[data-skin=xp] .top { background: linear-gradient(#0A5FEA, #0453DE 8%, #0058EE 40%, #0C61F2 88%, #0044CF); border: 1px solid #0831D9; border-bottom: 0; border-radius: 8px 8px 0 0; padding: 0 6px 0 10px; color: #FFF; gap: 4px 20px; }
-html[data-skin=xp] .top h1 { font-family: var(--f-display); font-weight: 700; font-size: 15px; letter-spacing: 0; color: #FFF; text-shadow: 1px 1px 0 #0A1E8A; padding: 8px 0; }
-html[data-skin=xp] .top h1::before { content: ""; display: inline-block; width: 14px; height: 14px; margin-right: 7px; vertical-align: -2px; border-radius: 2px; background: radial-gradient(circle at 35% 35%, #B8E986, #3C9D37 70%); box-shadow: 0 0 0 1px rgba(255,255,255,.6); }
-html[data-skin=xp] .tabs { gap: 2px; align-self: end; }
-html[data-skin=xp] .tabs button { color: #000; background: linear-gradient(#FFF, #ECEBE5); border: 1px solid #919B9C; border-bottom: 0; border-radius: 3px 3px 0 0; padding: 4px 10px; margin-top: 6px; font-size: 12px; }
-html[data-skin=xp] .tabs button:hover { color: #000; border-top: 2px solid #FFC83C; }
-html[data-skin=xp] .tabs button[aria-pressed=true] { background: #ECE9D8; border-top: 3px solid #E68B2C; padding-top: 6px; margin-top: 2px; font-weight: 700; }
-html[data-skin=xp] .top select, html[data-skin=xp] .top .btn { color: #000; }
-html[data-skin=xp] #status { color: #DDE8FF; font-style: normal; }
-html[data-skin=xp] #status.err { color: #FFD0D0; }
-html[data-skin=xp] .toolbar { border: 1px solid #0831D9; border-top: 0; border-bottom: 1px solid #ACA899; border-radius: 0; background: linear-gradient(#F6F5F0, #ECE9D8); padding: 4px 8px; }
-html[data-skin=xp] .app > :not(.top):not(.toolbar) { border-left: 1px solid #0831D9; border-right: 1px solid #0831D9; }
-html[data-skin=xp] .app > :last-child { border-bottom: 1px solid #0831D9; padding: 8px; }
-html[data-skin=xp] .app.cal > :last-child { border-top: 0; }
-html[data-skin=xp] .props { background: #ECE9D8; }
-html[data-skin=xp] .btn, html[data-skin=xp] .seg { border: 1px solid #003C74; border-radius: 3px; background: linear-gradient(#FFFFFF, #F3F2EC 60%, #D6D0C5); box-shadow: inset 0 -1px 0 rgba(0,0,0,.04); }
-html[data-skin=xp] .btn:hover:not(:disabled) { border-color: #003C74; box-shadow: inset 0 -2px 0 #F8B330, inset 0 2px 0 #FFF0CF; }
-html[data-skin=xp] .btn:active:not(:disabled) { background: linear-gradient(#E5E3DA, #F2F1EC); }
-html[data-skin=xp] .btn.primary { background: linear-gradient(#FFFFFF, #F3F2EC 60%, #D6D0C5); color: #000; box-shadow: inset 0 0 0 2px #98B4E4; font-weight: 700; }
-html[data-skin=xp] .btn.on { background: linear-gradient(#E3E0D0, #F4F3EE); box-shadow: inset 1px 1px 2px rgba(0,0,0,.25); }
-html[data-skin=xp] .btn.danger.solid { background: linear-gradient(#E85C4A, #C1272D); border-color: #7A0F12; color: #FFF; }
-html[data-skin=xp] .seg { background: none; overflow: hidden; }
-html[data-skin=xp] .seg button + button { border-left: 1px solid #ACA899; }
-html[data-skin=xp] .seg button[aria-pressed=true] { background: linear-gradient(#E3E0D0, #F4F3EE); color: #000; box-shadow: inset 1px 1px 2px rgba(0,0,0,.25); font-weight: 700; }
-html[data-skin=xp] .tool { border-radius: 3px; font-size: 12.5px; }
-html[data-skin=xp] .tool:hover { background: none; border-color: #ACA899; box-shadow: inset 0 1px 0 #FFF; }
-html[data-skin=xp] .tool[aria-pressed=true] { background: #E3E0D0; border-color: #ACA899; box-shadow: inset 1px 1px 2px rgba(0,0,0,.2); }
-html[data-skin=xp] select, html[data-skin=xp] input[type=text], html[data-skin=xp] input[type=number], html[data-skin=xp] textarea { border: 1px solid #7F9DB9; border-radius: 0; background: #FFF; }
-html[data-skin=xp] .card, html[data-skin=xp] .calview, html[data-skin=xp] .presset, html[data-skin=xp] fieldset.pref { border: 1px solid #919B9C; border-radius: 0; }
-html[data-skin=xp] .card { background: #FFF; }
-html[data-skin=xp] fieldset.pref legend, html[data-skin=xp] .presset legend { font-family: var(--f-body); font-size: 12.5px; font-weight: 700; color: #0046D5; }
+  --paper: #D4D0C8; --panel: #FFFFFF; --ink: #000000; --muted: #4A4A4A; --line: #808080; --line-soft: #E4E1DB;
+  --accent: #0A246A; --accent-ink: #FFFFFF; --accent-soft: #D9D2F2;
+  --ground: #FFFFFF; --grid: #E8E6F0; --grid-major: #CFCBDD;
+  --warn: #8A5A00; --crit: #B00020; --bar-edge: rgba(0, 0, 0, 0.3);
+  --f-display: Tahoma, "MS Sans Serif", Verdana, "DejaVu Sans", sans-serif;
+  --f-body: Tahoma, "MS Sans Serif", Verdana, "DejaVu Sans", sans-serif;
+  --f-mono: "Lucida Console", "Courier New", monospace;
+  --w-raised: inset -1px -1px #0A0A0A, inset 1px 1px #FFFFFF, inset -2px -2px #808080, inset 2px 2px #DFDFDF;
+  --w-pressed: inset -1px -1px #FFFFFF, inset 1px 1px #0A0A0A, inset -2px -2px #DFDFDF, inset 2px 2px #808080;
+  --w-sunken: inset -1px -1px #FFFFFF, inset 1px 1px #808080, inset -2px -2px #DFDFDF, inset 2px 2px #0A0A0A;
+  --w-thin: inset -1px -1px #808080, inset 1px 1px #FFFFFF;
+  --w-title: linear-gradient(90deg, #0A246A, #3B3C9E 45%, #9E5CC4 78%, #F08BC4); }
+html[data-skin=xp] body { font-size: 12px;
+  background:
+    linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px) 0 0 / 40px 40px,
+    linear-gradient(170deg, #2B1B5A 0%, #6A3D9A 38%, #D66BB0 68%, #FFB38A 86%, #5ED3D8 100%) fixed; }
+html[data-skin=xp] ::selection { background: #0A246A; color: #FFF; }
+html[data-skin=xp] :focus-visible { outline: 1px dotted #000; outline-offset: -4px; }
+html[data-skin=xp] .app { background: var(--paper); box-shadow: var(--w-raised), 6px 8px 0 rgba(40, 10, 70, .35); margin: 12px; height: calc(100% - 24px); padding: 4px 6px 6px; gap: 6px; }
+html[data-skin=xp] .top { background: var(--w-title) 0 0 / 100% 24px no-repeat; border: 0; padding: 0; row-gap: 4px; column-gap: 12px; }
+html[data-skin=xp] .top h1 { order: 1; flex: 1 0 calc(100% - 96px); font-family: var(--f-display); font-weight: 700; font-size: 12px; letter-spacing: 0; color: #FFF; padding: 0 6px; height: 24px; display: flex; align-items: center; gap: 6px; }
+html[data-skin=xp] .top h1::before { content: ""; width: 14px; height: 14px; background: radial-gradient(circle at 40% 35%, #B8F5A0, #2E8B57 60%, #145A32); border-radius: 50% 0; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
+html[data-skin=xp] .top::after { content: "_  \25A1  \2715"; order: 2; white-space: pre; width: 60px; height: 18px; margin: 3px 4px 0 0; display: grid; place-items: center; font: 700 10px/1 var(--f-body); color: #000; background: #D4D0C8; box-shadow: var(--w-raised); pointer-events: none; }
+html[data-skin=xp] .tabs { order: 3; gap: 0; align-self: end; padding-left: 2px; }
+html[data-skin=xp] .top .spacer { order: 4; }
+html[data-skin=xp] .top .gbox { order: 5; }
+html[data-skin=xp] #status { order: 6; font-style: normal; color: #000; padding: 2px 8px; box-shadow: inset -1px -1px #FFF, inset 1px 1px #808080; min-width: 90px; }
+html[data-skin=xp] #status.err { color: var(--crit); }
+html[data-skin=xp] .tabs button { color: #000; background: var(--paper); border: 0; border-radius: 3px 3px 0 0; padding: 3px 10px 4px; margin-top: 3px; font-size: 12px; box-shadow: inset 1px 1px #FFF, inset -1px 0 #404040, inset -2px 0 #808080; }
+html[data-skin=xp] .tabs button:hover { color: #000; }
+html[data-skin=xp] .tabs button[aria-pressed=true] { margin-top: 0; padding: 5px 12px 5px; position: relative; z-index: 1; }
+html[data-skin=xp] .tabs button[aria-pressed=true] span:not(.jp) { outline: 1px dotted transparent; }
+html[data-skin=xp] .toolbar { background: var(--paper); border: 0; border-radius: 0; padding: 4px 6px; box-shadow: inset 0 1px #FFF, inset 0 -1px #808080, 0 -1px #808080; }
+html[data-skin=xp] .tsep { background: #808080; box-shadow: 1px 0 #FFF; }
+html[data-skin=xp] .props { border-bottom: 0; box-shadow: inset 0 -1px #808080, 0 1px #FFF; }
+html[data-skin=xp] .btn, html[data-skin=xp] .seg button { border: 0; border-radius: 0; background: var(--paper); color: #000; box-shadow: var(--w-raised); padding: 4px 12px; }
+html[data-skin=xp] .btn.sm { padding: 3px 10px; }
+html[data-skin=xp] .btn:hover:not(:disabled) { border: 0; }
+html[data-skin=xp] .btn:active:not(:disabled), html[data-skin=xp] .seg button:active { box-shadow: var(--w-pressed); }
+html[data-skin=xp] .btn.primary { background: var(--paper); color: #000; box-shadow: 0 0 0 1px #000, var(--w-raised); }
+html[data-skin=xp] .btn.on, html[data-skin=xp] .seg button[aria-pressed=true] { background: repeating-conic-gradient(#FFF 0 25%, #D4D0C8 0 50%) 0 0 / 2px 2px; color: #000; box-shadow: var(--w-pressed); }
+html[data-skin=xp] .btn.danger { color: var(--crit); }
+html[data-skin=xp] .btn.danger.solid { background: var(--paper); color: var(--crit); font-weight: 700; }
+html[data-skin=xp] .btn:disabled { opacity: 1; color: #808080; text-shadow: 1px 1px #FFF; }
+html[data-skin=xp] .seg { border: 0; border-radius: 0; background: none; gap: 2px; overflow: visible; }
+html[data-skin=xp] .seg button + button { border-left: 0; }
+html[data-skin=xp] .tool { border: 0; border-radius: 0; font-size: 12px; }
+html[data-skin=xp] .tool:hover { background: none; box-shadow: var(--w-thin); }
+html[data-skin=xp] .tool[aria-pressed=true] { background: repeating-conic-gradient(#FFF 0 25%, #D4D0C8 0 50%) 0 0 / 2px 2px; box-shadow: inset 1px 1px #808080, inset -1px -1px #FFF; }
+html[data-skin=xp] select, html[data-skin=xp] input[type=text], html[data-skin=xp] input[type=number], html[data-skin=xp] textarea, html[data-skin=xp] .presset textarea { border: 0; border-radius: 0; background: #FFF; box-shadow: var(--w-sunken); padding: 4px 6px; }
+html[data-skin=xp] input[type=range] { accent-color: #0A246A; }
+html[data-skin=xp] .card, html[data-skin=xp] .presset { background: var(--paper); border: 0; border-radius: 0; box-shadow: var(--w-raised); }
+html[data-skin=xp] .calview { background: #FFF; border: 0; border-radius: 0; box-shadow: var(--w-sunken); }
+html[data-skin=xp] .presview { background: none; box-shadow: none; }
+html[data-skin=xp] .prespages { background: #808080; box-shadow: var(--w-sunken); padding: 12px; }
+html[data-skin=xp] .lib { background: #FFF; box-shadow: var(--w-sunken); padding: 3px; }
+html[data-skin=xp] .lib li { border-radius: 0; border: 1px dotted transparent; }
+html[data-skin=xp] .lib li:hover { background: none; }
+html[data-skin=xp] .lib li[aria-selected=true] { background: #0A246A; border-color: #FFF; color: #FFF; }
+html[data-skin=xp] .lib li[aria-selected=true] i, html[data-skin=xp] .lib li[aria-selected=true] .meta { color: #D9D2F2; }
+html[data-skin=xp] fieldset.pref, html[data-skin=xp] .presset fieldset { border: 0; border-radius: 0; box-shadow: inset 1px 1px #808080, inset -1px -1px #FFF, inset 2px 2px #FFF, inset -2px -2px #808080; }
+html[data-skin=xp] fieldset.pref legend, html[data-skin=xp] .presset legend { font-family: var(--f-body); font-size: 12px; font-weight: 400; color: #000; background: var(--paper); }
+html[data-skin=xp] .calview fieldset.pref legend { background: #FFF; }
 html[data-skin=xp] h2 { font-family: var(--f-display); font-weight: 700; }
-html[data-skin=xp] .calhead h2, html[data-skin=xp] .presset h2 { font-size: 20px; color: #003399; }
-html[data-skin=xp] .lbl, html[data-skin=xp] .pf > span, html[data-skin=xp] .field > span { text-transform: none; letter-spacing: 0; font-size: 11.5px; color: #333; }
-html[data-skin=xp] .field > span.row { font-size: 12.5px; color: #000; }
-html[data-skin=xp] .lib li { border-radius: 0; }
-html[data-skin=xp] .lib li[aria-selected=true] { background: #316AC5; border-color: #316AC5; color: #FFF; }
-html[data-skin=xp] .lib li[aria-selected=true] i, html[data-skin=xp] .lib li[aria-selected=true] .meta { color: #E4ECFA; }
-html[data-skin=xp] .menu { border: 1px solid #ACA899; border-radius: 0; box-shadow: 2px 2px 3px rgba(0,0,0,.35); padding: 2px; background: #FFF; }
-html[data-skin=xp] .mi, html[data-skin=xp] .lrow { border-radius: 0; font-size: 12.5px; }
-html[data-skin=xp] .mi:hover:not(:disabled), html[data-skin=xp] .lrow:hover { background: #316AC5; color: #FFF; }
-html[data-skin=xp] .lrow:hover .n { color: #E4ECFA; }
-html[data-skin=xp] .mapwrap { border: 1px solid #7F9DB9; border-radius: 0; --panel: #FFFFFF; --ground: #FFFFFF; --grid: #E6E9EF; --grid-major: #CDD3DD; --accent: #316AC5; }
-html[data-skin=xp] .modal { background: rgba(0, 0, 0, 0.25); }
-html[data-skin=xp] .modal .card { background: linear-gradient(#0A5FEA, #0058EE 40%, #0C61F2 88%, #0044CF) 0 0 / 100% 26px no-repeat, #ECE9D8; border: 1px solid #0831D9; border-radius: 8px 8px 0 0; padding-top: 40px; box-shadow: 4px 6px 16px rgba(0,0,0,.4), inset 0 0 0 2px #0055EA; }
-html[data-skin=xp] .avbar { border-radius: 0; background: #FFFFE1; border-color: #000; }
-html[data-skin=xp] .splitter::before { border-radius: 0; }
-html[data-skin=xp] .thopt { border-radius: 0; }
-html[data-skin=xp] .cal-seasons span { font-style: normal; font-size: 12.5px; font-weight: 700; }
+html[data-skin=xp] .calhead h2, html[data-skin=xp] .presset h2 { font-size: 18px; color: #0A246A; }
+html[data-skin=xp] .lbl, html[data-skin=xp] .pf > span, html[data-skin=xp] .field > span { text-transform: none; letter-spacing: 0; font-size: 11.5px; color: #000; }
+html[data-skin=xp] .field > span.row { font-size: 12px; color: #000; }
+html[data-skin=xp] .menu { border: 0; border-radius: 0; box-shadow: var(--w-raised), 2px 2px 0 rgba(0,0,0,.35); padding: 3px; background: var(--paper); }
+html[data-skin=xp] .mi, html[data-skin=xp] .lrow { border-radius: 0; font-size: 12px; }
+html[data-skin=xp] .mi:hover:not(:disabled), html[data-skin=xp] .lrow:hover { background: #0A246A; color: #FFF; }
+html[data-skin=xp] .lrow:hover .n { color: #D9D2F2; }
+html[data-skin=xp] .mapwrap { border: 0; border-radius: 0; box-shadow: var(--w-sunken); --panel: #FFFFFF; --ground: #FFFFFF; --grid: #E8E6F0; --grid-major: #CFCBDD; --accent: #0A246A; --accent-soft: #D9D2F2; }
+html[data-skin=xp] .modal { background: rgba(43, 27, 90, 0.25); }
+html[data-skin=xp] .modal .card { background: var(--w-title) 3px 3px / calc(100% - 6px) 20px no-repeat, var(--paper); border: 0; border-radius: 0; padding: 32px 14px 14px; box-shadow: var(--w-raised), 6px 8px 0 rgba(40, 10, 70, .35); }
+html[data-skin=xp] .avbar { border-radius: 0; background: #FFFFE1; border: 1px solid #000; }
+html[data-skin=xp] .confirm { border-radius: 0; background: #FFFFE1; box-shadow: 0 0 0 1px #000; }
+html[data-skin=xp] .splitter::before { border-radius: 0; width: 4px; background: var(--paper); box-shadow: var(--w-raised); }
+html[data-skin=xp] .splitter:hover::before, html[data-skin=xp] .splitter.dragging::before { background: var(--paper); }
+html[data-skin=xp] .thopt { border: 0; border-radius: 0; background: var(--paper); box-shadow: var(--w-raised); }
+html[data-skin=xp] .thopt:has(input:checked) { box-shadow: var(--w-pressed); background: #FFF; }
+html[data-skin=xp] .thprev, html[data-skin=xp] .pv-sample, html[data-skin=xp] .colrow input[type=color], html[data-skin=xp] .rolecol input[type=color] { border-radius: 0; }
+html[data-skin=xp] .cal-seasons span { font-style: normal; font-size: 12px; font-weight: 700; color: #0A246A; }
+html[data-skin=xp] .mine-tag, html[data-skin=xp] .ex { border-radius: 0; }
+html[data-skin=xp] ::-webkit-scrollbar { width: 16px; height: 16px; background: repeating-conic-gradient(#FFF 0 25%, #D4D0C8 0 50%) 0 0 / 2px 2px; }
+html[data-skin=xp] ::-webkit-scrollbar-thumb { background: var(--paper); box-shadow: var(--w-raised); }
+html[data-skin=xp] ::-webkit-scrollbar-corner { background: var(--paper); }
+@media (max-width: 1200px) { html[data-skin=xp] .app { height: auto; } }
 
 /* root: two-tone terminal: phosphor green on near-black, monospace, a little Japanese */
 html[data-skin=root] { color-scheme: dark;
@@ -606,7 +635,7 @@ const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', label
 const THEMES = {
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
   woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
-  xp: { name: 'XP', note: 'Blue title bars, beige windows and glossy buttons, early-2000s style.', bar: 'linear-gradient(#0A5FEA, #0058EE 45%, #0044CF)', barInk: '#FFFFFF', bg: '#ECE9D8', cols: ['#FFFFFF', '#316AC5', '#ACA899'], font: 'Tahoma, Verdana, sans-serif' },
+  xp: { name: 'XP', note: 'A classic grey, bevelled Windows 2000-style window on a faintly vaporwave desktop.', bar: 'linear-gradient(90deg, #0A246A, #3B3C9E 45%, #9E5CC4 78%, #F08BC4)', barInk: '#FFFFFF', bg: 'linear-gradient(170deg, #2B1B5A, #6A3D9A 40%, #D66BB0 75%, #5ED3D8)', cols: ['#D4D0C8', '#0A246A', '#FFFFFF'], font: 'Tahoma, Verdana, sans-serif' },
   root: { name: 'root', note: 'Two-tone terminal green on black, monospace, with a little Japanese.', bar: '#111410', barInk: '#9BE86A', bg: '#0C0E0B', cols: ['#121610', '#9BE86A', '#263022'], font: '"IBM Plex Mono", monospace', jp: '庭 ' },
 };
 const THEME_FONTS = { root: 'https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Noto+Sans+JP:wght@400;600&display=swap' };
