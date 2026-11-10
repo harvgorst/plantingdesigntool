@@ -430,7 +430,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
     <p class="note" id="sizeNote" style="margin:0"></p>
     <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:12px">
       <button class="btn sm" type="button" id="newGardenBtn">New garden</button>
-      <button class="btn sm danger" type="button" id="clearBtn" title="Remove every plant, drift and bed outline from this garden">Clear plan…</button>
+      <span class="row" style="gap:6px"><button class="btn sm danger" type="button" id="clearBtn" title="Remove every plant and drift from this garden">Clear plan…</button><button class="btn sm danger" type="button" id="deleteGardenBtn" title="Delete this garden and its site plan">Delete garden…</button></span>
     </div>
   </div>
 </div>
@@ -1792,6 +1792,7 @@ $('copyBtn').addEventListener('click', async () => {
 });
 function plural(n, w) { return `${n} ${w}${n === 1 ? '' : 's'}`; }
 function openClear() {
+  S.confirmMode = 'clear'; $('clearH').textContent = 'Clear this plan?'; $('clearYes').textContent = 'Clear plan';
   $('detailsModal').hidden = true;
   if (!S.g) return;
   const plants = S.g.plantings.reduce((t, x) => t + (x.qty || 1), 0), drifts = S.g.areas.filter(a => a.kind === 'drift').length, beds = S.g.areas.filter(a => a.kind === 'bed').length;
@@ -1803,7 +1804,32 @@ function closeClear() { $('clearModal').hidden = true; $('detailsBtn').focus(); 
 $('clearBtn').addEventListener('click', openClear);
 $('clearNo').addEventListener('click', closeClear);
 $('clearModal').addEventListener('click', e => { if (e.target.id === 'clearModal') closeClear(); });
+function openDeleteGarden() {
+  if (!S.g) return;
+  $('detailsModal').hidden = true; S.confirmMode = 'delete';
+  const n = S.g.plantings.reduce((t, x) => t + (x.qty || 1), 0) + S.g.areas.length;
+  $('clearH').textContent = 'Delete this garden?';
+  $('clearMsg').innerHTML = `This permanently deletes <b>${esc(S.g.name)}</b>${n ? `, its ${plural(n, 'plant')}` : ''}${S.g.underlay ? ', its site plan' : ''} and its booklet settings. Your plant library isn’t affected. This can’t be undone.`;
+  $('clearYes').textContent = 'Delete garden';
+  $('clearModal').hidden = false; $('clearNo').focus();
+}
+$('deleteGardenBtn').addEventListener('click', openDeleteGarden);
+async function deleteGarden() {
+  const g = S.g; if (!g) return;
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  try {
+    if (S.online) await S.db.doc('gardens/' + g.id).delete();
+    if (g.underlay?.assetId && S.assets) { try { await S.assets.delete(g.underlay.assetId); } catch {} }
+  } catch (e) { setStatus('Couldn’t delete the garden: ' + (e?.message || 'try again'), true); return; }
+  S.gardens = S.gardens.filter(x => x.id !== g.id);
+  S.g = null; S.history = []; S.sel = null; S.multi = []; S.cal = null; S.confirm = null; resetView();
+  const next = S.gardens.find(x => !x.example) || S.gardens[0];
+  if (next) { S.g = JSON.parse(JSON.stringify(next)); store.set('gpm.last', next.id); }
+  setStatus(`Deleted “${g.name}”.`);
+  renderAll();
+}
 $('clearYes').addEventListener('click', () => {
+  if (S.confirmMode === 'delete') { S.confirmMode = 'clear'; closeClear(); deleteGarden(); return; }
   checkpoint();
   S.g.plantings = []; S.g.areas = []; S.sel = null; S.multi = []; S.hover = null;
   saveGarden(); closeClear(); renderAll();
