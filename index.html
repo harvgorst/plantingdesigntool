@@ -509,7 +509,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       <button type="button" id="vPlanted" aria-pressed="false" title="Plants drawn at supplied pot size">As planted</button>
     </div>
     <div class="spacer"></div>
-    <button class="btn sm" id="undoBtn" type="button" title="Undo (Ctrl+Z)">Undo</button>
+    <button class="btn sm" id="undoBtn" type="button" title="Undo (Ctrl+Z)" disabled>Undo</button><button class="btn sm" id="redoBtn" type="button" title="Redo (Ctrl+Shift+Z or Ctrl+Y)" disabled>Redo</button>
     <div class="zoom"><div class="seg" role="group" aria-label="Zoom"><button type="button" id="zOut" aria-label="Zoom out" title="Zoom out (−)">−</button><button type="button" id="zFit" title="Fit whole garden (0)">Fit</button><button type="button" id="zIn" aria-label="Zoom in" title="Zoom in (+)">+</button></div><span id="zoomLbl">100%</span></div>
   </nav>
 
@@ -596,7 +596,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <p class="note" style="margin:0">0° means north is straight up. You can also drag the north arrow on the plan.</p>
     <p class="note" id="sizeNote" style="margin:0"></p>
     <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:12px">
-      <button class="btn sm" type="button" id="newGardenBtn">New garden</button>
+      <span class="row" style="gap:6px"><button class="btn sm" type="button" id="newGardenBtn">New garden</button><button class="btn sm" type="button" id="backupGardenBtn" title="Download a backup file of this garden, its site plan and the species it uses">Download backup</button></span>
       <span class="row" style="gap:6px"><button class="btn sm danger" type="button" id="clearBtn" title="Remove every plant and drift from this garden">Clear plan…</button><button class="btn sm danger" type="button" id="deleteGardenBtn" title="Delete this garden and its site plan">Delete garden…</button></span>
     </div>
   </div>
@@ -659,7 +659,7 @@ const S = {
   plants: [], gardens: [], g: null,
   tool: 'select', activePlant: null, view: 'mature',
   sel: null, multi: [], editPlant: null, layers: new Set(), showExisting: true, confirm: null,
-  drag: null, history: [], loaded: false, filter: '',
+  drag: null, history: [], future: [], loaded: false, filter: '',
   zoom: 1, cx: null, cy: null, pinch: null, space: false,
   prefs: { ...PREF_DEFAULTS }, prefsLoaded: false,
   draw: null, hover: null, cal: null, ulHidden: false, localUl: null, busy: false, newGarden: false,
@@ -750,9 +750,40 @@ function isVisible(p) { if (!p) return true; if (p.existing && !S.showExisting) 
 function driftQty(a) { return Math.max(1, Math.round(areaOf(a) * num(a.density, defaultDensity(plantById(a.plantId))))); }
 
 /* ---------- history & saving ---------- */
-function checkpoint() { if (!S.g) return; S.history.push(JSON.stringify(S.g)); if (S.history.length > 60) S.history.shift(); }
-function undo() { const prev = S.history.pop(); if (!prev) return; S.g = JSON.parse(prev); S.multi = []; if (S.sel && !findSel()) S.sel = null; saveGarden(); renderAll(); }
+function pushHistory(entry) { S.history.push(entry); if (S.history.length > 60) S.history.shift(); S.future = []; updateUndo(); }
+function clearHistory() { S.history = []; S.future = []; updateUndo(); }
+function updateUndo() { $('undoBtn').disabled = !S.history.length; $('redoBtn').disabled = !S.future.length; }
+function checkpoint() { if (S.g) pushHistory(JSON.stringify(S.g)); }
+function restoreGarden(json) { S.g = JSON.parse(json); S.multi = []; if (S.sel && !findSel()) S.sel = null; saveGarden(); renderAll(); }
+/* species edits are kept in the same undo list as { plants: [{ id, before, after }] } */
+async function applyPlantChange(entry, side) {
+  let failed = 0;
+  for (const c of entry.plants) {
+    const rec = c[side];
+    try {
+      if (rec) { const body = { ...rec }; delete body.id; if (S.online) await S.db.doc('plants/' + c.id).set(body); upsertPlant({ id: c.id, ...body }); }
+      else { if (S.online) await S.db.doc('plants/' + c.id).delete(); S.plants = S.plants.filter(p => p.id !== c.id); if (S.activePlant === c.id) S.activePlant = null; }
+    } catch { failed++; }
+  }
+  setStatus(failed ? 'Some species changes couldn’t be ' + (side === 'before' ? 'undone' : 'redone') : (side === 'before' ? 'Species change undone' : 'Species change redone'), !!failed);
+  if (S.editPlant) { S.editPlant = null; S.confirm = null; }
+  renderAll();
+}
+function undo() {
+  const prev = S.history.pop(); if (prev == null) return;
+  if (typeof prev === 'string') { if (!S.g) return; S.future.push(JSON.stringify(S.g)); restoreGarden(prev); }
+  else { S.future.push(prev); applyPlantChange(prev, 'before'); }
+  updateUndo();
+}
+function redo() {
+  const next = S.future.pop(); if (next == null) return;
+  if (typeof next === 'string') { if (!S.g) return; S.history.push(JSON.stringify(S.g)); restoreGarden(next); }
+  else { S.history.push(next); applyPlantChange(next, 'after'); }
+  updateUndo();
+}
 let saveTimer = null, saving = false, saveAgain = false;
+const GARDEN_LIMIT = 256 * 1024;   // one garden is one saved record, capped at 256 KiB
+function gardenBytes(body) { return new Blob([JSON.stringify(body)]).size; }
 function saveGarden() {
   if (!S.g) return;
   S.g.updatedAt = Date.now();
@@ -764,13 +795,26 @@ function saveGarden() {
 async function flushSave() {
   saveTimer = null;
   if (saving) { saveAgain = true; return; }
+  if (!S.g || !S.online) return;
   saving = true; setStatus('Saving…');
   const body = JSON.parse(JSON.stringify(S.g)); delete body.id;
-  try { await S.db.doc('gardens/' + S.g.id).set(body); setStatus('Saved'); }
-  catch (e) { setStatus(e?.code === 'quota_exceeded' ? 'Storage full: delete an old garden' : 'Couldn’t save: ' + (e?.message || 'try again'), true); }
+  const size = gardenBytes(body), pct = Math.round(size / GARDEN_LIMIT * 100), places = body.plantings.length + body.areas.length;
+  try { await S.db.doc('gardens/' + S.g.id).set(body); setStatus(pct >= 80 ? `Saved · this plan is ${pct}% of the size one garden can hold` : 'Saved', pct >= 95); }
+  catch (e) {
+    const big = size > GARDEN_LIMIT || (e?.code === 'invalid_argument' && pct >= 90);
+    setStatus(big ? `Not saved: this plan is too large for one garden (${places.toLocaleString('en-GB')} placements). Merge single plants into groups, or split the garden in two.`
+      : e?.code === 'quota_exceeded' ? 'Storage full: delete an old garden' : 'Couldn’t save: ' + (e?.message || 'try again'), true);
+  }
   saving = false;
   if (saveAgain) { saveAgain = false; flushSave(); }
 }
+/* write anything still waiting as the tab is hidden or closed */
+function flushNow() {
+  if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
+  if (prefTimer && S.online) { clearTimeout(prefTimer); prefTimer = null; S.db.doc('settings/prefs').set({ ...S.prefs }).catch(() => {}); }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
+window.addEventListener('pagehide', flushNow);
 const busy = () => saveTimer || saving || S.drag;
 
 /* ---------- selection ---------- */
@@ -1185,6 +1229,12 @@ function renderPrefs() {
         <div class="rolecols">${Object.entries({ ...ROLES, existing: 'Existing plants' }).map(([k, l]) => { const v = (P.roleColors || {})[k] || ROLE_DEFAULTS[k]; return `<label class="rolecol"><input type="color" id="pf-rc-${k}" data-pref-role="${k}" value="${v}"><span>${l}</span></label>`; }).join('')}</div>
         <div class="row"><button class="btn sm" type="button" data-act="resetRoleCols">Reset colours</button></div>
       </fieldset>
+      <fieldset class="pref"><legend>Backup</legend>
+        <p class="note" style="margin:0">A backup is one file holding gardens, their site plans, the species they use and their photos. Keep a copy somewhere safe. Supplier availability lists aren’t included; import those again from the supplier’s file.</p>
+        <div class="row"><button class="btn sm" type="button" data-act="bkpGarden"${S.g ? '' : ' disabled'}>Download this garden</button><button class="btn sm" type="button" data-act="bkpLibrary">Download plant library</button><button class="btn sm" type="button" data-act="bkpAll">Download everything</button></div>
+        <div class="row"><label class="btn sm" style="cursor:pointer">Restore from a backup file…<input type="file" accept=".json,application/json" data-restore hidden></label></div>
+        <p class="note" id="bkpMsg" style="margin:0${BKP.err ? ';color:var(--crit)' : ''}" aria-live="polite">${esc(BKP.msg || 'Restoring adds what’s in the file. Nothing you already have is replaced.')}</p>
+      </fieldset>
       <fieldset class="pref"><legend>Plant schedule</legend>
         <label class="field"><span>Currency</span>${sel('pf-cur', 'currency', [['£', '£ Pound'], ['€', '€ Euro'], ['$', '$ Dollar']])}</label>
       </fieldset>
@@ -1195,7 +1245,7 @@ let prefTimer = null;
 function savePrefs() {
   if (!S.online) return;
   clearTimeout(prefTimer);
-  prefTimer = setTimeout(async () => { try { await S.db.doc('settings/prefs').set({ ...S.prefs }); } catch (e) { setStatus('Couldn’t save preferences: ' + (e?.message || ''), true); } }, 500);
+  prefTimer = setTimeout(async () => { prefTimer = null; try { await S.db.doc('settings/prefs').set({ ...S.prefs }); } catch (e) { setStatus('Couldn’t save preferences: ' + (e?.message || ''), true); } }, 500);
 }
 function setPref(k, v) {
   S.prefs[k] = v; savePrefs();
@@ -1464,18 +1514,18 @@ svg.addEventListener('pointermove', e => {
     const W = S.g.width, D = S.g.depth, M = Math.max(W, D), fs = M / 55 / S.zoom, pad = M * 0.07;
     let deg = Math.atan2(p.x - (W + pad * 0.5), -(p.y - (D - fs * 2.4))) * 180 / Math.PI;
     deg = ((Math.round(deg / (e.shiftKey ? 15 : 1)) * (e.shiftKey ? 15 : 1)) % 360 + 360) % 360;
-    if (!d.moved) { S.history.push(d.before); d.moved = true; }
+    if (!d.moved) { pushHistory(d.before); d.moved = true; }
     S.g.north = deg; renderMapSoon(); renderGardenFields(); return;
   }
   if (d.handle) {
     const a = S.g.areas.find(x => x.id === d.id); if (!a) return;
-    if (!d.moved) { S.history.push(d.before); d.moved = true; }
+    if (!d.moved) { pushHistory(d.before); d.moved = true; }
     a.pts[d.i] = [r2(p.x), r2(p.y)]; renderMapSoon(); return;
   }
   if (d.move) {
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
-    if (!d.moved && d.before) S.history.push(d.before);
+    if (!d.moved && d.before) pushHistory(d.before);
     d.moved = true;
     const one = d.items.length === 1;
     for (const { m, orig } of d.items) {
@@ -1578,6 +1628,7 @@ document.body.addEventListener('change', async e => {
     try { const r = await uploadPhoto(f); if (r.local) BK.localPhotos[S.editPlant.id] = r.local; else S.editPlant.photoId = r.id; renderLibrary(); }
     catch (err) { const pe = $('plantErr'); if (pe) pe.textContent = 'Couldn’t add the photo: ' + (err?.message || ''); }
   }
+  if (t.dataset.restore !== undefined && t.files?.[0]) { const f = t.files[0]; t.value = ''; restoreBackup(f); }
   if (t.dataset.photoFor && t.files?.[0]) {
     const f = t.files[0], id = t.dataset.photoFor; t.value = '';
     $('presMsg').textContent = 'Adding photo…';
@@ -1871,6 +1922,9 @@ app.addEventListener('click', async e => {
   if (act === 'delete') removeSel();
   if (act === 'clearPhoto' && S.editPlant) { S.editPlant.photoId = null; renderLibrary(); }
   if (act === 'deselect') select(null);
+  if (act === 'bkpGarden') downloadBackup('garden');
+  if (act === 'bkpLibrary') downloadBackup('library');
+  if (act === 'bkpAll') downloadBackup('all');
   if (act === 'resetPrefs') { S.prefs = { ...PREF_DEFAULTS, roleColors: {}, theme: S.prefs.theme }; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'resetRoleCols') { S.prefs.roleColors = {}; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'clearColour') { S.editPlant.flowerColor = null; S.editPlant.flowerColorName = null; renderLibrary(); }
@@ -1880,7 +1934,7 @@ app.addEventListener('click', async e => {
   if (act === 'ulRemoveNo') { S.confirm = null; renderInspector(); }
   if (act === 'ulRemoveYes') {
     const u = S.g.underlay; S.confirm = null;
-    S.g.underlay = null; S.history = []; saveGarden();
+    S.g.underlay = null; clearHistory(); saveGarden();
     if (u?.assetId && S.assets) { try { await S.assets.delete(u.assetId); } catch {} }
     if (S.localUl) { URL.revokeObjectURL(S.localUl); S.localUl = null; }
     if (S.tool === 'scale') S.tool = 'select';
@@ -1891,7 +1945,9 @@ app.addEventListener('click', async e => {
   if (act === 'cancelConfirm') { S.confirm = null; renderLibrary(); }
   if (act === 'deletePlant') {
     const id = S.editPlant.id;
+    const was = plantById(id);
     if (S.online) { try { await S.db.doc('plants/' + id).delete(); } catch (err) { $('plantErr').textContent = 'Couldn’t delete: ' + (err?.message || 'try again'); return; } }
+    if (was) pushHistory({ plants: [{ id, before: { ...was }, after: null }] });
     S.plants = S.plants.filter(p => p.id !== id); if (S.activePlant === id) S.activePlant = null;
     S.editPlant = null; S.confirm = null; renderAll();
   }
@@ -1901,6 +1957,8 @@ app.addEventListener('click', async e => {
     if (!(num(p.spread) > 0)) { $('plantErr').textContent = 'Mature spread must be more than 0 m.'; return; }
     const body = { ...p }; delete body._new; delete body.id; delete body.example;
     if (S.online) { b.disabled = true; try { await S.db.doc('plants/' + p.id).set(body); } catch (err) { b.disabled = false; $('plantErr').textContent = 'Couldn’t save: ' + (err?.message || 'try again'); return; } }
+    const was = plantById(p.id);
+    pushHistory({ plants: [{ id: p.id, before: was ? { ...was } : null, after: { id: p.id, ...body } }] });
     upsertPlant({ id: p.id, ...body });
     S.editPlant = null; S.activePlant = p.id; S.tool = 'plant'; renderAll();
   }
@@ -1908,6 +1966,7 @@ app.addEventListener('click', async e => {
 $('vMature').addEventListener('click', () => { S.view = 'mature'; renderAll(); });
 $('vPlanted').addEventListener('click', () => { S.view = 'planted'; renderAll(); });
 $('undoBtn').addEventListener('click', undo);
+$('redoBtn').addEventListener('click', redo);
 $('zIn').addEventListener('click', () => zoomBy(1.4));
 $('zOut').addEventListener('click', () => zoomBy(1 / 1.4));
 $('zFit').addEventListener('click', () => { resetView(); renderMap(); });
@@ -1966,7 +2025,7 @@ $('overlay').addEventListener('submit', async e => {
   const file = $('ng-file').files?.[0];
   const g = { id: uid(), name: $('ng-name').value.trim() || 'Untitled garden', client: $('ng-client').value.trim(), width: clamp(num($('ng-w').value, 10), 1, 500), depth: clamp(num($('ng-d').value, 8), 1, 500), underlay: null, areas: [], plantings: [], updatedAt: Date.now() };
   if (S.online) { const body = { ...g }; delete body.id; try { await S.db.doc('gardens/' + g.id).set(body); } catch (err) { setStatus('Couldn’t create garden: ' + (err?.message || ''), true); return; } setStatus('Saved'); }
-  S.gardens.push(g); S.newGarden = false; S.g = JSON.parse(JSON.stringify(g)); S.history = []; S.sel = null; store.set('gpm.last', g.id); resetView();
+  S.gardens.push(g); S.newGarden = false; S.g = JSON.parse(JSON.stringify(g)); clearHistory(); S.sel = null; store.set('gpm.last', g.id); resetView();
   S.tool = 'select'; renderAll();
   if (file) importPlan(file);
 });
@@ -2003,6 +2062,7 @@ function openDeleteGarden() {
   $('clearModal').hidden = false; $('clearNo').focus();
 }
 $('deleteGardenBtn').addEventListener('click', openDeleteGarden);
+$('backupGardenBtn').addEventListener('click', () => downloadBackup('garden'));
 async function deleteGarden() {
   const g = S.g; if (!g) return;
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
@@ -2011,7 +2071,7 @@ async function deleteGarden() {
     if (g.underlay?.assetId && S.assets) { try { await S.assets.delete(g.underlay.assetId); } catch {} }
   } catch (e) { setStatus('Couldn’t delete the garden: ' + (e?.message || 'try again'), true); return; }
   S.gardens = S.gardens.filter(x => x.id !== g.id);
-  S.g = null; S.history = []; S.sel = null; S.multi = []; S.cal = null; S.confirm = null; resetView();
+  S.g = null; clearHistory(); S.sel = null; S.multi = []; S.cal = null; S.confirm = null; resetView();
   const next = S.gardens.find(x => !x.example) || S.gardens[0];
   if (next) { S.g = JSON.parse(JSON.stringify(next)); store.set('gpm.last', next.id); }
   setStatus(`Deleted “${g.name}”.`);
@@ -2032,6 +2092,7 @@ document.addEventListener('keydown', e => {
   if (!$('plantModal').hidden && e.key === 'Escape') { S.editPlant = null; S.confirm = null; renderLibrary(); return; }
   if (!$('clearModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeClear(); } return; }
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
+  if ((e.ctrlKey || e.metaKey) && !typing && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === '+' || e.key === '=') { zoomBy(1.4); return; }
@@ -2048,12 +2109,13 @@ function normGarden(id, d) {
   return { id, name: d.name || 'Untitled garden', client: d.client || '', width: num(d.width, 10), depth: num(d.depth, 8), north: num(d.north, 0),
     underlay: d.underlay && d.underlay.natW ? d.underlay : null,
     areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind === 'drift' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
-    plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example };
+    plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example,
+    booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
   const g = S.gardens.find(x => x.id === id); if (!g) return;
-  S.g = JSON.parse(JSON.stringify(g)); S.history = []; S.sel = null; S.cal = null; S.confirm = null;
+  S.g = JSON.parse(JSON.stringify(g)); clearHistory(); S.sel = null; S.multi = []; S.cal = null; S.confirm = null;
   if (S.tool === 'scale') S.tool = 'select';
   store.set('gpm.last', id); resetView(); renderAll();
 }
@@ -2068,7 +2130,7 @@ async function init() {
   const ready = () => { if (gotPlants && gotGardens && !S.loaded) { S.loaded = true; setStatus(S.assets ? 'Saved' : 'Saved · plan import needs edit access'); renderAll(); } };
   db.doc('settings/prefs').onSnapshot(snap => {
     if (prefTimer) return;
-    const first = !S.prefsLoaded; S.prefsLoaded = true;
+    const first = !S.prefsLoaded; S.prefsLoaded = true; S.prefsExist = !!snap.exists;
     S.prefs = { ...PREF_DEFAULTS, ...(snap.exists ? snap.data() : {}) };
     if (first) S.view = S.prefs.defaultView === 'planted' ? 'planted' : 'mature';
     applyRoleColours(); applyTheme(S.prefs.theme);
@@ -2363,7 +2425,7 @@ $('avAdd').addEventListener('click', async () => {
   const layerPick = $('avLayer').value, wantAi = $('avAi').checked && AV.sample !== null;
   const details = wantAi ? await plantDetails(items) : {};
   const colourHex = name => (FLOWER_COLOURS.find(([n]) => normName(n) === normName(name)) || [])[1] || null;
-  let added = 0, updated = 0, failed = 0;
+  let added = 0, updated = 0, failed = 0; const changes = [];
   for (let n = 0; n < items.length; n++) {
     const it = items[n], d = details[it.id] || {}, mine = myPlantFor(it, l.supplier);
     $('avProgress').textContent = `Saving ${n + 1} of ${items.length}…`;
@@ -2388,10 +2450,12 @@ $('avAdd').addEventListener('click', async () => {
     const id = mine?.id || uid();
     try {
       if (S.online) await S.db.doc('plants/' + id).set(base);
+      changes.push({ id, before: mine ? { ...mine } : null, after: { id, ...base } });
       upsertPlant({ id, ...base });
       if (mine) updated++; else added++;
     } catch { failed++; }
   }
+  if (changes.length) pushHistory({ plants: changes });
   AV.busy = false; AV.sel.clear();
   $('avProgress').textContent = `${added ? plural(added, 'plant') + ' added' : ''}${added && updated ? ', ' : ''}${updated ? plural(updated, 'plant') + ' updated' : ''}${failed ? ` · ${failed} couldn’t be saved` : ''}. Find them under My plants.`;
   renderAvailability(); renderLibrary();
@@ -2424,8 +2488,9 @@ $('dbSelRemove').addEventListener('click', async () => {
   renderDatabase(); renderLibrary();
 });
 async function deletePlants(ids) {
-  let removed = 0, failed = 0; const gone = new Set();
-  for (const id of ids) { try { if (S.online) await S.db.doc('plants/' + id).delete(); gone.add(id); removed++; } catch { failed++; } }
+  let removed = 0, failed = 0; const gone = new Set(), was = [];
+  for (const id of ids) { const p = plantById(id); try { if (S.online) await S.db.doc('plants/' + id).delete(); gone.add(id); removed++; if (p) was.push({ id, before: { ...p }, after: null }); } catch { failed++; } }
+  if (was.length) pushHistory({ plants: was });
   S.plants = S.plants.filter(p => !gone.has(p.id)); if (gone.has(S.activePlant)) S.activePlant = null;
   return { removed, failed };
 }
@@ -2472,6 +2537,148 @@ $('dbCopy').addEventListener('click', async () => {
   catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch { b.textContent = 'Copy failed'; } ta.remove(); }
   setTimeout(() => { b.textContent = 'Copy all for spreadsheet'; }, 1600);
 });
+/* ---------- backup and restore ---------- */
+const BACKUP_FORMAT = 1, BKP = { busy: false, msg: '', err: false };
+const IMG_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'];
+function setBackupMsg(t, err) { BKP.msg = t; BKP.err = !!err; const el = $('bkpMsg'); if (el) { el.textContent = t; el.style.color = err ? 'var(--crit)' : ''; } setStatus(t, err); }
+/* a backup file is outside data: everything is checked and rebuilt field by field before it is used */
+const safeId = v => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : null);
+const str = (v, max = 300) => (typeof v === 'string' ? v : v == null ? '' : String(v)).slice(0, max);
+const numOrNull = v => { const n = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(n) ? n : null; };
+const monthOrNull = v => { const n = Math.round(numOrNull(v) ?? 0); return n >= 1 && n <= 12 ? n : null; };
+const hexOrNull = v => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
+function cleanPlant(d) {
+  const id = safeId(d?.id); if (!id) return null;
+  const p = { id, common: str(d.common, 200), botanical: str(d.botanical, 200), cultivar: str(d.cultivar, 200), role: layerOf(d.role), existing: !!d.existing,
+    height: numOrNull(d.height), spread: Math.max(0.05, numOrNull(d.spread) ?? 0.5), potSpread: numOrNull(d.potSpread), cost: Math.max(0, numOrNull(d.cost) ?? 0),
+    supply: str(d.supply, 200), supplier: str(d.supplier, 200), flowerFrom: monthOrNull(d.flowerFrom), flowerTo: monthOrNull(d.flowerTo), flowerColor: hexOrNull(d.flowerColor), flowerColorName: str(d.flowerColorName, 60) };
+  if (!p.common) p.common = p.botanical || 'Unnamed';
+  if (safeId(d.photoId)) p.photoId = d.photoId;
+  if (d.source && typeof d.source === 'object') p.source = { list: str(d.source.list, 64), listName: str(d.source.listName, 200), code: str(d.source.code, 80), stock: str(d.source.stock, 40), checkedAt: numOrNull(d.source.checkedAt) ?? 0 };
+  if (d.example) p.example = true;
+  return p;
+}
+function cleanGarden(d) {
+  const id = safeId(d?.id); if (!id) return null;
+  const xy = v => r2(clamp(numOrNull(v) ?? 0, -1000, 2000));
+  const g = { id, name: str(d.name, 200) || 'Untitled garden', client: str(d.client, 200), width: clamp(numOrNull(d.width) ?? 10, 1, 500), depth: clamp(numOrNull(d.depth) ?? 8, 1, 500),
+    north: ((Math.round(numOrNull(d.north) ?? 0) % 360) + 360) % 360, updatedAt: Date.now(), underlay: null, areas: [], plantings: [] };
+  for (const x of Array.isArray(d.plantings) ? d.plantings : []) {
+    const pid = safeId(x?.plantId); if (!pid) continue;
+    const pl = { id: safeId(x.id) || uid(), plantId: pid, x: xy(x.x), y: xy(x.y), qty: clamp(Math.round(numOrNull(x.qty) ?? 1), 1, 500) };
+    if (STATUS[x.status]) pl.status = x.status;
+    if (x.note) pl.note = str(x.note, 300);
+    for (const k of ['height', 'spread', 'lx', 'ly']) { const n = numOrNull(x[k]); if (n != null) pl[k] = clamp(n, -500, 500); }
+    g.plantings.push(pl);
+  }
+  for (const a of Array.isArray(d.areas) ? d.areas : []) {
+    const pid = safeId(a?.plantId); if (!pid || a.kind !== 'drift' || !Array.isArray(a.pts) || a.pts.length < 3) continue;
+    g.areas.push({ id: safeId(a.id) || uid(), kind: 'drift', plantId: pid, pts: a.pts.slice(0, 200).map(q => [xy(q?.[0]), xy(q?.[1])]), smooth: !!a.smooth, density: clamp(numOrNull(a.density) ?? 1, 0.1, 100) });
+  }
+  const u = d.underlay;
+  if (u && typeof u === 'object' && numOrNull(u.natW) > 0 && numOrNull(u.natH) > 0)
+    g.underlay = { assetId: safeId(u.assetId), kind: str(u.kind, 20), name: str(u.name, 200), natW: +u.natW, natH: +u.natH, mPerPx: numOrNull(u.mPerPx) > 0 ? +u.mPerPx : 0.01, opacity: clamp(numOrNull(u.opacity) ?? 0.6, 0.1, 1), calibrated: !!u.calibrated };
+  const b = d.booklet;
+  if (b && typeof b === 'object') g.booklet = { subtitle: str(b.subtitle, 200), designer: str(b.designer, 200), site: str(b.site, 300), date: str(b.date, 80), intro: str(b.intro, 2000), notes: str(b.notes, 4000),
+    numberPlan: !!b.numberPlan, includeSupply: !!b.includeSupply, vat: clamp(numOrNull(b.vat) ?? 0, 0, 50),
+    pages: Object.fromEntries(Object.keys(BK_DEFAULT().pages).map(k => [k, b.pages?.[k] !== false])),
+    lines: (Array.isArray(b.lines) ? b.lines : []).slice(0, 40).map(l => ({ label: str(l?.label, 200), amount: numOrNull(l?.amount) ?? 0 })) };
+  if (d.example) g.example = true;
+  return g;
+}
+const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
+function b64ToBlob(b64, type) { const bin = atob(b64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Blob([u8], { type }); }
+async function buildBackup(kind) {
+  if (saveTimer) { clearTimeout(saveTimer); await flushSave(); }
+  const gardens = kind === 'library' ? [] : kind === 'garden' ? (S.g ? [S.g] : []) : S.gardens.map(g => (S.g && g.id === S.g.id ? S.g : g));
+  let plants = S.plants;
+  if (kind === 'garden') { const used = new Set(); for (const g of gardens) { for (const x of g.plantings) used.add(x.plantId); for (const a of g.areas) used.add(a.plantId); } plants = plants.filter(p => used.has(p.id)); }
+  const ids = new Set();
+  for (const g of gardens) if (g.underlay?.assetId) ids.add(g.underlay.assetId);
+  for (const p of plants) if (p.photoId) ids.add(p.photoId);
+  if (kind === 'all' && S.prefs.logoId) ids.add(S.prefs.logoId);
+  const files = {}; let missing = 0, n = 0;
+  for (const id of ids) {
+    setBackupMsg(`Collecting pictures and plans (${++n} of ${ids.size})…`);
+    try { const r = await fetch('/_blob/' + id); if (!r.ok) throw new Error('missing'); const blob = await r.blob(); files[id] = { type: blob.type || 'image/jpeg', data: await blobToB64(blob) }; } catch { missing++; }
+  }
+  const out = { app: 'SevenLayers', format: BACKUP_FORMAT, kind, exportedAt: new Date().toISOString(), gardens: JSON.parse(JSON.stringify(gardens)), plants: JSON.parse(JSON.stringify(plants)), files };
+  if (kind === 'all') out.prefs = JSON.parse(JSON.stringify(S.prefs));
+  return { out, missing };
+}
+async function downloadBackup(kind) {
+  if (BKP.busy) return;
+  if (kind === 'garden' && !S.g) return;
+  BKP.busy = true;
+  try {
+    const dl = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
+    if (!dl) { setBackupMsg('Saving files isn’t available in this view. Open the page in claude.ai to download a backup.', true); return; }
+    const { out, missing } = await buildBackup(kind);
+    const label = kind === 'garden' ? S.g.name || 'garden' : kind === 'library' ? 'plant library' : 'everything';
+    const name = `SevenLayers backup – ${label.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80)} – ${new Date().toISOString().slice(0, 10)}.json`;
+    setBackupMsg('Confirm the download to save your backup.');
+    await dl.save({ filename: name, data: new Blob([JSON.stringify(out)], { type: 'application/json' }) });
+    const what = [out.gardens.length && plural(out.gardens.length, 'garden'), out.plants.length && out.plants.length + ' species'].filter(Boolean).join(' and ') || 'nothing yet';
+    setBackupMsg(`Backup saved (${what}).${missing ? ` ${plural(missing, 'picture')} couldn’t be included.` : ''}`);
+  } catch (e) { setBackupMsg(e?.code === 'declined' ? 'Download cancelled.' : e?.code === 'rate_limited' ? 'A download is already waiting for your confirmation.' : 'Couldn’t make the backup: ' + (e?.message || 'try again'), e?.code !== 'declined'); }
+  finally { BKP.busy = false; }
+}
+async function restoreBackup(file) {
+  if (BKP.busy || !file) return;
+  if (!S.online) { setBackupMsg('Nothing is saved in this view, so a backup can’t be restored here.', true); return; }
+  BKP.busy = true;
+  try {
+    setBackupMsg('Reading the backup…');
+    let data = null; try { data = JSON.parse(await file.text()); } catch {}
+    if (!data || data.app !== 'SevenLayers' || !(data.format >= 1)) throw new Error('that file isn’t a SevenLayers backup.');
+    if (data.format > BACKUP_FORMAT) throw new Error('that backup was made by a newer version of SevenLayers.');
+    const files = data.files && typeof data.files === 'object' ? data.files : {};
+    const have = new Set(); if (S.assets) { try { for (const a of (await S.assets.list()).assets) have.add(a.id); } catch {} }
+    const moved = new Map(); let lost = 0;
+    const asset = async id => {
+      if (!safeId(id)) return null;
+      if (moved.has(id)) return moved.get(id);
+      let out = null; const f = Object.prototype.hasOwnProperty.call(files, id) ? files[id] : null;
+      if (have.has(id)) out = id;
+      else if (f && typeof f.data === 'string' && S.assets) { try { const type = IMG_TYPES.includes(f.type) ? f.type : 'image/jpeg'; out = (await S.assets.upload(b64ToBlob(f.data, type), { type })).id; } catch { lost++; } }
+      else lost++;
+      moved.set(id, out); return out;
+    };
+    const plants = (Array.isArray(data.plants) ? data.plants : []).map(cleanPlant).filter(Boolean);
+    const gardens = (Array.isArray(data.gardens) ? data.gardens : []).map(cleanGarden).filter(Boolean);
+    let addedP = 0, keptP = 0, addedG = 0, first = null; const changes = [];
+    for (const p of plants) {
+      if (plantById(p.id)) { keptP++; continue; }
+      setBackupMsg(`Restoring species (${addedP + 1})…`);
+      if (p.photoId) { p.photoId = await asset(p.photoId); if (!p.photoId) delete p.photoId; }
+      const body = { ...p }; delete body.id;
+      await S.db.doc('plants/' + p.id).set(body); upsertPlant(p); changes.push({ id: p.id, before: null, after: { ...p } }); addedP++;
+    }
+    for (const g of gardens) {
+      setBackupMsg(`Restoring ${g.name}…`);
+      if (S.gardens.some(x => x.id === g.id)) { g.id = uid(); g.name += ' (restored)'; }
+      if (g.underlay) { g.underlay.assetId = await asset(g.underlay.assetId); if (!g.underlay.assetId) g.underlay = null; }
+      const body = { ...g }; delete body.id;
+      if (gardenBytes(body) > GARDEN_LIMIT) throw new Error(`“${g.name}” is too large to store as one garden.`);
+      await S.db.doc('gardens/' + g.id).set(body);
+      S.gardens = [...S.gardens.filter(x => x.id !== g.id), normGarden(g.id, body)].sort((a, b) => a.name.localeCompare(b.name)); addedG++; first = first || g.id;
+    }
+    if (data.kind === 'all' && data.prefs && typeof data.prefs === 'object' && !S.prefsExist) {
+      const p = data.prefs, rc = {}; for (const k of Object.keys(ROLE_DEFAULTS)) if (hexOrNull(p.roleColors?.[k])) rc[k] = p.roleColors[k];
+      S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false,
+        showGrid: p.showGrid !== false, gridStep: ['auto', '0.5', '1', '2', '5'].includes(String(p.gridStep)) ? String(p.gridStep) : 'auto', showRulers: p.showRulers !== false, showScale: p.showScale !== false, snap: clamp(numOrNull(p.snap) ?? 0.1, 0.05, 1),
+        defaultView: p.defaultView === 'planted' ? 'planted' : 'mature', currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown' };
+      const logo = await asset(p.logoId); if (logo) S.prefs.logoId = logo;
+      applyRoleColours(); applyTheme(S.prefs.theme); savePrefs();
+    }
+    if (changes.length) pushHistory({ plants: changes });
+    if (first) openGarden(first);
+    renderAll(); if (getPage() === 'preferences') renderPrefs();
+    const bits = [addedG && plural(addedG, 'garden'), addedP && addedP + ' species'].filter(Boolean).join(' and ');
+    setBackupMsg(`${bits ? 'Restored ' + bits + '.' : 'Nothing new to restore.'}${keptP ? ` ${keptP} species were already in your library and were left as they are.` : ''}${lost ? ` ${plural(lost, 'picture')} or site plan${lost === 1 ? '' : 's'} couldn’t be restored.` : ''}`);
+  } catch (e) { setBackupMsg('Couldn’t restore: ' + (e?.message || 'try again'), true); }
+  finally { BKP.busy = false; }
+}
 window.addEventListener('hashchange', applyPage);
 applyPage();
 init();
