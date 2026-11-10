@@ -262,9 +262,9 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .bcal .mh { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8073; text-align: center; padding-bottom: 6px; border-bottom: 1px solid #CFC4B1; }
 .bcal .nm { padding: 6px 8px 6px 0; border-bottom: 1px solid #E6DECF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bcal .tr { grid-column: 2 / 14; height: 100%; border-bottom: 1px solid #E6DECF; background-image: linear-gradient(to right, #EAE2D4 1px, transparent 1px); background-size: calc(100% / 12) 100%; }
-.bcal .bar { height: 14px; border-radius: 7px; margin: 0 3px; box-shadow: inset 0 0 0 1px rgba(47, 43, 37, 0.18); align-self: center; }
+.bcal .bar { height: 14px; border-radius: 7px; margin: 0 3px; border: 1px solid rgba(47, 43, 37, 0.18); box-sizing: border-box; align-self: center; }
 .bcal .bar.thin { height: 4px; border-radius: 2px; align-self: end; margin-bottom: 2px; }
-.bcal .bar.ever { height: 2px; border-radius: 1px; align-self: start; margin-top: 2px; background: #5E8A4E; box-shadow: none; }
+.bcal .bar.ever { height: 2px; border-radius: 1px; align-self: start; margin-top: 2px; background: #5E8A4E; border: 0; }
 .bnotes { font-size: 12px; color: #6B6257; line-height: 1.6; white-space: pre-line; max-width: 70ch; }
 .rolecols { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px 12px; }
 .rolecol { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
@@ -291,7 +291,13 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 .ccount { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); text-align: center; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 4px; }
 .ccount .gap { color: var(--crit); }
 
-.irow { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto minmax(0, 1fr) 34px 28px; gap: 5px; align-items: center; }
+.irow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 34px 28px; gap: 5px; align-items: center; }
+.irow > select:first-child { grid-column: 1 / -1; }
+.order { display: flex; flex-direction: column; gap: 8px; }
+.order h3 { font-family: var(--f-display); font-weight: 600; font-size: 18px; margin: 0; }
+.order .cn { color: var(--muted); }
+.shortn { color: var(--crit); font-size: 12.5px; border: 1px solid currentColor; border-radius: 4px; padding: 0 6px; }
+.bcover .cl .blogo { max-width: 240px; max-height: 76px; object-fit: contain; object-position: left center; display: block; margin-bottom: 26px; }
 .irow input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 .ctrack { align-content: center; padding: 5px 0; }
 .cbar.sm { height: 7px; border-radius: 4px; margin-top: 3px; }
@@ -586,6 +592,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       <div class="row"><span class="note" id="schedSum"></span><button class="btn sm" id="copyBtn" type="button" title="Copy as rows you can paste into your spreadsheet">Copy for spreadsheet</button></div></div>
     <div style="overflow-x:auto"><table class="sched wide" id="sched"></table></div>
     <div id="existingWrap" hidden style="display:flex;flex-direction:column;gap:8px"><h2 style="font-size:20px">Existing plants</h2><div style="overflow-x:auto"><table class="sched wide" id="existingT"></table></div></div>
+    <div id="orderWrap" hidden style="display:flex;flex-direction:column;gap:14px"><div><h2 style="font-size:20px">Order lists by supplier</h2><p class="note" style="margin:2px 0 0;max-width:75ch">One list for each supplier named on your species. Stock is the figure from the supplier’s availability list on the day you added the plant from it.</p></div><div id="orderLists" style="display:flex;flex-direction:column;gap:20px;overflow-x:auto"></div></div>
   </section>
 
   <div class="work">
@@ -626,7 +633,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <p class="note" id="sizeNote" style="margin:0"></p>
     <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:12px">
       <span class="row" style="gap:6px"><button class="btn sm" type="button" id="newGardenBtn">New garden</button><button class="btn sm" type="button" id="backupGardenBtn" title="Download a backup file of this garden, its site plan and the species it uses">Download backup</button></span>
-      <span class="row" style="gap:6px"><button class="btn sm danger" type="button" id="clearBtn" title="Remove every plant and drift from this garden">Clear plan…</button><button class="btn sm danger" type="button" id="deleteGardenBtn" title="Delete this garden and its site plan">Delete garden…</button></span>
+      <span class="row" style="gap:6px"><button class="btn sm danger" type="button" id="clearBtn" title="Remove every plant from this garden">Clear plan…</button><button class="btn sm danger" type="button" id="deleteGardenBtn" title="Delete this garden and its site plan">Delete garden…</button></span>
     </div>
   </div>
 </div>
@@ -1225,9 +1232,9 @@ function renderPlantEditor(el) {
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
     <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div></div>
-    <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing plants are drawn dashed at that size and left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets plant size in Design intent and the default drift density.'}</p>
+    <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing plants are drawn dashed at that size and left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets plant size in Design intent and the starting spacing for a row.'}</p>
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
-    ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants and drifts first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
+    ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants from the plan first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
     <p class="note" id="plantErr" style="margin:0;color:var(--crit)"></p>`;
   paintMonthSlider();
 }
@@ -1252,11 +1259,40 @@ function renderSchedule() {
   $('existingT').innerHTML = exRows.length ? `<thead><tr><th>Species</th><th>Botanical name</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th><th>Notes</th></tr></thead><tbody>${exRows.map(r => `<tr><td>${esc(r.p?.common || '')}</td><td><i>${esc(r.p?.botanical || '')}</i></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n"${r.remove ? ' style="color:var(--crit)"' : ''}>${r.remove || '–'}</td><td>${esc([...r.notes].join('; '))}</td></tr>`).join('')}</tbody>` : '';
   const t = $('sched');
   let total = 0, count = 0;
-  if (!rows.length) t.innerHTML = `<tbody><tr><td class="empty">${exRows.length ? 'No new plants yet.' : 'The schedule fills in as you place plants and drifts on the plan.'}</td></tr></tbody>`;
+  if (!rows.length) t.innerHTML = `<tbody><tr><td class="empty">${exRows.length ? 'No new plants yet.' : 'The schedule fills in as you place plants on the plan.'}</td></tr></tbody>`;
   else {
     t.innerHTML = `<thead><tr><th>Species</th><th>Botanical name</th><th>Layer</th><th>Supply</th><th>Supplier</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${rows.map(r => { const each = num(r.p?.cost); total += each * r.qty; count += r.qty; return `<tr><td>${r.p?.flowerColor ? `<span class="fdot" style="background:${esc(r.p.flowerColor)}"></span>` : ''}${esc(r.p?.common || 'Missing species')}</td><td><i>${esc(r.p?.botanical || '')}</i>${r.p?.cultivar ? ` <i>${esc(r.p.cultivar)}</i>` : ''}</td><td>${esc(ROLES[r.p?.role] || '')}</td><td>${esc(r.p?.supply || '')}</td><td>${esc(r.p?.supplier || '')}</td><td class="n">${r.qty}</td><td class="n">${money(each)}</td><td class="n">${money(each * r.qty)}</td></tr>`; }).join('')}</tbody><tfoot><tr><td colspan="5">Plant supply</td><td class="n">${count}</td><td></td><td class="n">${money(total)}</td></tr></tfoot>`;
   }
   $('schedSum').textContent = rows.length ? `${rows.length} species · ${count} plants · ${money(total)}` : '';
+  renderOrders(rows);
+}
+function orderGroups(rows = scheduleRows()) {
+  const m = new Map();
+  for (const r of rows) { if (!r.p) continue; const k = (r.p.supplier || '').trim(); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
+  return [...m.entries()].sort((a, b) => (!a[0] - !b[0]) || a[0].localeCompare(b[0])).map(([supplier, rs]) => ({ supplier, rows: rs.sort((a, b) => (a.p.botanical || a.p.common || '').localeCompare(b.p.botanical || b.p.common || '')) }));
+}
+const stockNum = v => { const m = String(v ?? '').replace(/,/g, '').match(/\d+(\.\d+)?/); return m ? +m[0] : null; };
+function renderOrders(rows) {
+  const groups = orderGroups(rows);
+  $('orderWrap').hidden = !groups.length; if (!groups.length) { $('orderLists').innerHTML = ''; return; }
+  $('orderLists').innerHTML = groups.map((g, gi) => {
+    const total = g.rows.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = g.rows.reduce((t, r) => t + r.qty, 0);
+    const short = g.rows.filter(r => { const s = stockNum(r.p.source?.stock); return s != null && r.qty > s; }), checked = Math.max(0, ...g.rows.map(r => num(r.p.source?.checkedAt)));
+    return `<section class="order"><div class="row"><h3>${esc(g.supplier || 'No supplier set')}</h3><span class="note">${count} plants · ${money(total)}${checked ? ` · stock as listed on ${new Date(checked).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}</span><span class="spacer"></span>${short.length ? `<span class="shortn">${plural(short.length, 'line')} short of stock</span>` : ''}<button class="btn sm" type="button" data-copyorder="${gi}">Copy order</button></div>
+      <table class="sched wide"><thead><tr><th>Plant</th><th>Supply</th><th>Code</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th><th class="n">Stock</th></tr></thead><tbody>${g.rows.map(r => { const s = stockNum(r.p.source?.stock), sh = s != null && r.qty > s; return `<tr><td><i>${esc(r.p.botanical || '')}</i> <span class="cn">${esc(r.p.common || '')}</span></td><td>${esc(r.p.supply || '')}</td><td>${esc(r.p.source?.code || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td><td class="n"${sh ? ' style="color:var(--crit);font-weight:600"' : ''}>${r.p.source?.stock ? esc(r.p.source.stock) + (sh ? ` · short by ${r.qty - s}` : '') : '–'}</td></tr>`; }).join('')}</tbody></table></section>`;
+  }).join('');
+}
+async function copyText(text, b, label) {
+  try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; }
+  catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch { b.textContent = 'Copy failed'; } ta.remove(); }
+  setTimeout(() => { b.textContent = label; }, 1600);
+}
+function orderText(g) {
+  const clean = v => String(v ?? '').replace(/[\t\n]/g, ' '), total = g.rows.reduce((t, r) => t + num(r.p.cost) * r.qty, 0);
+  return [`Order for ${g.supplier || 'supplier not set'}`, `${S.g?.name || ''}${S.g?.client ? ' · ' + S.g.client : ''} · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, '',
+    ['Code', 'Botanical name', 'Common name', 'Supply', 'Qty', 'Each', 'Total'].join('\t'),
+    ...g.rows.map(r => [r.p.source?.code, r.p.botanical, r.p.common, r.p.supply, r.qty, num(r.p.cost).toFixed(2), (num(r.p.cost) * r.qty).toFixed(2)].map(clean).join('\t')),
+    ['', '', '', 'Total', g.rows.reduce((t, r) => t + r.qty, 0), '', total.toFixed(2)].join('\t')].join('\n');
 }
 function renderPicker() {
   const sel = $('gardenSel');
@@ -1352,7 +1388,7 @@ function renderPrefs() {
         <p class="note" style="margin:0">The client booklet always uses the Eiderdown look, whichever theme you work in.</p>
       </fieldset>
       <fieldset class="pref"><legend>Plan labels</legend>
-        ${chk('pf-show', 'showLabels', 'Show plant and bed labels')}
+        ${chk('pf-show', 'showLabels', 'Show plant labels')}
         <label class="field"><span>Label size</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-size" data-pref="labelSize" min="0.5" max="2" step="0.1" value="${P.labelSize}" style="flex:1;accent-color:var(--accent)"><output id="pf-size-v" style="min-width:3.5em;text-align:right">${Math.round(P.labelSize * 100)}%</output></span></label>
         <label class="field"><span>Label text</span>${sel('pf-mode', 'labelMode', [['code', 'Short code (Lav ang)'], ['common', 'Common name'], ['botanical', 'Botanical name']])}</label>
         ${chk('pf-qty', 'labelQty', 'Show quantity before the name')}
@@ -1370,7 +1406,7 @@ function renderPrefs() {
         <label class="field"><span>Plans open in</span>${sel('pf-view', 'defaultView', [['mature', 'Design intent (mature size)'], ['planted', 'As planted (pot size)']])}</label>
       </fieldset>
       <fieldset class="pref"><legend>Layer colours</legend>
-        <p class="note" style="margin:0">Used for plants, drifts and library dots in every garden. Flower colours are set per species.</p>
+        <p class="note" style="margin:0">Used for plants and library dots in every garden. Flower colours are set per species.</p>
         <div class="rolecols">${Object.entries({ ...ROLES, existing: 'Existing plants' }).map(([k, l]) => { const v = (P.roleColors || {})[k] || ROLE_DEFAULTS[k]; return `<label class="rolecol"><input type="color" id="pf-rc-${k}" data-pref-role="${k}" value="${v}"><span>${l}</span></label>`; }).join('')}</div>
         <div class="row"><button class="btn sm" type="button" data-act="resetRoleCols">Reset colours</button></div>
       </fieldset>
@@ -1822,7 +1858,8 @@ $('lib').addEventListener('click', e => {
 const BK_DEFAULT = () => ({ subtitle: 'Planting proposal', designer: '', site: '', date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), intro: '',
   pages: { cover: true, plan: true, palette: true, schedule: true, calendar: true, pricing: true }, numberPlan: true,
   includeSupply: true, lines: [{ label: 'Planting design fee', amount: 0 }], vat: 0, notes: 'Plant prices are indicative and subject to availability at the time of ordering.' });
-const BK = { planImg: null, planKey: '', timer: null, busy: false, localPhotos: {} };
+const BK = { planImg: null, planKey: '', timer: null, busy: false, localPhotos: {}, localLogo: null };
+const PAPER = { A4: [297, 210], A3: [420, 297], A2: [594, 420], A1: [841, 594] }, SCALES = [10, 20, 25, 50, 100, 200, 250, 500, 1000];
 function bk() { const d = BK_DEFAULT(), b = S.g?.booklet || {}; return { ...d, ...b, pages: { ...d.pages, ...(b.pages || {}) }, lines: Array.isArray(b.lines) ? b.lines : d.lines }; }
 const LAYER_ORDER = Object.keys(ROLES);
 function paletteRows() {
@@ -1840,6 +1877,22 @@ async function shrinkImage(file, max = 1400) {
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
     return await new Promise(res => c.toBlob(res, 'image/jpeg', 0.86));
   } finally { URL.revokeObjectURL(url); }
+}
+/* the designer's logo: shared by every garden, kept as a PNG so html2canvas and the PDF can always draw it */
+function logoUrl() { return S.prefs.logoId ? '/_blob/' + S.prefs.logoId : (BK.localLogo || null); }
+async function setLogo(file) {
+  const url = URL.createObjectURL(file);
+  let blob;
+  try {
+    const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error('That image could not be read.')); img.src = url; });
+    const w0 = img.naturalWidth || 600, h0 = img.naturalHeight || 300, k = Math.min(1, 1000 / Math.max(w0, h0), /svg/i.test(file.type) ? 1000 / Math.max(w0, h0) : 1) || 1;
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w0 * k)); c.height = Math.max(1, Math.round(h0 * k)); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    blob = await new Promise(res => c.toBlob(res, 'image/png'));
+  } finally { URL.revokeObjectURL(url); }
+  if (!blob) throw new Error('That image could not be read.');
+  const old = S.prefs.logoId;
+  if (S.assets) { const r = await S.assets.upload(blob, { type: 'image/png' }); S.prefs.logoId = r.id; savePrefs(); if (old) { try { await S.assets.delete(old); } catch {} } }
+  else { if (BK.localLogo) URL.revokeObjectURL(BK.localLogo); BK.localLogo = URL.createObjectURL(blob); }
 }
 async function uploadPhoto(file) {
   const blob = await shrinkImage(file);
@@ -1860,6 +1913,11 @@ document.body.addEventListener('change', async e => {
     const f = t.files[0]; t.value = '';
     try { const r = await uploadPhoto(f); if (r.local) BK.localPhotos[S.editPlant.id] = r.local; else S.editPlant.photoId = r.id; renderLibrary(); }
     catch (err) { const pe = $('plantErr'); if (pe) pe.textContent = 'Couldn’t add the photo: ' + (err?.message || ''); }
+  }
+  if (t.dataset.logo !== undefined && t.files?.[0]) {
+    const f = t.files[0]; t.value = ''; $('presMsg').textContent = 'Adding your logo…';
+    try { await setLogo(f); $('presMsg').textContent = 'Logo added. It appears on the cover and the plan sheet of every garden.'; } catch (err) { $('presMsg').textContent = 'Couldn’t add the logo: ' + (err?.message || ''); }
+    const keep = $('presMsg').textContent; renderPresSettings(); $('presMsg').textContent = keep; renderPages();
   }
   if (t.dataset.restore !== undefined && t.files?.[0]) { const f = t.files[0]; t.value = ''; restoreBackup(f); }
   if (t.dataset.photoFor && t.files?.[0]) {
@@ -1910,14 +1968,14 @@ function bookletPages(planImg, forExport) {
   const b = bk(), g = S.g, title = g.name || 'Planting plan', pal = paletteRows(), exRows = existingRows().filter(r => r.retain + r.prune > 0);
   const pages = [];
   const head = sec => `<div class="bh"><span>${esc(b.subtitle || 'Planting proposal')} · ${esc(title)}</span><span>${esc(sec)}</span></div>`;
-  if (b.pages.cover) pages.push({ cls: 'bcover', html: `<div class="cl"><div><div class="eb">${esc(b.subtitle || 'Planting proposal')}</div><h1>${esc(title)}</h1></div>
+  if (b.pages.cover) pages.push({ cls: 'bcover', html: `<div class="cl"><div>${logoUrl() ? `<img class="blogo" src="${esc(logoUrl())}" alt="">` : ''}<div class="eb">${esc(b.subtitle || 'Planting proposal')}</div><h1>${esc(title)}</h1></div>
       <div style="display:flex;flex-direction:column;gap:22px">${b.intro ? `<div class="intro">${esc(b.intro)}</div>` : ''}
       <div class="meta">${g.client ? `<span>Client</span><span>${esc(g.client)}</span>` : ''}${b.site ? `<span>Site</span><span>${esc(b.site)}</span>` : ''}${b.designer ? `<span>Designer</span><span>${esc(b.designer)}</span>` : ''}${b.date ? `<span>Date</span><span>${esc(b.date)}</span>` : ''}</div></div></div>
-      <div class="cr">${planImg ? `<img src="${planImg}" alt="">` : ''}</div>`, foot: false });
+      <div class="cr">${planImg ? `<img data-plan src="${planImg}" alt="">` : ''}</div>`, foot: false });
   if (b.pages.plan) {
     const used = LAYER_ORDER.filter(k => pal.some(r => layerOf(r.p.role) === k));
     pages.push({ html: `${head('Planting plan')}<h3>Planting plan</h3><p class="bsub">${g.width} × ${g.depth} m${b.numberPlan ? ' · numbers refer to the plant palette' : ''}</p>
-      <div class="bbody"><div class="bplan">${planImg ? `<img src="${planImg}" alt="Planting plan">` : ''}</div>
+      <div class="bbody"><div class="bplan">${planImg ? `<img data-plan src="${planImg}" alt="Planting plan">` : ''}</div>
       <div class="blegend"><div class="t">Layers</div>${used.map(k => `<div><span class="d" style="background:var(--r-${k})"></span>${ROLES[k]}</div>`).join('')}${exRows.length ? `<div><span class="d" style="border:1.5px dashed var(--exist);background:none"></span>Existing plants</div>` : ''}
       <div class="t" style="margin-top:14px">Plants</div><div>${pal.reduce((t, r) => t + r.qty, 0)} new plants</div><div>${pal.length} species</div></div></div>` });
   }
@@ -1966,6 +2024,7 @@ function renderPresSettings() {
     <label class="field"><span>Site</span><input type="text" data-bk="site" value="${esc(b.site)}" placeholder="Address or site name"></label>
     <label class="field"><span>Designer</span><input type="text" data-bk="designer" value="${esc(b.designer)}" placeholder="Your name or studio"></label>
     <label class="field"><span>Date</span><input type="text" data-bk="date" value="${esc(b.date)}"></label>
+    <div class="field"><span>Logo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${logoUrl() ? `<img src="${esc(logoUrl())}" alt="Your logo" style="max-width:96px;max-height:40px;object-fit:contain">` : ''}<label class="btn sm" style="cursor:pointer">${logoUrl() ? 'Replace' : 'Add your logo'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" data-logo hidden></label>${logoUrl() ? '<button class="btn sm" type="button" data-logodel>Remove</button>' : ''}</div></div>
     <label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Introduction (cover)</span><textarea rows="3" data-bk="intro" placeholder="A short note about the planting concept">${esc(b.intro)}</textarea></label>
     <fieldset><legend>Pages</legend><div class="pageopts">${pg('cover', 'Cover')}${pg('plan', 'Planting plan')}${pg('palette', 'Plant palette')}${pg('schedule', 'Plant schedule')}${pg('calendar', 'Interest calendar')}${pg('pricing', 'Pricing')}</div>
       <label class="checks"><input type="checkbox" data-bk="numberPlan"${b.numberPlan ? ' checked' : ''}> Number plants on the plan</label></fieldset>
@@ -1975,7 +2034,14 @@ function renderPresSettings() {
       <button class="btn sm" type="button" data-bkadd style="align-self:flex-start">Add line</button>
       <label class="field"><span>VAT %</span><input type="number" min="0" max="50" step="0.5" data-bk="vat" value="${num(b.vat) || ''}" placeholder="None"></label>
       <label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Notes</span><textarea rows="3" data-bk="notes">${esc(b.notes)}</textarea></label></fieldset>
-    <button class="btn primary" type="button" id="presPdf">Download PDF</button>
+    <button class="btn primary" type="button" id="presPdf">Download booklet PDF</button>
+    <fieldset><legend>Scaled plan sheet</legend>
+      <p class="note" style="margin:0">The plan on its own at a true scale, with a title block and plant key, for setting out on site.</p>
+      <label class="field"><span>Paper</span><select data-sheet="paper">${Object.keys(PAPER).map(k => `<option${sheetOpts().paper === k ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+      <label class="field"><span>Scale</span><select data-sheet="scale"><option value="0">Largest that fits</option>${[20, 25, 50, 100, 200, 250, 500].map(n => `<option value="${n}"${sheetOpts().scale === n ? ' selected' : ''}>1:${n}</option>`).join('')}</select></label>
+      <label class="checks"><input type="checkbox" data-sheet="numbered"${sheetOpts().numbered ? ' checked' : ''}> Number plants to match the schedule</label>
+      <p class="note" id="sheetNote" style="margin:0">${esc(sheetNote())}</p>
+      <button class="btn" type="button" id="sheetPdf" style="align-self:flex-start">Download plan sheet</button></fieldset>
     <p class="note" id="presMsg" style="margin:0" aria-live="polite">Click “Add photo” on a plant in the palette to add its close-up.</p>`;
 }
 $('presSet').addEventListener('click', e => {
@@ -1983,7 +2049,9 @@ $('presSet').addEventListener('click', e => {
   const b = bk();
   if (e.target.closest('[data-bkadd]')) { b.lines = [...b.lines, { label: '', amount: 0 }]; S.g.booklet = b; saveGarden(); renderPresSettings(); renderPages(); return; }
   const del = e.target.closest('[data-bkdel]'); if (del) { b.lines = b.lines.filter((_, i) => i !== +del.dataset.bkdel); S.g.booklet = b; saveGarden(); renderPresSettings(); renderPages(); return; }
+  if (e.target.closest('[data-logodel]')) { const old = S.prefs.logoId; delete S.prefs.logoId; savePrefs(); if (BK.localLogo) { URL.revokeObjectURL(BK.localLogo); BK.localLogo = null; } if (old && S.assets) S.assets.delete(old).catch(() => {}); renderPresSettings(); renderPages(); return; }
   if (e.target.id === 'presPdf') exportPdf();
+  if (e.target.id === 'sheetPdf') exportSheet();
 });
 let pagesGen = 0;
 async function renderPages() {
@@ -1996,6 +2064,148 @@ async function renderPages() {
   wrap.innerHTML = pages.length ? pages.map(h => `<div class="pwrap" style="width:${1123 * k}px;height:${794 * k}px">${h.replace('<div class="bpage', `<div style="transform:scale(${k})" class="bpage`)}</div>`).join('') : '<p class="empty">Turn on at least one page.</p>';
 }
 window.addEventListener('resize', () => { clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 200); });
+/* ---------- PDFs: the plan as true vector lines, a scaled plan sheet, and the booklet ---------- */
+const pdfText = s => String(s ?? '').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/×/g, 'x').replace(/€/g, 'EUR ').replace(/[^\x00-\xFF]/g, '');
+async function loadPdfLibs(canvasToo) {
+  const base = 'https://cdnjs.cloudflare.com/ajax/libs/';
+  if (canvasToo && !window.html2canvas) await loadScript(base + 'html2canvas/1.4.1/html2canvas.min.js');
+  if (!window.jspdf) await loadScript(base + 'jspdf/2.5.1/jspdf.umd.min.js');
+  if (!window.jspdf.jsPDF.API.svg) { try { await loadScript('https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.4/dist/svg2pdf.umd.min.js'); } catch {} }
+  return !!window.jspdf.jsPDF.API.svg;
+}
+/* on screen, line weights are in pixels whatever the zoom; in a PDF they have to be real widths, so convert them. lw is the plan length that one screen pixel of line should print as */
+function vectorise(markup, lw) {
+  return markup.replace(/<title>[^<]*<\/title>/g, '').replace(/<circle[^>]*fill="transparent"[^>]*>(<\/circle>)?/g, '')
+    .replace(/<[a-z]+\b[^>]*vector-effect="non-scaling-stroke"[^>]*>/g, tag => {
+      let t = tag.replace(/\s*vector-effect="non-scaling-stroke"/, '');
+      t = /stroke-width="/.test(t) ? t.replace(/stroke-width="([\d.]+)"/, (m, n) => `stroke-width="${+(n * lw).toFixed(5)}"`) : t.replace(/^<([a-z]+)/, `<$1 stroke-width="${+lw.toFixed(5)}"`);
+      return t.replace(/stroke-dasharray="([^"]+)"/, (m, v) => `stroke-dasharray="${v.trim().split(/[ ,]+/).map(n => +(n * lw).toFixed(5)).join(' ')}"`);
+    });
+}
+async function underlayPicture(u, bg) {
+  const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = ulUrl(u); });
+  const long = Math.max(u.natW, u.natH), k = u.kind === 'svg' ? 3000 / long : Math.min(1, 3000 / long);
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(u.natW * k)); c.height = Math.max(1, Math.round(u.natH * k));
+  const ctx = c.getContext('2d'); ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height); ctx.globalAlpha = clamp(num(u.opacity, 0.6), 0.1, 1); ctx.drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.88);
+}
+async function planVectorMarkup(o) {
+  const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
+  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { vector: true, fs: o.fs, pad: o.pad, sheet: o.sheet };
+  if (o.numbered) { S.prefs.labelMode = 'number'; S.prefs.labelQty = false; S.prefs.labelSize = Math.max(num(save.size, 1), o.sheet ? 1.5 : 2); }
+  let markup, vb;
+  try { renderMap(); markup = svg.innerHTML; vb = svg.getAttribute('viewBox').split(' ').map(Number); }
+  finally { S.print = null; Object.assign(S, { zoom: save.zoom, cx: save.cx, cy: save.cy, sel: save.sel, multi: save.multi, drag: save.drag, cal: save.cal }); S.prefs.labelMode = save.mode; S.prefs.labelQty = save.qty; S.prefs.labelSize = save.size; renderMap(); }
+  const cs = getComputedStyle(document.querySelector('.sheetref')), bg = cs.getPropertyValue('--ground').trim() || '#F1EBDF';
+  markup = pdfText(vectorise(markup.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#999'), o.lw));
+  const tag = markup.match(/<image class="ul"[^>]*>(<\/image>)?/);
+  if (tag) { let data = null; try { data = await underlayPicture(S.g.underlay, bg); } catch {} markup = markup.replace(tag[0], data ? tag[0].replace(/href="[^"]*"/, `href="${data}"`).replace(/\sopacity="[^"]*"/, '') : ''); }
+  return { markup, vb };
+}
+async function drawPlanVector(pdf, v, x, y, w, h) {
+  const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${v.vb.join(' ')}" font-family="times">${v.markup}</svg>`, 'image/svg+xml');
+  if (doc.querySelector('parsererror')) throw new Error('the plan could not be drawn');
+  await pdf.svg(doc.documentElement, { x, y, width: w, height: h });
+}
+/* ----- scaled plan sheet ----- */
+function sheetOpts() { const s = S.g?.sheet || {}; return { paper: PAPER[s.paper] ? s.paper : 'A3', scale: SCALES.includes(+s.scale) ? +s.scale : 0, numbered: !!s.numbered }; }
+function sheetLayout(o = sheetOpts()) {
+  const g = S.g, [long, short] = PAPER[o.paper], tb = clamp(long * 0.2, 60, 100), m = 10, gap = 4;
+  const tryFit = (pw, ph, scale) => { const fs = 3.4 * scale / 1000, pad = fs * 5.5, needW = (g.width + 2 * pad) * 1000 / scale, needH = (g.depth + 2 * pad) * 1000 / scale, availW = pw - 2 * m - tb - gap, availH = ph - 2 * m; return { ok: needW <= availW && needH <= availH, pw, ph, scale, fs, pad, availW, availH }; };
+  const pick = scale => [[long, short], [short, long]].map(([pw, ph]) => tryFit(pw, ph, scale)).find(f => f.ok) || null;
+  const wanted = o.scale ? pick(o.scale) : null, best = SCALES.map(pick).find(Boolean) || null;
+  return { o, fit: wanted || best, fell: !!o.scale && !wanted, tb, m, gap };
+}
+function sheetNote() {
+  if (!S.g) return '';
+  const l = sheetLayout(), f = l.fit; if (!f) return `This garden is too large to draw on ${l.o.paper}. Pick a larger sheet.`;
+  const how = `${l.o.paper} ${f.pw > f.ph ? 'landscape' : 'portrait'}`;
+  return l.fell ? `Too large for ${l.o.paper} at 1:${l.o.scale}, so it will print at 1:${f.scale}. Pick a larger sheet to keep 1:${l.o.scale}.` : `Prints at 1:${f.scale} on ${how}. Print at 100% (actual size) for the scale to be true.`;
+}
+function sheetInput(t) {
+  if (!S.g) return; const k = t.dataset.sheet;
+  S.g.sheet = { ...sheetOpts(), [k]: k === 'numbered' ? t.checked : k === 'scale' ? +t.value : t.value }; saveGarden();
+  const n = $('sheetNote'); if (n) n.textContent = sheetNote();
+}
+async function imageData(url) {
+  const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight; c.getContext('2d').drawImage(img, 0, 0);
+  return { data: c.toDataURL('image/png'), w: c.width, h: c.height };
+}
+async function exportSheet() {
+  if (BK.busy || !S.g) return;
+  const msg = $('presMsg'), btn = $('sheetPdf'), g = S.g, b = bk();
+  const dl = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
+  BK.busy = true; btn.disabled = true; msg.textContent = 'Drawing the plan sheet…';
+  try {
+    if (!(await loadPdfLibs(false))) throw new Error('the drawing library could not be loaded. Check your connection and try again.');
+    const lay = sheetLayout(), f = lay.fit; if (!f) throw new Error(`this garden is too large to draw on ${lay.o.paper}.`);
+    const pdf = new window.jspdf.jsPDF({ orientation: f.pw > f.ph ? 'landscape' : 'portrait', unit: 'mm', format: lay.o.paper.toLowerCase(), compress: true });
+    const mmPerM = 1000 / f.scale, m = lay.m;
+    const v = await planVectorMarkup({ numbered: lay.o.numbered, fs: f.fs, pad: f.pad, sheet: true, lw: 0.18 / mmPerM });
+    const w = v.vb[2] * mmPerM, h = v.vb[3] * mmPerM;
+    await drawPlanVector(pdf, v, m + (f.availW - w) / 2, m + (f.availH - h) / 2, w, h);
+    // frame and title block
+    const tx = f.pw - m - lay.tb, x0 = tx + 5, tw = lay.tb - 10, bottom = f.ph - m;
+    pdf.setDrawColor(40); pdf.setLineWidth(0.35); pdf.rect(m, m, f.pw - 2 * m, f.ph - 2 * m); pdf.line(tx, m, tx, bottom);
+    let y = m + 7;
+    const rule = () => { pdf.setLineWidth(0.15); pdf.setDrawColor(150); pdf.line(tx, y, f.pw - m, y); y += 5; };
+    const small = t => { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(120); pdf.text(pdfText(t).toUpperCase(), x0, y, { charSpace: 0.25 }); y += 3.6; };
+    const para = (t, size, style = 'normal') => { pdf.setFont('helvetica', style); pdf.setFontSize(size); pdf.setTextColor(25); const lines = pdf.splitTextToSize(pdfText(t), tw); pdf.text(lines, x0, y); y += lines.length * size * 0.42 + 1.6; };
+    if (logoUrl()) { try { const im = await imageData(logoUrl()), k = Math.min(tw / im.w, 18 / im.h); pdf.addImage(im.data, 'PNG', x0, y - 2, im.w * k, im.h * k); y += im.h * k + 5; } catch {} }
+    y += 2; para(g.name || 'Planting plan', 13, 'bold'); if (g.client) para(g.client, 9);
+    para(lay.o.numbered ? 'Planting plan, numbered' : 'Planting plan', 9.5, 'bold'); y += 1; rule();
+    for (const [k, val] of [['Scale', `1:${f.scale} at ${lay.o.paper}`], ['Date', b.date], ['Drawn by', b.designer], ['Site', b.site], ['Plants shown', S.view === 'planted' ? 'As planted (pot size)' : 'At mature spread']]) { if (!val) continue; small(k); para(val, 8.5); y += 0.6; }
+    rule();
+    // plant key
+    const rows = paletteRows(), ex = existingRows().filter(r => r.retain + r.prune > 0), cs = getComputedStyle(document.querySelector('.sheetref'));
+    small(`Plant key · ${rows.reduce((t, r) => t + r.qty, 0)} plants`); y += 1;
+    const noteH = 16, room = bottom - noteH - y - (ex.length ? 6 : 0);
+    let rh = 3.7, size = 7; if (rows.length * rh > room) { const k = Math.max(0.68, room / (rows.length * rh)); rh *= k; size *= k; }
+    const fitN = Math.max(0, Math.floor(room / rh)), shown = rows.length > fitN ? rows.slice(0, Math.max(0, fitN - 1)) : rows, lblW = lay.o.numbered ? 6 : 13;
+    for (const r of shown) {
+      pdf.setFillColor(cs.getPropertyValue('--r-' + layerOf(r.p.role)).trim() || '#888888'); pdf.circle(x0 + 1, y - size * 0.12, size * 0.13, 'F');
+      pdf.setTextColor(25); pdf.setFontSize(size); pdf.setFont('helvetica', 'bold'); pdf.text(pdfText(lay.o.numbered ? String(r.n) : code(r.p)), x0 + 3.2, y);
+      pdf.setFont('helvetica', 'italic'); let name = pdfText(r.p.botanical || r.p.common || ''); const maxW = tw - lblW - 3.2 - 8; while (name.length > 4 && pdf.getTextWidth(name) > maxW) name = name.slice(0, -2); if (name !== pdfText(r.p.botanical || r.p.common || '')) name += '.';
+      pdf.text(name, x0 + 3.2 + lblW, y); pdf.setFont('helvetica', 'normal'); pdf.text(String(r.qty), x0 + tw, y, { align: 'right' }); y += rh;
+    }
+    if (shown.length < rows.length) { pdf.setFont('helvetica', 'italic'); pdf.setFontSize(size); pdf.text(`and ${rows.length - shown.length} more species: see the plant schedule`, x0, y); y += rh; }
+    if (ex.length) { y += 1.5; pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(90); pdf.text(`Dashed outlines: ${plural(ex.reduce((t, r) => t + r.retain + r.prune, 0), 'existing plant')} kept`, x0, y); }
+    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(110);
+    pdf.text(pdf.splitTextToSize(`Print at 100% (actual size) on ${lay.o.paper} for the scale to be true. Check all dimensions on site.`, tw), x0, bottom - noteH + 5);
+    const blob = pdf.output('blob'), name = `${(g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} – planting plan 1-${f.scale} ${lay.o.paper}.pdf`;
+    if (!dl) { msg.textContent = 'The plan sheet is ready, but saving files isn’t available in this view. Open the page in claude.ai to download it.'; return; }
+    msg.textContent = 'Confirm the download to save your plan sheet.';
+    await dl.save({ filename: name, data: blob });
+    msg.textContent = `Plan sheet saved at 1:${f.scale} on ${lay.o.paper}.`;
+  } catch (e) { msg.textContent = e?.code === 'declined' ? 'Download cancelled.' : e?.code === 'rate_limited' ? 'A download is already waiting for your confirmation.' : 'Couldn’t make the plan sheet: ' + (e?.message || 'try again'); }
+  finally { BK.busy = false; btn.disabled = false; }
+}
+/* ----- booklet ----- */
+/* real text, drawn invisibly over each page picture, so the PDF can be searched and its text selected and copied */
+function pdfTextLayer(pdf, pageEl) {
+  const box = pageEl.getBoundingClientRect(), k = 297 / box.width, range = document.createRange(), walker = document.createTreeWalker(pageEl, NodeFilter.SHOW_TEXT);
+  pdf.setFont('helvetica', 'normal');
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!n.nodeValue.trim() || !n.parentElement) continue;
+    const cs = getComputedStyle(n.parentElement); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+    const size = parseFloat(cs.fontSize) || 12, up = cs.textTransform === 'uppercase';
+    let line = null;
+    const flush = () => {
+      if (!line) return; const s = pdfText(up ? line.words.join(' ').toUpperCase() : line.words.join(' ')); line = line.box && s.trim() ? line : null; if (!line) return;
+      pdf.setFontSize(size * k / 0.352778); const nat = pdf.getTextWidth(s), want = (line.right - line.left) * k;
+      try { pdf.text(s, (line.left - box.left) * k, (line.bottom - box.top - size * 0.24) * k, { renderingMode: 'invisible', horizontalScale: nat > 0 ? clamp(want / nat, 0.5, 2) : 1 }); } catch {}
+      line = null;
+    };
+    for (const m of n.nodeValue.matchAll(/\S+/g)) {
+      range.setStart(n, m.index); range.setEnd(n, m.index + m[0].length);
+      const r = range.getBoundingClientRect(); if (!r.width) continue;
+      if (line && Math.abs(r.top - line.top) < size * 0.5) { line.words.push(m[0]); line.right = r.right; }
+      else { flush(); line = { words: [m[0]], left: r.left, right: r.right, top: r.top, bottom: r.bottom, box: true }; }
+    }
+    flush();
+  }
+}
 async function exportPdf() {
   if (BK.busy || !S.g) return;
   const msg = $('presMsg'), btn = $('presPdf');
@@ -2003,20 +2213,30 @@ async function exportPdf() {
   BK.busy = true; btn.disabled = true; msg.textContent = 'Preparing the PDF…';
   const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-20000px;top:0;width:1123px;';
   try {
-    const base = 'https://cdnjs.cloudflare.com/ajax/libs/';
-    if (!window.html2canvas) await loadScript(base + 'html2canvas/1.4.1/html2canvas.min.js');
-    if (!window.jspdf) await loadScript(base + 'jspdf/2.5.1/jspdf.umd.min.js');
+    const canVector = await loadPdfLibs(true);
     const img = await planImage(bk().numberPlan);
     host.innerHTML = bookletPages(img, true).join(''); document.body.appendChild(host);
     await Promise.all([...host.querySelectorAll('img')].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
     await document.fonts?.ready;
     const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
-    const els = [...host.children];
+    const els = [...host.children], k = 297 / 1123;
+    let vec = null;   // the plan as vector lines, drawn over the page picture where the plan image sits
     for (let i = 0; i < els.length; i++) {
       msg.textContent = `Building page ${i + 1} of ${els.length}…`;
-      const c = await window.html2canvas(els[i], { scale: 2, backgroundColor: '#F8F4EC', useCORS: true, logging: false, width: 1123, height: 794, windowWidth: 1123 });
+      const pim = canVector ? els[i].querySelector('img[data-plan]') : null; let spot = null;
+      if (pim) {
+        try {
+          const pb = els[i].getBoundingClientRect(), r = pim.getBoundingClientRect(), bw = r.width * k;
+          if (!vec || Math.abs(vec.forW - bw) > 20) { const M = Math.max(S.g.width, S.g.depth); vec = await planVectorMarkup({ numbered: bk().numberPlan, lw: 0.13 / (bw / (M * 1.14)) }); vec.forW = bw; }
+          const asp = vec.vb[2] / vec.vb[3], w = Math.min(r.width, r.height * asp) * k, h = w / asp;
+          spot = { x: (r.left - pb.left) * k + (r.width * k - w) / 2, y: (r.top - pb.top) * k + (r.height * k - h) / 2, w, h }; pim.style.visibility = 'hidden';
+        } catch { spot = null; pim.style.visibility = ''; }
+      }
+      const c = await window.html2canvas(els[i], { scale: 3, backgroundColor: '#F8F4EC', useCORS: true, logging: false, width: 1123, height: 794, windowWidth: 1123 });
       if (i) pdf.addPage('a4', 'landscape');
       pdf.addImage(c.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+      if (spot) { pdf.setFillColor('#FFFDF8'); pdf.rect(spot.x, spot.y, spot.w, spot.h, 'F'); await drawPlanVector(pdf, vec, spot.x, spot.y, spot.w, spot.h); }
+      pdfTextLayer(pdf, els[i]);
     }
     const blob = pdf.output('blob'), name = `${(S.g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} – planting proposal.pdf`;
     if (!dl) { msg.textContent = 'The PDF is ready, but saving files isn’t available in this view. Open the page in claude.ai to download it.'; return; }
@@ -2113,6 +2333,7 @@ app.addEventListener('input', e => {
     const v = t.type === 'checkbox' ? t.checked : t.type === 'range' ? num(t.value, 1) : t.value;
     setPref(k, v); return;
   }
+  if (t.dataset.sheet) { sheetInput(t); return; }
   if (t.dataset.bk !== undefined || t.dataset.bkline !== undefined || t.dataset.bkpage !== undefined) { bookletInput(t); return; }
   if (t.dataset.mr && S.editPlant) {
     const p = S.editPlant;
@@ -2282,6 +2503,7 @@ $('overlay').addEventListener('submit', async e => {
   S.tool = 'select'; renderAll();
   if (file) importPlan(file);
 });
+$('orderLists').addEventListener('click', e => { const b = e.target.closest('[data-copyorder]'); if (!b) return; const g = orderGroups()[+b.dataset.copyorder]; if (g) copyText(orderText(g), b, 'Copy order'); });
 $('copyBtn').addEventListener('click', async () => {
   const rows = scheduleRows();
   const lines = [['Botanical name', 'Common name', 'Layer', 'Qty', 'Supply', 'Unit cost', 'Line total', 'Supplier'].join('\t')]
@@ -3070,6 +3292,7 @@ function cleanGarden(d) {
   const blocks = (Array.isArray(d.blocks) ? d.blocks : []).slice(0, 200).filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2)
     .map(b => ({ id: safeId(b.id) || uid(), pts: b.pts.slice(0, 100).map(q => [xy(q?.[0]), xy(q?.[1])]), closed: !!b.closed && b.pts.length >= 3, h: clamp(numOrNull(b.h) ?? 1.8, 0.1, 100) }));
   if (blocks.length) g.blocks = blocks;
+  if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered };
   if (d.example) g.example = true;
   return g;
 }

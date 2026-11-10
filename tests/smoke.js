@@ -229,6 +229,65 @@ test('sun study: plants and buildings cast shadows the right way', async open =>
   await app.page.keyboard.press('Escape');
 });
 
+test('order lists by supplier flag lines short of stock', async open => {
+  const seed = sample();
+  seed['plants/p3'].source = { list: 'l1', listName: 'Babylon · Autumn', code: 'TUL-BAL', stock: '25', checkedAt: Date.UTC(2026, 10, 3) };   // 40 tulips wanted, 25 in stock
+  seed['plants/p0'].source = { list: 'l1', listName: 'Babylon · Autumn', code: 'LAV-HID', stock: '200+', checkedAt: Date.UTC(2026, 10, 3) };
+  const app = await open(seed, { hash: '#schedule' });
+  eq(await app.page.locator('#orderLists .order h3').allTextContents(), ['Babylon Plants', 'Hill Nursery'], 'one list per supplier');
+  const first = await app.page.locator('#orderLists .order').first().textContent();
+  ok(first.includes('1 line short of stock') && first.includes('short by 15'), 'tulips flagged 15 short');
+  ok(!/Lavandula[^£]*short/.test(first), 'lavender, with 200+ in stock, is not flagged');
+  await app.page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { value: { writeText: async t => { window.__copied = t; } }, configurable: true }); });
+  await app.page.locator('[data-copyorder]').first().click();
+  const copied = await app.page.evaluate(() => window.__copied);
+  ok(copied.startsWith('Order for Babylon Plants') && copied.includes("TUL-BAL\tTulipa 'Ballerina'\tTulip\tBulb\t40\t0.38\t15.20"), 'copied order has code, names, quantity and prices');
+});
+
+test('scaled plan sheet: A3 at a true 1:50, with a logo', async open => {
+  const fs = require('fs'), os = require('os'), path = require('path'), { execFileSync } = require('child_process');
+  const seed = sample(); seed['gardens/g1'].sheet = { paper: 'A3', scale: 50 };
+  const app = await open(seed, { hash: '#presentation' });
+  await app.page.waitForSelector('.bpage');
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFklEQVR4nGP8z8Dwn4EIwESMolGF1FMIAD2cAg8tPRTDAAAAAElFTkSuQmCC', 'base64');
+  await app.page.setInputFiles('[data-logo]', { name: 'logo.png', mimeType: 'image/png', buffer: png });
+  await app.page.waitForFunction(() => /Logo added/.test(document.getElementById('presMsg').textContent));
+  eq(await app.page.locator('.bcover img.blogo').count(), 1, 'logo on the booklet cover');
+  ok((await app.page.textContent('#sheetNote')).startsWith('Prints at 1:50 on A3 landscape'), 'fit note');
+  await app.page.click('#sheetPdf');
+  await app.page.waitForFunction(() => /Plan sheet saved|Couldn/.test(document.getElementById('presMsg').textContent), null, { timeout: 30000 });
+  eq((await app.saved()).map(s => s.filename), ['Elm Road – planting plan 1-50 A3.pdf'], 'file name');
+  const pdf = await app.savedBytes(0), text = pdf.toString('latin1');
+  ok(/\/MediaBox \[0 0 1190\.5\d* 841\.8\d*\]/.test(text), 'A3 landscape page, got ' + (text.match(/\/MediaBox[^\]]*\]/) || [''])[0]);
+  // if poppler is installed, measure the printed rulers: 12 m at 1:50 must be 240 mm
+  let words = null;
+  try { const f = path.join(os.tmpdir(), 'sl-sheet-' + process.pid + '.pdf'); fs.writeFileSync(f, pdf); words = execFileSync('pdftotext', ['-bbox', f, '-'], { encoding: 'utf8' }); fs.unlinkSync(f); } catch {}
+  if (words) {
+    const mid = w => { const m = words.match(new RegExp('xMin="([\\d.]+)" yMin="[\\d.]+" xMax="([\\d.]+)" yMax="[\\d.]+">' + w + '<')); return m ? (+m[1] + +m[2]) / 2 : null; };
+    const mm = (mid('12') - mid('0')) * 25.4 / 72;
+    ok(Math.abs(mm - 240) < 0.5, '12 m printing as 240 mm, got ' + mm.toFixed(2) + ' mm');
+    console.log(`     (measured on the PDF: 12 m prints as ${mm.toFixed(2)} mm at 1:50)`);
+  } else console.log('     (pdftotext not installed, so the printed scale was not measured)');
+  // too large for the sheet at the chosen scale: fall back and say so
+  await app.page.selectOption('[data-sheet=paper]', 'A4'); 
+  ok(/Too large for A4 at 1:50, so it will print at 1:100/.test(await app.page.textContent('#sheetNote')), 'fallback note, got: ' + await app.page.textContent('#sheetNote'));
+});
+
+test('booklet PDF: searchable text and a vector plan', async open => {
+  const app = await open(sample(), { hash: '#presentation' });
+  await app.page.waitForSelector('.bpage');
+  await app.page.click('#presPdf');
+  await app.page.waitForFunction(() => /PDF saved|Couldn/.test(document.getElementById('presMsg').textContent), null, { timeout: 60000 });
+  eq(await app.page.textContent('#presMsg'), 'PDF saved.', 'export finished');
+  const pdf = await app.savedBytes(0), text = pdf.toString('latin1');
+  eq((text.match(/\/Type \/Page\b/g) || []).length, 6, 'six pages');
+  ok(/\/BaseFont \/Helvetica/.test(text), 'a text layer is embedded');
+  let plain = null;
+  try { const fs = require('fs'), os = require('os'), path = require('path'), f = path.join(os.tmpdir(), 'sl-booklet-' + process.pid + '.pdf'); fs.writeFileSync(f, pdf); plain = require('child_process').execFileSync('pdftotext', [f, '-'], { encoding: 'utf8' }); fs.unlinkSync(f); } catch {}
+  if (plain) ok(plain.includes('Plant schedule') && plain.includes("Lavandula angustifolia 'Hidcote'") && plain.includes('Mr & Mrs Hart'), 'the text can be searched and copied');
+  else console.log('     (pdftotext not installed, so the text layer was not read back)');
+});
+
 test('large plans: a warning near the limit, a clear message over it', async open => {
   // fill a garden with single plants until its saved record reaches a share of the 256 KiB cap
   const fill = share => { const seed = sample(), g = seed['gardens/g1']; let i = 0;
