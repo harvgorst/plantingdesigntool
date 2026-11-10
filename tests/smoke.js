@@ -155,6 +155,37 @@ test('labels can be dragged, with a leader line, and reset', async open => {
   eq((await app.store('gardens/g1')).plantings.find(p => p.id === 'c').lx, undefined, 'label reset');
 });
 
+test('interest calendar: berries, stems and evergreens beside the flowers', async open => {
+  const seed = sample();
+  Object.assign(seed['plants/p2'], { interest: [{ kind: 'berries', from: 10, to: 1, color: '#C92F2F' }] });   // rose hips over the new year
+  Object.assign(seed['plants/p0'], { foliage: 'evergreen' });
+  const app = await open(seed, { hash: '#flowering' });
+  eq(await app.page.locator('#calView .cbar.sm').count(), 2, 'a span over the new year is drawn as two bars');
+  eq(await app.page.locator('#calView .cbar.ev').count(), 1, 'evergreen line');
+  const counts = await app.page.locator('#calView .ccount span').allTextContents();
+  eq([counts[11], counts[0], counts[1]], ['1', '1', '–'], 'December and January now have interest; February still has none');
+  ok((await app.page.textContent('#calView .calhead')).includes('1 evergreen holds structure'), 'evergreens mentioned');
+  // add interest in the species form
+  await app.go('plan'); await app.page.click('#lib [data-edit=p1]');
+  await app.page.selectOption('#sp-fol', 'deciduous'); await app.page.click('[data-act=addInterest]');
+  await app.page.selectOption('[data-ii="0"][data-if=kind]', 'seedheads'); await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(100);
+  const p1 = await app.store('plants/p1');
+  eq([p1.foliage, p1.interest], ['deciduous', [{ kind: 'seedheads', from: 9, to: 2, color: '#9C6B3A' }]], 'saved with the usual months and colour for seed heads');
+});
+
+test('season view colours the plan by month', async open => {
+  const seed = sample(); Object.assign(seed['plants/p0'], { foliage: 'evergreen' });
+  const app = await open(seed);
+  const fill = id => app.page.evaluate(id => { const c = document.querySelector(`#map [data-id="${id}"] circle`); return [c.style.fill, c.getAttribute('fill-opacity')]; }, id);
+  await app.page.selectOption('#seasonSel', '4');           // April: tulips and the apple are in flower
+  eq(await fill('d'), ['rgb(232, 134, 47)', '0.85'], 'tulips in their flower colour');
+  eq(await fill('a'), ['rgb(94, 138, 78)', '0.38'], 'evergreen lavender in green');
+  eq((await fill('b'))[1], '0.04', 'salvia, not yet in flower, is faint');
+  ok(/^April: 2 of 7 species in flower/.test(await app.page.textContent('#hint')), 'summary line, got: ' + await app.page.textContent('#hint'));
+  await app.page.selectOption('#seasonSel', '0');
+  eq((await fill('a'))[1], '0.3', 'back to the usual layer colours');
+});
+
 test('sun study: sun position for a place, date and time', async open => {
   const seed = sample(); Object.assign(seed['gardens/g1'], { north: 0, lat: 51.5072, lon: -0.1276 });
   const app = await open(seed);
