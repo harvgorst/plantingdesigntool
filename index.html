@@ -119,7 +119,7 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
   --accent: #667D5E; --accent-ink: #FFFDF8; --accent-soft: #E5E9DA; --crit: #A8402F; --warn: #A06C1E;
   --ground: #F1EBDF; --grid: #E3DACA; --grid-major: #D2C6B1; --bed: #E6D6BE;
   --r-canopy: #2F5A3C; --r-understory: #4B807B; --r-shrub: #7E9A55; --r-herbaceous: #9C5378; --r-ground: #A39543; --r-tuber: #B97B42; --r-climber: #5D6FA3;
-  --label: #000000; --exist: #7B7266; }
+  --label: #000000; --exist: #7B7266; --shade: #1F2A44; }
 #map.panning, #map.panning * { cursor: grabbing !important; }
 #map { flex: 1; width: 100%; min-height: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
 #map text { font-family: var(--f-body); }
@@ -289,6 +289,18 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 .ccount { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); text-align: center; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 4px; }
 .ccount .gap { color: var(--crit); }
 
+.sunbar { flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px 12px 10px; border-top: 1px solid var(--line); background: var(--panel); font-size: 13px; }
+.sunbar .r { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.sunbar .sl { display: inline-flex; align-items: center; gap: 8px; flex: 1 1 230px; min-width: 200px; }
+.sunbar .sl input[type=range] { flex: 1; min-width: 80px; accent-color: var(--sun); }
+.sunbar .sl > span:first-child, .sunbar .loc > span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
+.sunbar output { min-width: 4.6em; font-variant-numeric: tabular-nums; }
+.sunbar .loc { display: inline-flex; align-items: center; gap: 8px; }
+.sunbar .loc input { width: 13em; }
+.sunbar #sunRead { color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sunbar #sunRead b { color: var(--ink); font-weight: 600; }
+.sunkey { display: inline-flex; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
+.sunkey i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; }
 /* ---------- themes: Eiderdown is the base above; the others override it ---------- */
 .pv-sample { background: #F1EBDF; color: #000; }
 .btn.danger.solid { color: #FFFDF8; }
@@ -449,8 +461,10 @@ html[data-skin=root] .modal .card { box-shadow: 0 0 0 1px var(--accent), 0 18px 
 html[data-skin=root] .mapwrap { color-scheme: dark; color: #CFE3BC;
   --panel: #0F120E; --paper: #141812; --ink: #CFE3BC; --muted: #6F8462; --line: #263022; --line-soft: #1A2117;
   --accent: #9BE86A; --accent-ink: #0C0E0B; --accent-soft: #1C2A15; --crit: #FF6B5E; --warn: #E8C46A;
-  --ground: #121610; --grid: #1B2318; --grid-major: #2A3625; --bed: #1C2618; --label: #E6F4D6; --exist: #8A9A80; }
+  --ground: #1A2016; --grid: #232C1F; --grid-major: #2F3B29; --bed: #1C2618; --label: #E6F4D6; --exist: #8A9A80; --shade: #000000; }
 html[data-skin=root] #map image.ul { filter: invert(1) hue-rotate(180deg); }
+html[data-skin=root] #map .sunwash { fill-opacity: 0.2; }
+html[data-skin=root] #map #shadows { opacity: 0.62; }
 html[data-skin=root] .pv-sample { background: #121610; color: #E6F4D6; }
 html[data-skin=root] .cbar.unset { background: repeating-linear-gradient(45deg, var(--accent-soft) 0 5px, var(--panel) 5px 10px); }
 html[data-skin=root] ::selection { background: var(--accent); color: var(--accent-ink); }
@@ -508,6 +522,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       <button type="button" id="vMature" aria-pressed="true" title="Plants drawn at mature spread (5–10 years)">Design intent</button>
       <button type="button" id="vPlanted" aria-pressed="false" title="Plants drawn at supplied pot size">As planted</button>
     </div>
+    <button class="btn sm" id="sunBtn" type="button" aria-pressed="false" title="Sun study: shadows through the day and year">Sun</button>
     <div class="spacer"></div>
     <button class="btn sm" id="undoBtn" type="button" title="Undo (Ctrl+Z)" disabled>Undo</button><button class="btn sm" id="redoBtn" type="button" title="Redo (Ctrl+Shift+Z or Ctrl+Y)" disabled>Redo</button>
     <div class="zoom"><div class="seg" role="group" aria-label="Zoom"><button type="button" id="zOut" aria-label="Zoom out" title="Zoom out (−)">−</button><button type="button" id="zFit" title="Fit whole garden (0)">Fit</button><button type="button" id="zIn" aria-label="Zoom in" title="Zoom in (+)">+</button></div><span id="zoomLbl">100%</span></div>
@@ -565,6 +580,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
   <div class="work">
     <section class="mapwrap" aria-label="Garden plan">
       <svg id="map" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Scaled garden plan"></svg>
+      <div class="sunbar" id="sunBar" hidden aria-label="Sun study"></div>
       <div class="overlay" id="overlay" hidden></div>
     </section>
 
@@ -594,6 +610,8 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="field"><span>Area</span><output id="dims">—</output></div>
     <div class="field"><span>North</span><div class="row" style="flex-wrap:nowrap"><input type="range" id="g-north-r" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="flex:1;accent-color:var(--accent)"><input id="g-north" type="number" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="width:4.8em"><span class="pv">°</span><svg id="g-north-dial" width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><circle r="13" fill="none" style="stroke:var(--line)"/><path id="g-north-needle" d="M0 -11 L4 5 L0 2 L-4 5 Z" style="fill:var(--ink)"/></svg></div></div>
     <p class="note" style="margin:0">0° means north is straight up. You can also drag the north arrow on the plan.</p>
+    <label class="field"><span>Location</span><input id="g-loc" type="text" placeholder="Latitude, longitude, e.g. 51.3811, -2.3590" autocomplete="off"></label>
+    <p class="note" id="locNote" style="margin:0">Used by the sun study. In Google Maps, right-click the site and click the coordinates to copy them, then paste them here.</p>
     <p class="note" id="sizeNote" style="margin:0"></p>
     <div class="row" style="justify-content:space-between;border-top:1px solid var(--line);padding-top:12px">
       <span class="row" style="gap:6px"><button class="btn sm" type="button" id="newGardenBtn">New garden</button><button class="btn sm" type="button" id="backupGardenBtn" title="Download a backup file of this garden, its site plan and the species it uses">Download backup</button></span>
@@ -630,6 +648,7 @@ const HINTS = {
   select: 'Click to select. Drag empty space to move the page. Shift-drag draws a selection box. Ctrl+D duplicates, Ctrl+C and Ctrl+V copy and paste, arrow keys nudge. Scroll to pan; + / − to zoom.',
   row: 'Row: click where the row starts, then where it ends. Plants are spaced evenly along the line. Hold Shift to keep it level, upright or at 45°.',
   measure: 'Measure: click two points on the plan to read the distance between them.',
+  block: 'Click each corner of the building, wall or fence. Click the first corner again to close a building. Enter finishes an open fence; Esc cancels.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
@@ -666,7 +685,7 @@ const S = {
   drag: null, history: [], future: [], loaded: false, filter: '',
   zoom: 1, cx: null, cy: null, pinch: null, space: false,
   prefs: { ...PREF_DEFAULTS }, prefsLoaded: false,
-  draw: null, hover: null, hoverShift: false, ptr: null, cal: null, row: null, rowGap: null, rowMade: 0, meas: null, clip: null, print: null, ulHidden: false, localUl: null, busy: false, newGarden: false,
+  draw: null, hover: null, hoverShift: false, ptr: null, cal: null, row: null, rowGap: null, rowMade: 0, meas: null, clip: null, print: null, sun: { on: false, doy: 172, mins: 720, hours: false, play: null }, blk: null, blockSel: null, ulHidden: false, localUl: null, busy: false, newGarden: false,
 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -827,13 +846,13 @@ function findSel() {
   const list = S.sel.kind === 'area' ? S.g.areas : S.g.plantings;
   return list.find(x => x.id === S.sel.id) || null;
 }
-function select(kind, id) { S.sel = kind ? { kind, id } : null; S.multi = []; if (S.confirm === 'underlay') S.confirm = null; renderInspector(); renderMap(); }
+function select(kind, id) { S.sel = kind ? { kind, id } : null; S.multi = []; S.blockSel = null; if (S.confirm === 'underlay') S.confirm = null; renderInspector(); renderMap(); }
 function isSelected(kind, id) { return (S.sel?.kind === kind && S.sel.id === id) || S.multi.some(m => m.kind === kind && m.id === id); }
 function itemOf(m) { return (m.kind === 'area' ? S.g.areas : S.g.plantings).find(x => x.id === m.id) || null; }
 function selectedItems() { if (!S.g) return []; const list = S.multi.length ? S.multi : S.sel ? [S.sel] : []; return list.map(m => ({ ...m, it: itemOf(m) })).filter(m => m.it); }
 function selectMany(list) {
   if (list.length <= 1) { select(list[0]?.kind || null, list[0]?.id); return; }
-  S.sel = null; S.multi = list; renderInspector(); renderMap();
+  S.sel = null; S.multi = list; S.blockSel = null; renderInspector(); renderMap();
 }
 function toggleSelect(kind, id) {
   const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : [];
@@ -842,6 +861,7 @@ function toggleSelect(kind, id) {
   selectMany(cur);
 }
 function removeSel() {
+  if (S.blockSel) { removeBlock(); return; }
   if (S.multi.length) {
     const items = selectedItems(); if (!items.length) return;
     checkpoint();
@@ -893,6 +913,7 @@ function renderMap() {
   if (S.prefs.showRulers) for (let y = lab; y <= D + 1e-6; y += lab) parts.push(`<text x="${-fs * 0.6}" y="${y + fs * 0.3}" font-size="${fs * 0.9}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${y}</text>`);
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
   const ls = fs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
+  if (S.sun.on && !pr) parts.push(sunLayer(W, D, M, pad, fs, px, halo));
   const areas = g.areas;
   const planted = S.view === 'planted';
   for (const a of areas) {
@@ -1058,6 +1079,23 @@ function renderInspector() {
     setTimeout(() => { const i = $('cal-m'); if (i) { i.focus(); i.select(); } }, 0);
     return;
   }
+  if (S.tool === 'block') {
+    hint.hidden = true; el.hidden = false; const n = S.blk?.pts.length || 0;
+    el.innerHTML = `<span class="pk">Building or fence</span>
+      <label class="pf"><span>Height</span><input id="blk-h" class="n" type="number" min="0.1" max="100" step="0.1" value="${S.blk?.h ?? 1.8}"><span class="pv">m</span></label>
+      <span class="pv">${n ? plural(n, 'corner') + '. ' : ''}Click each corner. Click the first corner again to close a building; Finish leaves it open, for a fence or wall.</span>
+      <span class="acts"><button class="btn sm primary" type="button" data-act="blkDone"${n < 2 ? ' disabled' : ''}>Finish</button><button class="btn sm" type="button" data-act="blkCancel">Cancel</button></span>`;
+    return;
+  }
+  const blkSel = S.blockSel && S.g ? (S.g.blocks || []).find(b => b.id === S.blockSel) : null;
+  if (blkSel) {
+    hint.hidden = true; el.hidden = false;
+    el.innerHTML = `<span class="pk">${blkSel.closed ? 'Building' : 'Fence or wall'}</span>
+      <label class="pf"><span>Height</span><input id="blk-eh" class="n" type="number" min="0.1" max="100" step="0.1" data-blk="h" value="${blkSel.h}"><span class="pv">m</span></label>
+      <span class="pv">Casts shadows in the sun study. It isn’t part of the planting plan, schedule or booklet.</span>
+      <span class="acts"><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
+    return;
+  }
   if (S.tool === 'row' && S.activePlant) {
     hint.hidden = true; el.hidden = false;
     el.innerHTML = `<span class="pk">${toolSwatch({ icon: 'row' })} Row of ${esc(plantById(S.activePlant)?.common || 'plants')}</span>
@@ -1117,6 +1155,7 @@ function renderGardenFields() {
     const el = $(id); el.disabled = !S.g;
     if (document.activeElement !== el) el.value = S.g ? (S.g[k] ?? '') : '';
   }
+  { const el = $('g-loc'); el.disabled = !S.g; if (document.activeElement !== el) el.value = S.g && S.g.lat != null ? `${S.g.lat}, ${S.g.lon}` : ''; }
   if (!S.g) $('dims').textContent = '—';
   else { const n = $('g-north'), r = $('g-north-r'); if (n && document.activeElement !== n && !S.g.north) n.value = 0; if (r && !S.g.north) r.value = 0; $('g-north-needle')?.setAttribute('transform', `rotate(${num(S.g.north, 0)})`); }
 }
@@ -1367,7 +1406,7 @@ function applyPage() {
   $('navPlan').setAttribute('aria-pressed', plan); $('navSched').setAttribute('aria-pressed', pg === 'schedule'); $('navCal').setAttribute('aria-pressed', pg === 'flowering'); $('navPrefs').setAttribute('aria-pressed', pg === 'preferences');
   if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'presentation') renderPresentation(true); else if (pg === 'database') { showDbView(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
 }
-function renderAll() { renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
+function renderAll() { renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
 function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
 
@@ -1565,7 +1604,7 @@ function nudge(dx, dy) {
   for (const m of items) { if (m.kind === 'area') m.it.pts = m.it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]); else { m.it.x = r2(m.it.x + dx); m.it.y = r2(m.it.y + dy); } }
   saveGarden(); renderMapSoon();
 }
-const wantsHover = () => (S.cal?.a && !S.cal.b) || (S.tool === 'row' && S.row?.a) || (S.tool === 'measure' && S.meas?.a && !S.meas.b);
+const wantsHover = () => (S.tool === 'block' && S.blk?.pts.length) || (S.cal?.a && !S.cal.b) || (S.tool === 'row' && S.row?.a) || (S.tool === 'measure' && S.meas?.a && !S.meas.b);
 function trackHover(e) {
   const p = toM(e); S.ptr = { x: p.x, y: p.y };
   if (!wantsHover()) return;
@@ -1573,6 +1612,12 @@ function trackHover(e) {
 }
 function toolClick(tool, p, shift) {
   const sp = { x: snap(p.x), y: snap(p.y) };
+  if (tool === 'block') {
+    const b = S.blk || (S.blk = { pts: [], h: 1.8 }), near = a => a && Math.hypot(a[0] - p.x, a[1] - p.y) * pxPerM() < 10;
+    if (b.pts.length >= 3 && near(b.pts[0])) { finishBlock(true); return; }
+    if (b.pts.length >= 2 && near(b.pts[b.pts.length - 1])) { finishBlock(false); return; }
+    b.pts.push([sp.x, sp.y]); S.hover = null; renderInspector(); renderMap(); return;
+  }
   if (tool === 'measure') {
     const q = { x: r2(p.x), y: r2(p.y) };
     if (!S.meas?.a || S.meas.b) S.meas = { a: q, b: null }; else S.meas.b = q;
@@ -1612,6 +1657,7 @@ svg.addEventListener('pointerdown', e => {
   const hit = e.target.closest('[data-kind]');
   const tool = S.tool;
   if (hit?.dataset.kind === 'north') { S.drag = { north: true, moved: false, before: JSON.stringify(S.g) }; renderMap(); return; }
+  if (hit?.dataset.kind === 'block' && tool === 'select') { S.sel = null; S.multi = []; S.blockSel = hit.dataset.id; renderInspector(); renderMap(); return; }
   if (hit?.dataset.kind === 'lblh') { const pl = S.g.plantings.find(x => x.id === hit.dataset.id); if (pl) S.drag = { label: true, pl, start: p, moved: false, before: JSON.stringify(S.g), orig: { x: num(hit.dataset.lx), y: num(hit.dataset.ly) } }; return; }
   const selecting = tool === 'select' || (tool === 'plant' && hit && (hit.dataset.kind === 'planting' || hit.dataset.kind === 'handle' || !S.activePlant));
   if (selecting && hit) {
@@ -1716,6 +1762,7 @@ svg.addEventListener('wheel', e => {
 function setTool(t) {
   if (t !== 'scale') S.cal = null; else S.cal = { a: null, b: null };
   S.row = null; S.rowMade = 0; if (t !== 'measure') S.meas = null;
+  S.blk = t === 'block' ? { pts: [], h: S.blk?.h || 1.8 } : null; if (t !== 'select') S.blockSel = null;
   S.tool = t; S.hover = null; renderTools(); renderInspector(); renderMap();
 }
 $('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
@@ -1790,11 +1837,11 @@ async function planImage(numbered) {
   const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
-  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null;
+  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = {};
   if (numbered) { S.prefs.labelMode = 'number'; S.prefs.labelQty = false; S.prefs.labelSize = Math.max(num(save.size, 1), 2); }
   let markup;
   try { renderMap(); markup = svg.innerHTML; var vb = svg.getAttribute('viewBox'); }
-  finally { Object.assign(S, { zoom: save.zoom, cx: save.cx, cy: save.cy, sel: save.sel, multi: save.multi, drag: save.drag, cal: save.cal }); S.prefs.labelMode = save.mode; S.prefs.labelQty = save.qty; S.prefs.labelSize = save.size; renderMap(); }
+  finally { S.print = null; Object.assign(S, { zoom: save.zoom, cx: save.cx, cy: save.cy, sel: save.sel, multi: save.multi, drag: save.drag, cal: save.cal }); S.prefs.labelMode = save.mode; S.prefs.labelQty = save.qty; S.prefs.labelSize = save.size; renderMap(); }
   const ref = document.querySelector('.sheetref'), cs = getComputedStyle(ref);
   markup = markup.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#999');
   const hrefs = [...new Set([...markup.matchAll(/href="([^"]+)"/g)].map(m => m[1]))];
@@ -1998,6 +2045,9 @@ let fieldCheckpointed = false;
 app.addEventListener('focusin', () => { fieldCheckpointed = false; });
 app.addEventListener('input', e => {
   const t = e.target;
+  if (t.id === 'blk-h') { if (S.blk) S.blk.h = clamp(num(t.value, 1.8), 0.1, 100); return; }
+  if (t.dataset.blk === 'h') { const b = (S.g?.blocks || []).find(x => x.id === S.blockSel); if (!b) return; if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; } b.h = clamp(num(t.value, b.h), 0.1, 100); saveGarden(); renderMapSoon(); return; }
+  if (t.id === 'g-loc') { setLocation(t.value, true); return; }
   if (t.id === 'row-gap') { S.rowGap = num(t.value, 0) > 0 ? clamp(num(t.value), 0.05, 20) : null; updateLive(); renderMapSoon(); return; }
   if (t.dataset.g) {
     if (!S.g) return;
@@ -2066,6 +2116,8 @@ app.addEventListener('click', async e => {
   if (act === 'clearPhoto' && S.editPlant) { S.editPlant.photoId = null; renderLibrary(); }
   if (act === 'deselect') select(null);
   if (act === 'duplicate') duplicateSel();
+  if (act === 'blkDone') finishBlock(false);
+  if (act === 'blkCancel') setTool('select');
   if (act === 'resetLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lx; delete it.ly; saveGarden(); renderInspector(); renderMap(); } }
   if (act === 'rowCancel') { S.row = null; S.hover = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'measClear') { S.meas = null; renderTools(); renderInspector(); renderMap(); }
@@ -2256,7 +2308,8 @@ document.addEventListener('keydown', e => {
   if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
   if (e.key === '0') { resetView(); renderMap(); return; }
   if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setTool('select'); return; }
-  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel || S.multi.length) { e.preventDefault(); removeSel(); } return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel || S.multi.length || S.blockSel) { e.preventDefault(); removeSel(); } return; }
+  if (e.key === 'Enter' && S.tool === 'block') { e.preventDefault(); finishBlock(false); return; }
   if (e.key === 'Escape') { setTool('select'); select(null); return; }
   const t = TOOLS.find(x => x.key.toLowerCase().split(' or ')[0] === e.key.toLowerCase()); if (t) setTool(t.id);
 });
@@ -2267,7 +2320,9 @@ function normGarden(id, d) {
     underlay: d.underlay && d.underlay.natW ? d.underlay : null,
     areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind === 'drift' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
     plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example,
-    booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined };
+    booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined,
+    lat: Number.isFinite(d.lat) ? d.lat : undefined, lon: Number.isFinite(d.lon) ? d.lon : undefined,
+    blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -2694,6 +2749,215 @@ $('dbCopy').addEventListener('click', async () => {
   catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch { b.textContent = 'Copy failed'; } ta.remove(); }
   setTimeout(() => { b.textContent = 'Copy all for spreadsheet'; }, 1600);
 });
+/* ---------- sun study: where the sun is, and the shadows it casts ---------- */
+const SUN_DEFAULT = { lat: 51.5072, lon: -0.1276 };   // London, until the garden has its own location
+const RAD = Math.PI / 180;
+/* sun altitude and azimuth (clockwise from north), in radians, for a moment and a place; good to a fraction of a degree */
+function sunPos(date, lat, lon) {
+  const dn = date.getTime() / 86400000 - 10957.5;                        // days since 1 Jan 2000, 12:00 UTC
+  const L = (280.46 + 0.9856474 * dn) % 360, gm = ((357.528 + 0.9856003 * dn) % 360) * RAD;
+  const lam = (L + 1.915 * Math.sin(gm) + 0.02 * Math.sin(2 * gm)) * RAD, eps = (23.439 - 0.0000004 * dn) * RAD;
+  const ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam)), dec = Math.asin(Math.sin(eps) * Math.sin(lam));
+  const ha = ((18.697374558 + 24.06570982441908 * dn) % 24) * 15 * RAD + lon * RAD - ra, la = lat * RAD;
+  const alt = Math.asin(Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(ha));
+  const az = Math.atan2(-Math.sin(ha), Math.tan(dec) * Math.cos(la) - Math.sin(la) * Math.cos(ha));
+  return { alt, az: (az + 2 * Math.PI) % (2 * Math.PI) };
+}
+const sunPlace = () => (S.g && S.g.lat != null && S.g.lon != null ? { lat: S.g.lat, lon: S.g.lon, set: true } : { ...SUN_DEFAULT, set: false });
+const sunDate = (doy, mins) => new Date(new Date().getFullYear(), 0, doy, 0, mins);   // clock time in this computer's time zone
+function sunAt(doy, mins) { const pl = sunPlace(); return sunPos(sunDate(doy, mins), pl.lat, pl.lon); }
+let sunDayKey = '', sunDayVal = null;
+function sunDay(doy) {
+  const pl = sunPlace(), key = [doy, pl.lat, pl.lon].join('|');
+  if (key === sunDayKey) return sunDayVal;
+  let rise = null, set = null, noon = 720, top = -9;
+  for (let m = 0; m < 1440; m += 5) { const a = sunPos(sunDate(doy, m), pl.lat, pl.lon).alt; if (a > -0.833 * RAD) { if (rise == null) rise = m; set = m + 5; } if (a > top) { top = a; noon = m; } }
+  sunDayKey = key; sunDayVal = { rise, set, noon, top };
+  return sunDayVal;
+}
+const hhmm = m => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(Math.round(m) % 60).padStart(2, '0');
+const compass = az => ['north', 'north-north-east', 'north-east', 'east-north-east', 'east', 'east-south-east', 'south-east', 'south-south-east', 'south', 'south-south-west', 'south-west', 'west-south-west', 'west', 'west-north-west', 'north-west', 'north-north-west'][Math.round(az / RAD / 22.5) % 16];
+/* everything that casts a shadow: plants (with their height), old drifts, and the buildings, walls and fences drawn for the sun study */
+function sunCasters() {
+  const g = S.g, out = [];
+  for (const pl of g.plantings) {
+    const p = plantById(pl.plantId); if (!p || !isVisible(p) || (p.existing && pl.status === 'remove')) continue;
+    let h = p.existing && num(pl.height) > 0 ? num(pl.height) : num(p.height, 0.5);
+    if (!p.existing && S.view === 'planted') h *= clamp(num(p.potSpread, 0.2) / Math.max(0.05, num(p.spread, 0.5)), 0.1, 1);
+    if (!(h > 0.02)) continue;
+    const role = layerOf(p.role), lift = role === 'canopy' ? 0.4 : role === 'understory' ? 0.3 : 0;
+    out.push({ x: pl.x, y: pl.y, r: radiusOf(pl), h, h0: h * lift });
+  }
+  for (const a of g.areas) { const p = plantById(a.plantId); if (p && isVisible(p) && num(p.height) > 0.02) out.push({ pts: sampled(a), h: num(p.height), closed: true }); }
+  for (const b of g.blocks || []) out.push({ pts: b.pts, h: b.h, closed: b.closed, wall: true });
+  return out;
+}
+/* shadow shapes on the ground for one sun position: capsules (two ends and a radius) and polygons */
+function shadowShapes(casters, sun, maxLen) {
+  const th = num(S.g.north, 0) * RAD + sun.az, vx = -Math.sin(th), vy = Math.cos(th), k = 1 / Math.tan(Math.max(sun.alt, 0.5 * RAD));
+  const out = [], len = h => Math.min(h * k, maxLen);
+  for (const c of casters) {
+    if (c.pts) {
+      const L = len(c.h), P = c.pts, n = P.length, far = P.map(([x, y]) => [x + vx * L, y + vy * L]);
+      for (let i = 0; i < (c.closed ? n : n - 1); i++) { const j = (i + 1) % n; out.push({ poly: [P[i], P[j], far[j], far[i]] }); }
+      if (c.closed) { out.push({ poly: far }); out.push({ poly: P }); }
+    } else {
+      const L0 = len(c.h0), L1 = len(c.h);
+      out.push({ a: [c.x + vx * L0, c.y + vy * L0], b: [c.x + vx * L1, c.y + vy * L1], r: c.r, own: c.h0 ? null : c });
+      if (c.h0) out.push({ a: [c.x, c.y], b: [c.x + vx * L0, c.y + vy * L0], r: Math.max(0.04, c.r * 0.05) });
+    }
+  }
+  for (const s of out) {
+    const xs = s.poly ? s.poly.map(q => q[0]) : [s.a[0] - s.r, s.a[0] + s.r, s.b[0] - s.r, s.b[0] + s.r], ys = s.poly ? s.poly.map(q => q[1]) : [s.a[1] - s.r, s.a[1] + s.r, s.b[1] - s.r, s.b[1] + s.r];
+    s.box = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  }
+  return out;
+}
+function inShadow(s, x, y) {
+  if (x < s.box[0] || y < s.box[1] || x > s.box[2] || y > s.box[3]) return false;
+  if (s.poly) return pointInPoly(x, y, s.poly);
+  if (s.own && Math.hypot(x - s.own.x, y - s.own.y) <= s.own.r) return false;   // a low plant doesn't count as shading its own spot
+  const dx = s.b[0] - s.a[0], dy = s.b[1] - s.a[1], l2 = dx * dx + dy * dy, t = l2 ? clamp(((x - s.a[0]) * dx + (y - s.a[1]) * dy) / l2, 0, 1) : 0;
+  return Math.hypot(x - s.a[0] - dx * t, y - s.a[1] - dy * t) <= s.r;
+}
+const f3 = v => +v.toFixed(3);
+function shapeMarkup(s) {
+  if (s.poly) return `<path d="M${s.poly.map(q => f3(q[0]) + ' ' + f3(q[1])).join('L')}Z"/>`;
+  const [ax, ay] = s.a, [bx, by] = s.b, L = Math.hypot(bx - ax, by - ay), r = s.r;
+  if (L < 1e-6) return `<circle cx="${f3(ax)}" cy="${f3(ay)}" r="${f3(r)}"/>`;
+  const nx = -(by - ay) / L * r, ny = (bx - ax) / L * r;
+  return `<circle cx="${f3(ax)}" cy="${f3(ay)}" r="${f3(r)}"/><circle cx="${f3(bx)}" cy="${f3(by)}" r="${f3(r)}"/><path d="M${f3(ax + nx)} ${f3(ay + ny)}L${f3(bx + nx)} ${f3(by + ny)}L${f3(bx - nx)} ${f3(by - ny)}L${f3(ax - nx)} ${f3(ay - ny)}Z"/>`;
+}
+/* hours of direct sun on each patch of ground over the chosen day */
+const SUN_BANDS = [[2, 'Full shade, under 2 h', '#34425F'], [4, 'Part shade, 2–4 h', '#8090B4'], [6, 'Part sun, 4–6 h', '#EAD27A'], [99, 'Full sun, 6 h or more', '#F0A92B']];
+let sunHoursKey = '', sunHoursVal = null;
+function sunHours() {
+  const g = S.g, pl = sunPlace(), casters = sunCasters(), day = sunDay(S.sun.doy);
+  const key = JSON.stringify([g.id, g.updatedAt, S.sun.doy, pl.lat, pl.lon, g.north, S.view, [...S.layers], S.showExisting, S.plants.length]);
+  if (key === sunHoursKey) return sunHoursVal;
+  const STEP = 20, times = []; if (day.rise != null) for (let m = day.rise + STEP / 2; m < day.set; m += STEP) times.push(m);
+  const cells = clamp(Math.round(9e6 / (Math.max(1, times.length) * Math.max(4, casters.length))), 500, 3200), cell = Math.sqrt(g.width * g.depth / cells);
+  const nx = Math.max(1, Math.ceil(g.width / cell)), ny = Math.max(1, Math.ceil(g.depth / cell)), hrs = new Float32Array(nx * ny), M = Math.max(g.width, g.depth);
+  for (const m of times) {
+    const sun = sunAt(S.sun.doy, m); if (sun.alt < 1 * RAD) continue;
+    const shapes = shadowShapes(casters, sun, 3 * M);
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const x = (i + 0.5) * cell, y = (j + 0.5) * cell; let dark = false; for (const s of shapes) if (inShadow(s, x, y)) { dark = true; break; } if (!dark) hrs[j * nx + i] += STEP / 60; }
+  }
+  sunHoursKey = key; sunHoursVal = { cell, nx, ny, hrs };
+  return sunHoursVal;
+}
+function sunLayer(W, D, M, pad, fs, px, halo) {
+  const g = S.g, s = S.sun, out = [`<clipPath id="planClip"><rect x="0" y="0" width="${W}" height="${D}"/></clipPath>`], sun = sunAt(s.doy, s.mins), up = sun.alt > 0.5 * RAD;
+  if (s.hours) {
+    const hm = sunHours(), band = h => SUN_BANDS.findIndex(b => h < b[0]);
+    const rects = [];
+    for (let j = 0; j < hm.ny; j++) for (let i = 0; i < hm.nx;) { const b = band(hm.hrs[j * hm.nx + i]); let e = i + 1; while (e < hm.nx && band(hm.hrs[j * hm.nx + e]) === b) e++; rects.push(`<rect x="${f3(i * hm.cell)}" y="${f3(j * hm.cell)}" width="${f3((e - i) * hm.cell)}" height="${f3(hm.cell)}" fill="${SUN_BANDS[b][2]}"/>`); i = e; }
+    out.push(`<g opacity="0.5" clip-path="url(#planClip)" pointer-events="none" shape-rendering="crispEdges">${rects.join('')}</g>`);
+  } else if (up) {
+    out.push(`<rect class="sunwash" x="0" y="0" width="${W}" height="${D}" style="fill:var(--sun)" fill-opacity="0.09" pointer-events="none"/>`);
+    out.push(`<g id="shadows" style="fill:var(--shade)" opacity="0.3" clip-path="url(#planClip)" pointer-events="none">${shadowShapes(sunCasters(), sun, 3 * M).map(shapeMarkup).join('')}</g>`);
+  } else out.push(`<rect x="0" y="0" width="${W}" height="${D}" style="fill:var(--shade)" fill-opacity="0.3" pointer-events="none"/>`);
+  for (const b of g.blocks || []) {
+    const dd = 'M' + b.pts.map(q => q[0] + ' ' + q[1]).join('L') + (b.closed ? 'Z' : ''), sel = S.blockSel === b.id, cx = b.pts.reduce((t, q) => t + q[0], 0) / b.pts.length, cy = b.pts.reduce((t, q) => t + q[1], 0) / b.pts.length;
+    out.push(`<g data-kind="block" data-id="${b.id}" style="cursor:pointer"><path d="${dd}" fill="none" stroke="transparent" stroke-width="14" vector-effect="non-scaling-stroke"/><path d="${dd}" style="fill:${b.closed ? 'var(--ink)' : 'none'};stroke:${sel ? 'var(--accent)' : 'var(--ink)'}" fill-opacity="0.14" stroke-width="${sel ? 4 : 2.5}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${halo(cx, cy + fs * 0.3, fs * 0.8, b.h + ' m')}</g>`);
+  }
+  if (S.tool === 'block' && S.blk?.pts.length) {
+    const P = S.blk.pts, tip = S.hover ? [...P, [snap(S.hover.x), snap(S.hover.y)]] : P;
+    out.push(`<path d="M${tip.map(q => q[0] + ' ' + q[1]).join('L')}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-dasharray="6 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+    P.forEach((q, i) => out.push(`<circle cx="${q[0]}" cy="${q[1]}" r="${px * (i ? 4 : 6)}" style="fill:var(--panel);stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`));
+  }
+  if (up) {   // a small sun at the edge of the plan, on the side the light comes from
+    const th = num(g.north, 0) * RAD + sun.az, ux = Math.sin(th), uy = -Math.cos(th), m = pad * 0.55;
+    const t = Math.min(Math.abs(ux) > 1e-6 ? (W / 2 + m) / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? (D / 2 + m) / Math.abs(uy) : Infinity), sx = W / 2 + ux * t, sy = D / 2 + uy * t, r = fs * 0.62;
+    const rays = Array.from({ length: 8 }, (_, i) => { const a = i * Math.PI / 4; return `M${f3(sx + Math.cos(a) * r * 1.35)} ${f3(sy + Math.sin(a) * r * 1.35)}L${f3(sx + Math.cos(a) * r * 1.9)} ${f3(sy + Math.sin(a) * r * 1.9)}`; }).join('');
+    out.push(`<g id="sunMark" pointer-events="none"><path d="${rays}" fill="none" style="stroke:var(--sun)" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/><circle cx="${f3(sx)}" cy="${f3(sy)}" r="${f3(r)}" style="fill:var(--sun);stroke:var(--ink)" stroke-opacity="0.35" stroke-width="1" vector-effect="non-scaling-stroke"/></g>`);
+  }
+  return out.join('');
+}
+function sunReadout() {
+  const s = S.sun, pl = sunPlace(), day = sunDay(s.doy), sun = sunAt(s.doy, s.mins);
+  const date = sunDate(s.doy, 0).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+  const dl = day.rise == null ? 'no daylight' : `sunrise ${hhmm(day.rise)}, sunset ${hhmm(day.set)}, ${Math.floor((day.set - day.rise) / 60)} h ${(day.set - day.rise) % 60} min of daylight`;
+  const now = sun.alt > 0.5 * RAD ? `sun <b>${Math.round(sun.alt / RAD)}°</b> high in the <b>${compass(sun.az)}</b>` : 'the sun is below the horizon';
+  return { date, text: (s.hours ? `<b>Hours of direct sun on ${esc(date)}</b>` : `<b>${esc(date)}, ${hhmm(s.mins)}</b>: ${now}`) + ` · ${dl}${pl.set ? '' : ' · <b>using London until you set the location</b>'}` };
+}
+function renderSunBar(live) {
+  const bar = $('sunBar'), s = S.sun, on = s.on && !!S.g;
+  $('sunBtn').setAttribute('aria-pressed', String(on)); $('sunBtn').classList.toggle('on', on); $('sunBtn').disabled = !S.g;
+  bar.hidden = !on; if (!on) { if (s.play) { clearInterval(s.play); s.play = null; } return; }
+  const day = sunDay(s.doy), lo = day.rise ?? 0, hi = day.set ?? 1435;
+  s.mins = clamp(s.mins, lo, hi);
+  const r = sunReadout();
+  if (live && bar.dataset.for === S.g.id && $('sunRead')) {   // sliders are being dragged: update the read-outs, leave the controls alone
+    $('sunRead').innerHTML = r.text; $('sunDateLbl').textContent = r.date; $('sunTimeLbl').textContent = hhmm(s.mins);
+    const t = $('sunMin'); t.min = lo; t.max = hi; if (document.activeElement !== t) t.value = s.mins;
+    const dd = $('sunDoy'); if (document.activeElement !== dd) dd.value = s.doy;
+    return;
+  }
+  bar.dataset.for = S.g.id;
+  const pl = sunPlace(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'your computer’s time zone';
+  bar.innerHTML = `<div class="r"><span id="sunRead" title="Times are clock times in ${esc(tz)}">${r.text}</span>
+      <label class="loc"><span>Location</span><input type="text" id="sunLoc" value="${pl.set ? `${pl.lat}, ${pl.lon}` : ''}" placeholder="Latitude, longitude" autocomplete="off" title="Paste the site’s coordinates, e.g. 51.3811, -2.3590. In Google Maps, right-click the site and click the coordinates to copy them."></label>
+      <button class="btn sm" type="button" id="sunBlock" title="Draw a building, wall or fence so it casts a shadow">Add building or fence</button></div>
+    <div class="r"><label class="sl"><span>Date</span><input type="range" id="sunDoy" min="1" max="365" step="1" value="${s.doy}" aria-label="Day of the year"><output id="sunDateLbl">${esc(r.date)}</output></label>
+      <span class="seg" role="group" aria-label="Jump to a season">${[['Mar', 79], ['Jun', 172], ['Sep', 265], ['Dec', 355]].map(([l, n]) => `<button type="button" data-sundoy="${n}" title="${{ Mar: 'Spring equinox', Jun: 'Longest day', Sep: 'Autumn equinox', Dec: 'Shortest day' }[l]}">${l}</button>`).join('')}</span>
+      <label class="sl"><span>Time</span><input type="range" id="sunMin" min="${lo}" max="${hi}" step="5" value="${s.mins}" aria-label="Time of day"${s.hours ? ' disabled' : ''}><output id="sunTimeLbl">${hhmm(s.mins)}</output></label>
+      <button class="btn sm${s.play ? ' on' : ''}" type="button" id="sunPlay"${s.hours ? ' disabled' : ''}>${s.play ? 'Stop' : 'Play the day'}</button>
+      <label class="checks" style="white-space:nowrap"><input type="checkbox" id="sunHoursCk"${s.hours ? ' checked' : ''}> Sun hours map</label></div>
+    ${s.hours ? `<div class="r"><span class="sunkey">${SUN_BANDS.map(b => `<span><i style="background:${b[2]}"></i>${b[1]}</span>`).join('')}</span></div>` : ''}`;
+}
+function setLocation(text, quiet) {
+  if (!S.g) return false;
+  const m = String(text).match(/(-?\d+(?:\.\d+)?)\s*°?\s*([NS])?[\s,;]+(-?\d+(?:\.\d+)?)\s*°?\s*([EW])?/i), blank = !String(text).trim();
+  let lat = m ? +m[1] : NaN, lon = m ? +m[3] : NaN;
+  if (m?.[2]?.toUpperCase() === 'S') lat = -Math.abs(lat); if (m?.[4]?.toUpperCase() === 'W') lon = -Math.abs(lon);
+  const ok = m && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+  const note = $('locNote'); if (note) note.style.color = ok || blank ? '' : 'var(--crit)';
+  if (!ok && !blank) { if (!quiet) setStatus('Type the location as latitude, longitude, for example 51.3811, -2.3590', true); return false; }
+  if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
+  if (blank) { delete S.g.lat; delete S.g.lon; } else { S.g.lat = Math.round(lat * 1e5) / 1e5; S.g.lon = Math.round(lon * 1e5) / 1e5; }
+  saveGarden(); if (S.sun.on) { renderSunBar(true); renderMapSoon(); }
+  return true;
+}
+function finishBlock(closed) {
+  const b = S.blk; if (!b || b.pts.length < 2 || !S.g) { setTool('select'); return; }
+  checkpoint();
+  const rec = { id: uid(), pts: b.pts, closed: closed && b.pts.length >= 3, h: clamp(num(b.h, 1.8), 0.1, 100) };
+  S.g.blocks = [...(S.g.blocks || []), rec]; S.blk = null; S.tool = 'select'; S.hover = null; S.sel = null; S.multi = []; S.blockSel = rec.id;
+  saveGarden(); renderTools(); renderInspector(); renderMap();
+}
+function removeBlock() { if (!S.g || !S.blockSel) return; checkpoint(); S.g.blocks = (S.g.blocks || []).filter(b => b.id !== S.blockSel); S.blockSel = null; saveGarden(); renderInspector(); renderMap(); }
+function sunToggle(on) {
+  S.sun.on = on;
+  if (on && !S.sun.init) { const n = new Date(); S.sun.init = true; S.sun.doy = clamp(Math.round((n - new Date(n.getFullYear(), 0, 0)) / 86400000), 1, 365); S.sun.mins = 12 * 60; }
+  if (!on) { S.blockSel = null; if (S.tool === 'block') S.tool = 'select'; S.blk = null; }
+  renderSunBar(); renderTools(); renderInspector(); renderMap();
+}
+$('sunBtn').addEventListener('click', () => sunToggle(!S.sun.on));
+$('sunBar').addEventListener('input', e => {
+  const t = e.target, s = S.sun;
+  if (t.id === 'sunDoy') s.doy = clamp(Math.round(num(t.value, 172)), 1, 365);
+  else if (t.id === 'sunMin') s.mins = num(t.value, 720);
+  else return;
+  renderSunBar(true); renderMapSoon();
+});
+$('sunBar').addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'sunHoursCk') { S.sun.hours = t.checked; if (S.sun.play) { clearInterval(S.sun.play); S.sun.play = null; } renderSunBar(); renderMap(); }
+  if (t.id === 'sunLoc') { fieldCheckpointed = false; if (setLocation(t.value)) { renderSunBar(); renderGardenFields(); } }
+});
+$('sunBar').addEventListener('click', e => {
+  const s = S.sun, j = e.target.closest('[data-sundoy]');
+  if (j) { s.doy = +j.dataset.sundoy; renderSunBar(true); renderMap(); return; }
+  if (e.target.id === 'sunBlock') { setTool('block'); return; }
+  if (e.target.id === 'sunPlay') {
+    if (s.play) { clearInterval(s.play); s.play = null; }
+    else { const day = sunDay(s.doy); if (day.rise == null) return; if (s.mins >= day.set - 5) s.mins = day.rise;
+      s.play = setInterval(() => { const d = sunDay(s.doy); s.mins += 10; if (s.mins > d.set) s.mins = d.rise; renderSunBar(true); renderMapSoon(); }, 90); }
+    renderSunBar();
+  }
+});
+
 /* ---------- backup and restore ---------- */
 const BACKUP_FORMAT = 1, BKP = { busy: false, msg: '', err: false };
 const IMG_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'];
@@ -2740,6 +3004,11 @@ function cleanGarden(d) {
     numberPlan: !!b.numberPlan, includeSupply: !!b.includeSupply, vat: clamp(numOrNull(b.vat) ?? 0, 0, 50),
     pages: Object.fromEntries(Object.keys(BK_DEFAULT().pages).map(k => [k, b.pages?.[k] !== false])),
     lines: (Array.isArray(b.lines) ? b.lines : []).slice(0, 40).map(l => ({ label: str(l?.label, 200), amount: numOrNull(l?.amount) ?? 0 })) };
+  const lat = numOrNull(d.lat), lon = numOrNull(d.lon);
+  if (lat != null && lon != null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) { g.lat = lat; g.lon = lon; }
+  const blocks = (Array.isArray(d.blocks) ? d.blocks : []).slice(0, 200).filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2)
+    .map(b => ({ id: safeId(b.id) || uid(), pts: b.pts.slice(0, 100).map(q => [xy(q?.[0]), xy(q?.[1])]), closed: !!b.closed && b.pts.length >= 3, h: clamp(numOrNull(b.h) ?? 1.8, 0.1, 100) }));
+  if (blocks.length) g.blocks = blocks;
   if (d.example) g.example = true;
   return g;
 }

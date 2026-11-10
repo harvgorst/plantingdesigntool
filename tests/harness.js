@@ -9,7 +9,7 @@ const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFklEQ
 
 async function open(seed = {}, opts = {}) {
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: opts.viewport || { width: 1400, height: 900 } });
+  const page = await browser.newPage({ viewport: opts.viewport || { width: 1400, height: 900 }, timezoneId: 'Europe/London', locale: 'en-GB' });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await page.addInitScript({ path: path.join(__dirname, 'mock-runtime.js') });

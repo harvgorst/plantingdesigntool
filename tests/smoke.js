@@ -155,6 +155,49 @@ test('labels can be dragged, with a leader line, and reset', async open => {
   eq((await app.store('gardens/g1')).plantings.find(p => p.id === 'c').lx, undefined, 'label reset');
 });
 
+test('sun study: sun position for a place, date and time', async open => {
+  const seed = sample(); Object.assign(seed['gardens/g1'], { north: 0, lat: 51.5072, lon: -0.1276 });
+  const app = await open(seed);
+  await app.page.click('#sunBtn');
+  const set = async (doy, mins) => { await app.page.evaluate(([d, m]) => { const a = document.getElementById('sunDoy'), b = document.getElementById('sunMin'); a.value = d; a.dispatchEvent(new Event('input', { bubbles: true })); b.value = m; b.dispatchEvent(new Event('input', { bubbles: true })); }, [doy, mins]); await app.page.waitForTimeout(60); return app.page.textContent('#sunRead'); };
+  const june = await set(172, 13 * 60);                     // 21 June, 13:00 British Summer Time: solar noon in London
+  ok(/sun 6[12]° high in the south\b/.test(june), 'midsummer noon sun about 62° in the south, got: ' + june);
+  ok(/sunrise 04:4\d, sunset 21:2\d/.test(june), 'midsummer sunrise about 04:43 and sunset about 21:21, got: ' + june);
+  const dec = await set(355, 12 * 60);                      // 21 December, noon GMT
+  ok(/sun 1[45]° high in the south\b/.test(dec), 'midwinter noon sun about 15°, got: ' + dec);
+  ok(/sunrise 08:0\d, sunset 15:5\d/.test(dec), 'midwinter sunrise about 08:04 and sunset about 15:53, got: ' + dec);
+  const eve = await set(172, 19 * 60);
+  ok(/in the west(-north-west)?\b/.test(eve), 'summer evening sun in the west, got: ' + eve);
+});
+
+test('sun study: plants and buildings cast shadows the right way', async open => {
+  const seed = sample(); Object.assign(seed['gardens/g1'], { north: 0, lat: 51.5072, lon: -0.1276, plantings: [{ id: 't', plantId: 'p0', x: 6, y: 5, qty: 1 }] });
+  seed['plants/p0'].height = 2;
+  const app = await open(seed);
+  await app.page.click('#sunBtn');
+  await app.page.evaluate(() => { const a = document.getElementById('sunDoy'), b = document.getElementById('sunMin'); a.value = 172; a.dispatchEvent(new Event('input', { bubbles: true })); b.value = 13 * 60; b.dispatchEvent(new Event('input', { bubbles: true })); });
+  await app.page.waitForTimeout(100);
+  const tip = await app.page.evaluate(() => { const c = document.querySelectorAll('#shadows circle'); return [c.length, +c[1].getAttribute('cx'), +c[1].getAttribute('cy')]; });
+  eq(tip[0], 2, 'one shadow, drawn as two rounded ends');
+  ok(Math.abs(tip[1] - 6) < 0.08 && Math.abs(tip[2] - (5 - 2 / Math.tan(62 * Math.PI / 180))) < 0.08, 'a 2 m plant at midsummer noon throws a shadow about 1.06 m due north, got ' + JSON.stringify(tip));
+  // draw a building: four corners, then the first corner again to close it
+  await app.page.click('#sunBlock');
+  for (const [x, y] of [[2, 6], [5, 6], [5, 8], [2, 8], [2, 6]]) await app.clickPlan(x, y);
+  await app.page.waitForTimeout(900);
+  const b = (await app.store('gardens/g1')).blocks;
+  eq([b.length, b[0].closed, b[0].pts.length, b[0].h], [1, true, 4, 1.8], 'building saved');
+  await app.page.fill('#blk-eh', '6'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).blocks[0].h, 6, 'height edited');
+  ok(await app.page.locator('#shadows path').count() >= 6, 'walls and roof cast shadows');
+  // sun hours: ground just north of a 6 m building gets less sun than open ground
+  await app.page.click('[data-sundoy="265"]');              // autumn equinox: the sun stays south of east and west all day
+  await app.page.check('#sunHoursCk'); await app.page.waitForTimeout(200);
+  const fills = await app.page.evaluate(() => { const at = (x, y) => { for (const r of document.querySelectorAll('#map g[shape-rendering] rect')) { const a = n => +r.getAttribute(n); if (x >= a('x') && x < a('x') + a('width') && y >= a('y') && y < a('y') + a('height')) return r.getAttribute('fill'); } }; return [at(3.5, 5.6), at(10, 2)]; });
+  ok(fills[0] && fills[1] && fills[0] !== fills[1], 'the map tells shade from sun, got ' + JSON.stringify(fills));
+  ok(['#34425F', '#8090B4'].includes(fills[0]) && fills[1] === '#F0A92B', 'shade just north of a 6 m building, full sun on open ground, got ' + JSON.stringify(fills));
+  await app.page.keyboard.press('Escape');
+});
+
 test('large plans: a warning near the limit, a clear message over it', async open => {
   // fill a garden with single plants until its saved record reaches a share of the 256 KiB cap
   const fill = share => { const seed = sample(), g = seed['gardens/g1']; let i = 0;
