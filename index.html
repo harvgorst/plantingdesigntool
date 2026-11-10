@@ -318,11 +318,11 @@ html[data-skin=woodwork] .modal { background: rgba(10, 7, 4, 0.6); }
 html[data-skin=woodwork] .btn.primary { color: #241B15; }
 html[data-skin=woodwork] .card, html[data-skin=woodwork] .toolbar { box-shadow: inset 0 1px 0 rgba(255, 240, 215, 0.04); }
 
-/* XP: a classic Windows 2000-style window (grey bevels, navy title bar, Tahoma) on a faintly vaporwave desktop */
+/* XP: a classic Windows 2000-style window (grey bevels, navy title bar, Tahoma) on a gridded blue desktop */
 html[data-skin=xp] { color-scheme: light;
   --paper: #D4D0C8; --panel: #FFFFFF; --ink: #000000; --muted: #4A4A4A; --line: #808080; --line-soft: #E4E1DB;
-  --accent: #0A246A; --accent-ink: #FFFFFF; --accent-soft: #D9D2F2;
-  --ground: #FFFFFF; --grid: #E8E6F0; --grid-major: #CFCBDD;
+  --accent: #0A246A; --accent-ink: #FFFFFF; --accent-soft: #C6D3F0;
+  --ground: #FFFFFF; --grid: #E6E6E6; --grid-major: #CCCCCC;
   --warn: #8A5A00; --crit: #B00020; --bar-edge: rgba(0, 0, 0, 0.3);
   --f-display: Tahoma, "MS Sans Serif", Verdana, "DejaVu Sans", sans-serif;
   --f-body: Tahoma, "MS Sans Serif", Verdana, "DejaVu Sans", sans-serif;
@@ -331,15 +331,15 @@ html[data-skin=xp] { color-scheme: light;
   --w-pressed: inset -1px -1px #FFFFFF, inset 1px 1px #0A0A0A, inset -2px -2px #DFDFDF, inset 2px 2px #808080;
   --w-sunken: inset -1px -1px #FFFFFF, inset 1px 1px #808080, inset -2px -2px #DFDFDF, inset 2px 2px #0A0A0A;
   --w-thin: inset -1px -1px #808080, inset 1px 1px #FFFFFF;
-  --w-title: linear-gradient(90deg, #0A246A, #3B3C9E 45%, #9E5CC4 78%, #F08BC4); }
+  --w-title: linear-gradient(90deg, #0A246A, #A6CAF0); }
 html[data-skin=xp] body { font-size: 12px;
   background:
     linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px) 0 0 / 40px 40px,
     linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px) 0 0 / 40px 40px,
-    linear-gradient(170deg, #2B1B5A 0%, #6A3D9A 38%, #D66BB0 68%, #FFB38A 86%, #5ED3D8 100%) fixed; }
+    #3A6EA5; }
 html[data-skin=xp] ::selection { background: #0A246A; color: #FFF; }
 html[data-skin=xp] :focus-visible { outline: 1px dotted #000; outline-offset: -4px; }
-html[data-skin=xp] .app { background: var(--paper); box-shadow: var(--w-raised), 6px 8px 0 rgba(40, 10, 70, .35); margin: 12px; height: calc(100% - 24px); padding: 4px 6px 6px; gap: 6px; }
+html[data-skin=xp] .app { background: var(--paper); box-shadow: var(--w-raised), 6px 8px 0 rgba(0, 0, 0, .35); margin: 12px; height: calc(100% - 24px); padding: 4px 6px 6px; gap: 6px; }
 html[data-skin=xp] .top { background: var(--w-title) 0 0 / 100% 24px no-repeat; border: 0; padding: 0; row-gap: 4px; column-gap: 12px; }
 html[data-skin=xp] .top h1 { order: 1; flex: 1 0 calc(100% - 96px); font-family: var(--f-display); font-weight: 700; font-size: 12px; letter-spacing: 0; color: #FFF; padding: 0 6px; height: 24px; display: flex; align-items: center; gap: 6px; }
 html[data-skin=xp] .top h1::before { content: ""; width: 14px; height: 14px; background: radial-gradient(circle at 40% 35%, #B8F5A0, #2E8B57 60%, #145A32); border-radius: 50% 0; box-shadow: 0 0 0 1px rgba(0,0,0,.3); }
@@ -380,7 +380,7 @@ html[data-skin=xp] .lib { background: #FFF; box-shadow: var(--w-sunken); padding
 html[data-skin=xp] .lib li { border-radius: 0; border: 1px dotted transparent; }
 html[data-skin=xp] .lib li:hover { background: none; }
 html[data-skin=xp] .lib li[aria-selected=true] { background: #0A246A; border-color: #FFF; color: #FFF; }
-html[data-skin=xp] .lib li[aria-selected=true] i, html[data-skin=xp] .lib li[aria-selected=true] .meta { color: #D9D2F2; }
+html[data-skin=xp] .lib li[aria-selected=true] i, html[data-skin=xp] .lib li[aria-selected=true] .meta { color: #C6D3F0; }
 html[data-skin=xp] fieldset.pref, html[data-skin=xp] .presset fieldset { border: 0; border-radius: 0; box-shadow: inset 1px 1px #808080, inset -1px -1px #FFF, inset 2px 2px #FFF, inset -2px -2px #808080; }
 html[data-skin=xp] fieldset.pref legend, html[data-skin=xp] .presset legend { font-family: var(--f-body); font-size: 12px; font-weight: 400; color: #000; background: var(--paper); }
 html[data-skin=xp] .calview fieldset.pref legend { background: #FFF; }
@@ -391,10 +391,10 @@ html[data-skin=xp] .field > span.row { font-size: 12px; color: #000; }
 html[data-skin=xp] .menu { border: 0; border-radius: 0; box-shadow: var(--w-raised), 2px 2px 0 rgba(0,0,0,.35); padding: 3px; background: var(--paper); }
 html[data-skin=xp] .mi, html[data-skin=xp] .lrow { border-radius: 0; font-size: 12px; }
 html[data-skin=xp] .mi:hover:not(:disabled), html[data-skin=xp] .lrow:hover { background: #0A246A; color: #FFF; }
-html[data-skin=xp] .lrow:hover .n { color: #D9D2F2; }
-html[data-skin=xp] .mapwrap { border: 0; border-radius: 0; box-shadow: var(--w-sunken); --panel: #FFFFFF; --ground: #FFFFFF; --grid: #E8E6F0; --grid-major: #CFCBDD; --accent: #0A246A; --accent-soft: #D9D2F2; }
-html[data-skin=xp] .modal { background: rgba(43, 27, 90, 0.25); }
-html[data-skin=xp] .modal .card { background: var(--w-title) 3px 3px / calc(100% - 6px) 20px no-repeat, var(--paper); border: 0; border-radius: 0; padding: 32px 14px 14px; box-shadow: var(--w-raised), 6px 8px 0 rgba(40, 10, 70, .35); }
+html[data-skin=xp] .lrow:hover .n { color: #C6D3F0; }
+html[data-skin=xp] .mapwrap { border: 0; border-radius: 0; box-shadow: var(--w-sunken); --panel: #FFFFFF; --ground: #FFFFFF; --grid: #E6E6E6; --grid-major: #CCCCCC; --accent: #0A246A; --accent-soft: #C6D3F0; }
+html[data-skin=xp] .modal { background: rgba(0, 0, 0, 0.2); }
+html[data-skin=xp] .modal .card { background: var(--w-title) 3px 3px / calc(100% - 6px) 20px no-repeat, var(--paper); border: 0; border-radius: 0; padding: 32px 14px 14px; box-shadow: var(--w-raised), 6px 8px 0 rgba(0, 0, 0, .35); }
 html[data-skin=xp] .avbar { border-radius: 0; background: #FFFFE1; border: 1px solid #000; }
 html[data-skin=xp] .confirm { border-radius: 0; background: #FFFFE1; box-shadow: 0 0 0 1px #000; }
 html[data-skin=xp] .splitter::before { border-radius: 0; width: 4px; background: var(--paper); box-shadow: var(--w-raised); }
@@ -635,7 +635,7 @@ const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', label
 const THEMES = {
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
   woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
-  xp: { name: 'XP', note: 'A classic grey, bevelled Windows 2000-style window on a faintly vaporwave desktop.', bar: 'linear-gradient(90deg, #0A246A, #3B3C9E 45%, #9E5CC4 78%, #F08BC4)', barInk: '#FFFFFF', bg: 'linear-gradient(170deg, #2B1B5A, #6A3D9A 40%, #D66BB0 75%, #5ED3D8)', cols: ['#D4D0C8', '#0A246A', '#FFFFFF'], font: 'Tahoma, Verdana, sans-serif' },
+  xp: { name: 'XP', note: 'A classic grey, bevelled Windows 2000-style window on a blue desktop.', bar: 'linear-gradient(90deg, #0A246A, #A6CAF0)', barInk: '#FFFFFF', bg: '#3A6EA5', cols: ['#D4D0C8', '#0A246A', '#FFFFFF'], font: 'Tahoma, Verdana, sans-serif' },
   root: { name: 'root', note: 'Two-tone terminal green on black, monospace, with a little Japanese.', bar: '#111410', barInk: '#9BE86A', bg: '#0C0E0B', cols: ['#121610', '#9BE86A', '#263022'], font: '"IBM Plex Mono", monospace', jp: '庭 ' },
 };
 const THEME_FONTS = { root: 'https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Noto+Sans+JP:wght@400;600&display=swap' };
