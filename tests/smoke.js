@@ -95,6 +95,66 @@ test('backup: a tampered file cannot inject markup', async open => {
   eq(await app.page.evaluate(() => window.__pwned || document.querySelectorAll('img[src="x"]').length), 0, 'no injected element');
 });
 
+test('duplicate, copy and paste, and arrow-key nudging', async open => {
+  const app = await open(sample());
+  const n = () => app.page.locator('#map [data-kind=planting]').count();
+  await app.clickPlan(8, 1.4); await app.page.keyboard.press('Control+d');
+  eq(await n(), 8, 'duplicated');
+  await app.page.waitForTimeout(900);
+  const made = (await app.store('gardens/g1')).plantings.at(-1);
+  eq([made.plantId, made.x, made.y], ['p2', 8.5, 1.9], 'the copy sits half a metre down and right');
+  await app.page.keyboard.press('ArrowRight'); await app.page.keyboard.press('ArrowRight'); await app.page.keyboard.press('Shift+ArrowDown');
+  await app.page.waitForTimeout(900);
+  const moved = (await app.store('gardens/g1')).plantings.at(-1);
+  eq([moved.x, moved.y], [8.7, 2.9], 'nudged by the snap step, ten times as far with Shift');
+  await app.page.keyboard.press('Control+z'); await app.page.waitForTimeout(50);
+  eq(await n(), 8, 'one undo takes back the whole run of nudges and keeps the copy');
+  await app.page.keyboard.press('Control+c');
+  const pt = await app.planXY(3, 7); await app.page.mouse.move(pt.x, pt.y); await app.page.keyboard.press('Control+v');
+  eq(await n(), 9, 'pasted');
+  await app.page.waitForTimeout(900);
+  const pasted = (await app.store('gardens/g1')).plantings.at(-1);
+  eq([pasted.x, pasted.y], [3, 7], 'pasted under the pointer');
+});
+
+test('row tool places evenly spaced plants', async open => {
+  const app = await open(sample());
+  await app.page.click('#lib [data-pid=p0]'); await app.page.click('[data-tool=row]');
+  eq(await app.page.inputValue('#row-gap'), '0.6', 'spacing starts at the mature spread');
+  await app.page.fill('#row-gap', '0.5');
+  await app.clickPlan(2, 7.5); await app.clickPlan(6, 7.5);
+  await app.page.waitForTimeout(900);
+  const row = (await app.store('gardens/g1')).plantings.slice(7);
+  eq(row.length, 9, 'nine plants over four metres at 0.5 m');
+  eq(row.map(p => p.x), [2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6], 'evenly spaced');
+  ok((await app.page.textContent('#row-info')).includes('Placed 9 plants'), 'row summary');
+  await app.page.keyboard.press('Control+z');
+  eq(await app.page.locator('#map [data-kind=planting]').count(), 7, 'one undo removes the whole row');
+});
+
+test('measure tool reads a distance', async open => {
+  const app = await open(sample());
+  await app.page.keyboard.press('m');
+  await app.clickPlan(1, 1); await app.clickPlan(4, 5);
+  ok((await app.page.textContent('#inspector')).includes('5.00 m'), '3-4-5 triangle measures 5.00 m');
+  eq((await app.store('gardens/g1')).plantings.length, 7, 'measuring changes nothing');
+});
+
+test('labels can be dragged, with a leader line, and reset', async open => {
+  const app = await open(sample());
+  await app.clickPlan(8, 1.4);
+  const h = await app.page.locator('#map [data-kind=lblh]').boundingBox();
+  const to = await app.planXY(10.5, 2.6);
+  await app.page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await app.page.mouse.down(); await app.page.mouse.move(to.x, to.y, { steps: 5 }); await app.page.mouse.up();
+  await app.page.waitForTimeout(900);
+  const pl = (await app.store('gardens/g1')).plantings.find(p => p.id === 'c');
+  ok(pl.lx > 1 && pl.ly > 0.5, 'label offset stored, got ' + JSON.stringify([pl.lx, pl.ly]));
+  eq([pl.x, pl.y], [8, 1.4], 'the plant itself has not moved');
+  eq(await app.page.locator('#map [data-id=c] line').count(), 1, 'leader line drawn');
+  await app.page.click('[data-act=resetLabel]'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).plantings.find(p => p.id === 'c').lx, undefined, 'label reset');
+});
+
 test('large plans: a warning near the limit, a clear message over it', async open => {
   // fill a garden with single plants until its saved record reaches a share of the 256 KiB cap
   const fill = share => { const seed = sample(), g = seed['gardens/g1']; let i = 0;

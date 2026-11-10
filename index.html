@@ -623,9 +623,13 @@ const STATUS = { retain: 'Retain', prune: 'Retain & prune', remove: 'Remove' };
 const TOOLS = [
   { id: 'select', label: 'Select', key: 'V or Space' },
   { id: 'plant', label: 'Plant', key: 'P', sw: 'var(--r-shrub)', round: true },
+  { id: 'row', label: 'Row', key: 'R', icon: 'row' },
+  { id: 'measure', label: 'Measure', key: 'M', icon: 'measure' },
 ];
 const HINTS = {
-  select: 'Click to select. Drag empty space to move the page. Shift-drag to draw a selection box (add Ctrl to add to the selection). Scroll to pan; + / − to zoom.',
+  select: 'Click to select. Drag empty space to move the page. Shift-drag draws a selection box. Ctrl+D duplicates, Ctrl+C and Ctrl+V copy and paste, arrow keys nudge. Scroll to pan; + / − to zoom.',
+  row: 'Row: click where the row starts, then where it ends. Plants are spaced evenly along the line. Hold Shift to keep it level, upright or at 45°.',
+  measure: 'Measure: click two points on the plan to read the distance between them.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
@@ -662,7 +666,7 @@ const S = {
   drag: null, history: [], future: [], loaded: false, filter: '',
   zoom: 1, cx: null, cy: null, pinch: null, space: false,
   prefs: { ...PREF_DEFAULTS }, prefsLoaded: false,
-  draw: null, hover: null, cal: null, ulHidden: false, localUl: null, busy: false, newGarden: false,
+  draw: null, hover: null, hoverShift: false, ptr: null, cal: null, row: null, rowGap: null, rowMade: 0, meas: null, clip: null, print: null, ulHidden: false, localUl: null, busy: false, newGarden: false,
 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -861,7 +865,13 @@ function renderMap() {
   const g = S.g;
   if (!g) { svg.innerHTML = ''; return; }
   const W = g.width, D = g.depth, M = Math.max(W, D);
-  const pad = M * 0.07, fs = M / 55 / S.zoom;
+  const pr = S.print, pad = pr?.pad ?? M * 0.07, fs = pr?.fs ?? M / 55 / S.zoom, showScale = S.prefs.showScale || !!pr?.sheet;
+  /* a label with a halo in the sheet colour; the print version draws the halo as its own layer, which PDFs need */
+  const halo = (x, y, size, txt, o = {}) => {
+    const base = `x="${x}" y="${y}" font-size="${size}" text-anchor="${o.anchor || 'middle'}"`, fw = `font-weight:${o.bold ? 700 : 500}${o.italic ? ';font-style:italic' : ''}`;
+    if (pr?.vector) return `<text ${base} style="fill:none;stroke:var(--ground);stroke-width:${size * 0.2};stroke-linejoin:round;${fw}">${txt}</text><text ${base} style="fill:var(--label);${fw}">${txt}</text>`;
+    return `<text ${base} style="fill:var(--label);${fw};stroke:var(--ground);stroke-width:${size * 0.2};paint-order:stroke;stroke-linejoin:round" pointer-events="${o.live ? 'auto' : 'none'}">${txt}</text>`;
+  };
   let px = (M / 900) / S.zoom;
   if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
   S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
@@ -891,7 +901,7 @@ function renderMap() {
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
     const ex = !!p?.existing, col = ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
     const dots = planted && !ex ? driftDots(a) : null, pr = potR(p);
-    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${pr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? `<text x="${c.x}" y="${c.y + ls * 0.25}" font-size="${ls * 0.72}" text-anchor="middle" style="fill:var(--label);font-weight:${S.prefs.labelMode === 'number' ? 700 : 500};stroke:var(--ground);stroke-width:${ls * 0.14};paint-order:stroke;stroke-linejoin:round${ex ? ';font-style:italic' : ''}">${S.prefs.labelQty ? driftQty(a) + ' ' : ''}${esc(plantLabel(p))}</text>` : ''}</g>`);
+    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${pr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? halo(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }) : ''}</g>`);
   }
   // single plants and groups, largest first
   const pls = [...g.plantings].sort((a, b) => radiusOf(b) - radiusOf(a));
@@ -921,9 +931,27 @@ function renderMap() {
       <circle cx="${pl.x}" cy="${pl.y}" r="${fs * 0.18}" style="fill:${c}"/>`;
       ringR = r;
     }
+    /* the label: above or inside the plant by default, or wherever it has been dragged, with a leader line back to the plant */
+    let lab = '';
+    if (showL) {
+      const size = ls * 0.68, moved = pl.lx != null && pl.ly != null;
+      const bx = pl.x + (moved ? pl.lx : 0), by = pl.y + (moved ? pl.ly : -(planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32));
+      const tw = lbl.length * size * 0.5, cy = by - size * 0.32;
+      if (moved) {
+        const dx = bx - pl.x, dy = cy - pl.y, dist = Math.hypot(dx, dy);
+        if (dist > ringR + size * 0.9) {
+          const ux = dx / dist, uy = dy / dist, hw = tw / 2 + size * 0.25, hh = size * 0.62;
+          const t = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
+          lab += `<line x1="${+(pl.x + ux * ringR).toFixed(3)}" y1="${+(pl.y + uy * ringR).toFixed(3)}" x2="${+(bx - ux * t).toFixed(3)}" y2="${+(cy - uy * t).toFixed(3)}" style="stroke:var(--label)" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
+        }
+      }
+      lab += halo(bx, by, size, esc(lbl), { bold: S.prefs.labelMode === 'number', italic: ex, live: true });
+      if (!pr && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id)
+        lab += `<circle data-kind="lblh" data-id="${pl.id}" data-lx="${+(bx - pl.x).toFixed(3)}" data-ly="${+(by - pl.y).toFixed(3)}" cx="${bx + tw / 2 + px * 10}" cy="${cy}" r="${px * 5}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"><title>Drag to move this label</title></circle>`;
+    }
     parts.push(`<g data-kind="planting" data-id="${pl.id}" style="cursor:move">${body}
       ${isSel ? `<circle cx="${pl.x}" cy="${pl.y}" r="${ringR + fs * 0.6}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}
-      ${showL ? `<text x="${pl.x}" y="${pl.y - (planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32)}" font-size="${ls * 0.68}" text-anchor="middle" style="fill:var(--label);font-weight:${S.prefs.labelMode === 'number' ? 700 : 500};stroke:var(--ground);stroke-width:${ls * 0.14};paint-order:stroke;stroke-linejoin:round${ex ? ';font-style:italic' : ''}">${esc(lbl)}</text>` : ''}
+      ${lab}
     </g>`);
   }
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
@@ -936,10 +964,24 @@ function renderMap() {
     if (b) parts.push(`<line x1="${S.cal.a.x}" y1="${S.cal.a.y}" x2="${b.x}" y2="${b.y}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
     for (const q of [S.cal.a, S.cal.b].filter(Boolean)) parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${px * 5}" style="fill:var(--panel);stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
+  if (S.tool === 'row' && S.row?.a && !pr) {
+    const p = plantById(S.activePlant), a = S.row.a, b = S.hover ? rowEnd(a, S.hover, S.hoverShift) : null, col = `var(--r-${p?.role || 'herbaceous'})`, rr = Math.max(spreadOf(p) / 2, px * 3);
+    if (b) parts.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+    for (const [x, y] of b ? rowPoints(a, b) : [[a.x, a.y]]) parts.push(`<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${rr}" style="fill:${col};stroke:${col}" fill-opacity="0.3" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+  }
+  if (S.meas?.a && !pr) {
+    const a = S.meas.a, b = S.meas.b || (S.tool === 'measure' ? S.hover : null);
+    if (b) {
+      const L = Math.hypot(b.x - a.x, b.y - a.y);
+      parts.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" style="stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+      parts.push(halo((a.x + b.x) / 2, (a.y + b.y) / 2 - fs * 0.5, fs * 0.95, L.toFixed(2) + ' m', { bold: true }));
+    }
+    for (const q of [a, S.meas.b].filter(Boolean)) parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${px * 4.5}" style="fill:var(--panel);stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+  }
   parts.push(`<rect x="0" y="0" width="${W}" height="${D}" fill="none" style="stroke:var(--ink)" stroke-opacity="${showUl ? 0.35 : 1}" stroke-width="${showUl ? 1 : 2}" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   const sb = M > 20 ? 5 : 2, sy = D + pad * 0.55;
-  if (S.prefs.showScale) parts.push(`<g pointer-events="none"><rect x="0" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--ink)"/><rect x="${sb / 2}" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--panel);stroke:var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${sb + fs * 0.5}" y="${sy + fs * 0.35}" font-size="${fs * 0.9}" style="fill:var(--muted)">${sb} m</text></g>`);
-  if (S.prefs.showScale) {
+  if (showScale) parts.push(`<g pointer-events="none"><rect x="0" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--ink)"/><rect x="${sb / 2}" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--panel);stroke:var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${sb + fs * 0.5}" y="${sy + fs * 0.35}" font-size="${fs * 0.9}" style="fill:var(--muted)">${sb} m</text></g>`);
+  if (showScale) {
     const nx = W + pad * 0.5, ny = D - fs * 2.4, deg = num(g.north, 0), rad = deg * Math.PI / 180, isN = S.drag?.north;
     const lx = nx + Math.sin(rad) * fs * 2.1, ly = ny - Math.cos(rad) * fs * 2.1;
     parts.push(`<g data-kind="north" style="cursor:${isN ? 'grabbing' : 'grab'}"><title>Drag to turn north to match your site plan (Shift snaps to 15°)</title>
@@ -955,17 +997,21 @@ function renderMap() {
 
 /* ---------- panels ---------- */
 function toolSwatch(t) {
+  if (t.icon === 'row') return '<svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M2 6H14" style="stroke:var(--muted)" stroke-width="1"/><circle cx="2.5" cy="6" r="2" style="fill:var(--r-shrub)"/><circle cx="8" cy="6" r="2" style="fill:var(--r-shrub)"/><circle cx="13.5" cy="6" r="2" style="fill:var(--r-shrub)"/></svg>';
+  if (t.icon === 'measure') return '<svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M1.5 6H14.5M1.5 2.5V9.5M14.5 2.5V9.5" fill="none" style="stroke:currentColor" stroke-width="1.3"/></svg>';
   if (!t.sw) return '<span class="sw" style="border:0;background:none;line-height:12px">↖</span>';
   if (t.blob) return `<svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true"><path d="M2 7 C1 3 5 1 8 2 C12 3 13 6 11 9 C9 11 4 11 2 7 Z" style="fill:${t.sw};stroke:var(--muted)" stroke-width="1" ${t.dashed ? 'stroke-dasharray="2 1.5"' : ''}/></svg>`;
   return `<span class="sw${t.round ? ' round' : ''}" style="background:${t.sw}"></span>`;
 }
 function renderTools() {
   $('tools').innerHTML = TOOLS.map(t => `<button type="button" class="tool" data-tool="${t.id}" aria-pressed="${S.tool === t.id}" title="${t.label} (${t.key})">${toolSwatch(t)}${t.label}</button>`).join('');
-  const needSp = S.tool === 'plant' && !S.activePlant;
+  const needSp = (S.tool === 'plant' || S.tool === 'row') && !S.activePlant;
   const ap = plantById(S.activePlant)?.common || '';
   let h = HINTS[S.tool] || '';
   if (needSp) h = 'Pick a species in the plant library first.';
   else if (S.tool === 'plant') h = `Placing ${ap}. Click the plan to drop one; set the quantity for a group.`;
+  else if (S.tool === 'row' && S.row?.a) h = 'Now click where the row ends. Hold Shift to keep it level, upright or at 45°. Esc cancels.';
+  else if (S.tool === 'measure' && S.meas?.a && !S.meas.b) h = 'Now click the second point.';
   else if (S.tool === 'scale' && S.cal?.a && !S.cal.b) h = 'Now click the second point.';
   else if (S.tool === 'select' && S.g && !S.g.underlay) h = 'Start by importing your site plan from the Site plan menu, then set its scale. ' + HINTS.select;
   else if (S.tool === 'select' && S.g?.underlay && !S.g.underlay.calibrated) h = 'Your plan isn’t scaled yet. Use Set scale and click two points a known distance apart.';
@@ -1012,20 +1058,36 @@ function renderInspector() {
     setTimeout(() => { const i = $('cal-m'); if (i) { i.focus(); i.select(); } }, 0);
     return;
   }
+  if (S.tool === 'row' && S.activePlant) {
+    hint.hidden = true; el.hidden = false;
+    el.innerHTML = `<span class="pk">${toolSwatch({ icon: 'row' })} Row of ${esc(plantById(S.activePlant)?.common || 'plants')}</span>
+      <label class="pf"><span>Spacing</span><input id="row-gap" class="n" type="number" min="0.05" max="20" step="0.05" value="${rowGap()}"><span class="pv">m apart</span></label>
+      <span class="pv" id="row-info">${esc(rowInfo())}</span>
+      ${S.row?.a ? '<span class="acts"><button class="btn sm" type="button" data-act="rowCancel">Cancel row</button></span>' : ''}`;
+    return;
+  }
+  if (S.tool === 'measure' && S.meas?.b) {
+    hint.hidden = true; el.hidden = false;
+    const a = S.meas.a, b = S.meas.b;
+    el.innerHTML = `<span class="pk">${toolSwatch({ icon: 'measure' })} ${Math.hypot(b.x - a.x, b.y - a.y).toFixed(2)} m</span>
+      <span class="pv">${Math.abs(b.x - a.x).toFixed(2)} m across · ${Math.abs(b.y - a.y).toFixed(2)} m up or down · click the plan to measure again</span>
+      <span class="acts"><button class="btn sm" type="button" data-act="measClear">Clear</button></span>`;
+    return;
+  }
   if (S.multi.length) {
     const items = selectedItems();
     if (items.length > 1) {
       hint.hidden = true; el.hidden = false;
       const plants = items.filter(m => m.kind === 'planting').reduce((t, m) => t + (m.it.qty || 1), 0), drifts = items.filter(m => m.it.kind === 'drift').length, beds = items.filter(m => m.it.kind === 'bed').length;
       const bits = [plants && plural(plants, 'plant'), drifts && plural(drifts, 'drift'), beds && plural(beds, 'bed outline')].filter(Boolean).join(', ');
-      el.innerHTML = `<span class="pk">${items.length} selected</span><span class="pv">${esc(bits)} · drag any of them to move them together, Shift-click to add or remove</span><span class="acts"><button class="btn sm" type="button" data-act="deselect">Deselect</button><button class="btn sm danger" type="button" data-act="delete">Remove all</button></span>`;
+      el.innerHTML = `<span class="pk">${items.length} selected</span><span class="pv">${esc(bits)} · drag any of them to move them together, Shift-click to add or remove</span><span class="acts"><button class="btn sm" type="button" data-act="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button><button class="btn sm" type="button" data-act="deselect">Deselect</button><button class="btn sm danger" type="button" data-act="delete">Remove all</button></span>`;
       return;
     }
   }
   const it = S.g ? findSel() : null;
   hint.hidden = !!it; el.hidden = !it;
   if (!it) { el.innerHTML = ''; return; }
-  const acts = (extra = '') => `<span class="acts">${extra}<button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
+  const acts = (extra = '') => `<span class="acts">${extra}${it.lx != null ? '<button class="btn sm" type="button" data-act="resetLabel" title="Put the label back on the plant">Reset label</button>' : ''}<button class="btn sm" type="button" data-act="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
   if (S.sel.kind === 'planting') {
     const p = plantById(it.plantId);
     const fl = p?.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : 'no flowers';
@@ -1444,8 +1506,86 @@ function movePinch() {
   S.cx += S.pinch.anchor.x - now.x; S.cy += S.pinch.anchor.y - now.y; renderMap();
 }
 function beginPan(d, e) { d.pan = true; d.sx = e ? e.clientX : d.sx; d.sy = e ? e.clientY : d.sy; d.cx = S.cx; d.cy = S.cy; svg.classList.add('panning'); }
-function toolClick(tool, p) {
+const snapStep = () => clamp(num(S.prefs.snap, 0.1), 0.05, 1);
+/* rows: evenly spaced single plants between two points */
+function rowGap() { return clamp(S.rowGap || r2(num(plantById(S.activePlant)?.spread, 0.5)), 0.05, 20); }
+function rowEnd(a, p, straight) {
+  if (!straight) return { x: snap(p.x), y: snap(p.y) };
+  const L = Math.hypot(p.x - a.x, p.y - a.y), ang = Math.round(Math.atan2(p.y - a.y, p.x - a.x) / (Math.PI / 4)) * (Math.PI / 4);
+  return { x: r2(a.x + Math.cos(ang) * L), y: r2(a.y + Math.sin(ang) * L) };
+}
+function rowPoints(a, b) {
+  const L = Math.hypot(b.x - a.x, b.y - a.y); if (L < 1e-6) return [[a.x, a.y]];
+  const n = clamp(Math.round(L / rowGap()) + 1, 2, 400);
+  return Array.from({ length: n }, (_, i) => [a.x + (b.x - a.x) * i / (n - 1), a.y + (b.y - a.y) * i / (n - 1)]);
+}
+function rowInfo() {
+  if (S.row?.a && S.hover) { const b = rowEnd(S.row.a, S.hover, S.hoverShift), n = rowPoints(S.row.a, b).length, L = Math.hypot(b.x - S.row.a.x, b.y - S.row.a.y); return `${plural(n, 'plant')} over ${L.toFixed(2)} m, ${(n > 1 ? L / (n - 1) : 0).toFixed(2)} m apart`; }
+  if (S.row?.a) return 'Now click where the row ends.';
+  return S.rowMade ? `Placed ${plural(S.rowMade, 'plant')}. Click to start another row.` : 'Spacing starts at the plant’s mature spread.';
+}
+function updateLive() { const el = $('row-info'); if (el) el.textContent = rowInfo(); }
+/* duplicate, copy, paste and nudge */
+function cloneItems(items, dx, dy) {
+  const made = [];
+  for (const m of items) {
+    const c = JSON.parse(JSON.stringify(m.it)); c.id = uid();
+    if (m.kind === 'area') { c.pts = c.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]); S.g.areas.push(c); }
+    else { c.x = r2(c.x + dx); c.y = r2(c.y + dy); S.g.plantings.push(c); }
+    made.push({ kind: m.kind, id: c.id });
+  }
+  return made;
+}
+function duplicateSel() {
+  const items = selectedItems(); if (!items.length) return;
+  checkpoint(); const off = Math.max(0.5, snapStep());
+  selectMany(cloneItems(items, off, off)); saveGarden(); refreshDerived();
+}
+function copySel() {
+  const items = selectedItems(); if (!items.length) return false;
+  const n = items.reduce((t, m) => t + (m.kind === 'planting' ? m.it.qty || 1 : 1), 0);
+  S.clip = { items: items.map(m => ({ kind: m.kind, it: JSON.parse(JSON.stringify(m.it)) })), n: 0 };
+  setStatus(`Copied ${plural(n, 'plant')}. Ctrl+V pastes`); return true;
+}
+function pasteClip() {
+  if (!S.clip || !S.g) return;
+  const items = S.clip.items.filter(m => plantById(m.it.plantId)); if (!items.length) return;
+  const cs = items.map(m => (m.kind === 'area' ? centreOf(m.it) : m.it)), cx = cs.reduce((t, c) => t + c.x, 0) / cs.length, cy = cs.reduce((t, c) => t + c.y, 0) / cs.length;
+  let dx, dy;
+  if (S.ptr && S.ptr.x >= 0 && S.ptr.x <= S.g.width && S.ptr.y >= 0 && S.ptr.y <= S.g.depth) { dx = snap(S.ptr.x - cx); dy = snap(S.ptr.y - cy); }
+  else { S.clip.n++; dx = dy = 0.5 * S.clip.n; }
+  checkpoint(); selectMany(cloneItems(items, dx, dy)); saveGarden(); refreshDerived();
+}
+let nudgeMark = null, nudgeT = 0;
+function nudge(dx, dy) {
+  const items = selectedItems(); if (!items.length) return;
+  const now = Date.now();
+  if (now - nudgeT > 900 || S.history[S.history.length - 1] !== nudgeMark) { checkpoint(); nudgeMark = S.history[S.history.length - 1]; }
+  nudgeT = now;
+  for (const m of items) { if (m.kind === 'area') m.it.pts = m.it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]); else { m.it.x = r2(m.it.x + dx); m.it.y = r2(m.it.y + dy); } }
+  saveGarden(); renderMapSoon();
+}
+const wantsHover = () => (S.cal?.a && !S.cal.b) || (S.tool === 'row' && S.row?.a) || (S.tool === 'measure' && S.meas?.a && !S.meas.b);
+function trackHover(e) {
+  const p = toM(e); S.ptr = { x: p.x, y: p.y };
+  if (!wantsHover()) return;
+  S.hover = { x: r2(p.x), y: r2(p.y) }; S.hoverShift = e.shiftKey; renderMapSoon(); updateLive();
+}
+function toolClick(tool, p, shift) {
   const sp = { x: snap(p.x), y: snap(p.y) };
+  if (tool === 'measure') {
+    const q = { x: r2(p.x), y: r2(p.y) };
+    if (!S.meas?.a || S.meas.b) S.meas = { a: q, b: null }; else S.meas.b = q;
+    S.hover = null; renderTools(); renderInspector(); renderMap(); return;
+  }
+  if (tool === 'row') {
+    if (!S.activePlant) { renderTools(); return; }
+    if (!S.row?.a) { S.row = { a: sp }; S.hover = null; S.rowMade = 0; renderTools(); renderInspector(); renderMap(); return; }
+    const made = rowPoints(S.row.a, rowEnd(S.row.a, p, shift)).map(([x, y]) => ({ id: uid(), plantId: S.activePlant, x: r2(x), y: r2(y), qty: 1 }));
+    checkpoint(); S.g.plantings.push(...made);
+    S.row = null; S.hover = null; S.rowMade = made.length; S.sel = null; S.multi = made.map(m => ({ kind: 'planting', id: m.id }));
+    saveGarden(); renderTools(); renderInspector(); refreshDerived(); return;
+  }
   if (tool === 'scale') {
     if (!S.cal || S.cal.b) S.cal = { a: null, b: null };
     if (!S.cal.a) S.cal.a = { x: p.x, y: p.y }; else S.cal.b = { x: p.x, y: p.y };
@@ -1472,6 +1612,7 @@ svg.addEventListener('pointerdown', e => {
   const hit = e.target.closest('[data-kind]');
   const tool = S.tool;
   if (hit?.dataset.kind === 'north') { S.drag = { north: true, moved: false, before: JSON.stringify(S.g) }; renderMap(); return; }
+  if (hit?.dataset.kind === 'lblh') { const pl = S.g.plantings.find(x => x.id === hit.dataset.id); if (pl) S.drag = { label: true, pl, start: p, moved: false, before: JSON.stringify(S.g), orig: { x: num(hit.dataset.lx), y: num(hit.dataset.ly) } }; return; }
   const selecting = tool === 'select' || (tool === 'plant' && hit && (hit.dataset.kind === 'planting' || hit.dataset.kind === 'handle' || !S.activePlant));
   if (selecting && hit) {
     const kind = hit.dataset.kind, id = hit.dataset.id;
@@ -1491,10 +1632,7 @@ svg.addEventListener('pointermove', e => {
   if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (S.pinch) { if (ptrs.size >= 2) movePinch(); return; }
   const d = S.drag;
-  if (!d) {
-    if (S.cal?.a && !S.cal.b) { const p = toM(e); S.hover = { x: r2(p.x), y: r2(p.y) }; renderMapSoon(); }
-    return;
-  }
+  if (!d) { trackHover(e); return; }
   if (d.pan) {
     if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return;
     d.moved = true;
@@ -1502,10 +1640,7 @@ svg.addEventListener('pointermove', e => {
     renderMapSoon(); return;
   }
   if (d.pending) {
-    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) {
-      if (S.cal?.a && !S.cal.b) { const p = toM(e); S.hover = { x: r2(p.x), y: r2(p.y) }; renderMapSoon(); }
-      return;
-    }
+    if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) { trackHover(e); return; }
     if (!d.marquee) { d.moved = true; beginPan(d); d.sx = d.sx; return; }
     d.moved = true; d.cur = toM(e); renderMapSoon(); return;
   }
@@ -1516,6 +1651,12 @@ svg.addEventListener('pointermove', e => {
     deg = ((Math.round(deg / (e.shiftKey ? 15 : 1)) * (e.shiftKey ? 15 : 1)) % 360 + 360) % 360;
     if (!d.moved) { pushHistory(d.before); d.moved = true; }
     S.g.north = deg; renderMapSoon(); renderGardenFields(); return;
+  }
+  if (d.label) {
+    const dx = p.x - d.start.x, dy = p.y - d.start.y;
+    if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
+    if (!d.moved) { pushHistory(d.before); d.moved = true; }
+    d.pl.lx = r2(d.orig.x + dx); d.pl.ly = r2(d.orig.y + dy); renderMapSoon(); return;
   }
   if (d.handle) {
     const a = S.g.areas.find(x => x.id === d.id); if (!a) return;
@@ -1553,7 +1694,7 @@ function endDrag() {
       return;
     }
     if (d.pending === 'select') { select(null); return; }
-    toolClick(d.pending, d.start); return;
+    toolClick(d.pending, d.start, d.marquee); return;
   }
   if (d.moved) { saveGarden(); renderInspector(); }
   refreshDerived();
@@ -1561,7 +1702,7 @@ function endDrag() {
 function onUp(e) { ptrs.delete(e.pointerId); if (S.pinch) { if (ptrs.size < 2) S.pinch = null; return; } endDrag(); }
 svg.addEventListener('pointerup', onUp);
 svg.addEventListener('pointercancel', onUp);
-svg.addEventListener('pointerleave', () => { if (S.hover && !S.drag) { S.hover = null; renderMapSoon(); } });
+svg.addEventListener('pointerleave', () => { S.ptr = null; if (S.hover && !S.drag) { S.hover = null; renderMapSoon(); updateLive(); } });
 svg.addEventListener('wheel', e => {
   if (!S.g) return;
   e.preventDefault();
@@ -1574,6 +1715,7 @@ svg.addEventListener('wheel', e => {
 /* ---------- controls ---------- */
 function setTool(t) {
   if (t !== 'scale') S.cal = null; else S.cal = { a: null, b: null };
+  S.row = null; S.rowMade = 0; if (t !== 'measure') S.meas = null;
   S.tool = t; S.hover = null; renderTools(); renderInspector(); renderMap();
 }
 $('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
@@ -1581,7 +1723,7 @@ $('lib').addEventListener('click', e => {
   const ed = e.target.closest('[data-edit]'); if (ed) { openPlantEditor(ed.dataset.edit); return; }
   const li = e.target.closest('[data-pid]'); if (!li) return;
   S.activePlant = li.dataset.pid;
-  S.tool = 'plant';
+  if (S.tool !== 'row') S.tool = 'plant'; else { S.rowGap = null; renderInspector(); renderMapSoon(); }
   renderTools();
   for (const el of $('lib').querySelectorAll('[data-pid]')) el.setAttribute('aria-selected', el.dataset.pid === S.activePlant);
 });
@@ -1856,6 +1998,7 @@ let fieldCheckpointed = false;
 app.addEventListener('focusin', () => { fieldCheckpointed = false; });
 app.addEventListener('input', e => {
   const t = e.target;
+  if (t.id === 'row-gap') { S.rowGap = num(t.value, 0) > 0 ? clamp(num(t.value), 0.05, 20) : null; updateLive(); renderMapSoon(); return; }
   if (t.dataset.g) {
     if (!S.g) return;
     if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
@@ -1922,6 +2065,10 @@ app.addEventListener('click', async e => {
   if (act === 'delete') removeSel();
   if (act === 'clearPhoto' && S.editPlant) { S.editPlant.photoId = null; renderLibrary(); }
   if (act === 'deselect') select(null);
+  if (act === 'duplicate') duplicateSel();
+  if (act === 'resetLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lx; delete it.ly; saveGarden(); renderInspector(); renderMap(); } }
+  if (act === 'rowCancel') { S.row = null; S.hover = null; renderTools(); renderInspector(); renderMap(); }
+  if (act === 'measClear') { S.meas = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'bkpGarden') downloadBackup('garden');
   if (act === 'bkpLibrary') downloadBackup('library');
   if (act === 'bkpAll') downloadBackup('all');
@@ -2094,7 +2241,17 @@ document.addEventListener('keydown', e => {
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
   if ((e.ctrlKey || e.metaKey) && !typing && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && !typing && !e.altKey && getPage() === 'plan') {
+    const k = e.key.toLowerCase();
+    if (k === 'd' && (S.sel || S.multi.length)) { e.preventDefault(); duplicateSel(); return; }
+    if (k === 'c' && !String(window.getSelection?.() || '') && copySel()) { e.preventDefault(); return; }
+    if (k === 'v' && S.clip) { e.preventDefault(); pasteClip(); return; }
+  }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key.startsWith('Arrow') && getPage() === 'plan' && (S.sel || S.multi.length) && document.activeElement?.id !== 'splitter') {
+    const st = snapStep() * (e.shiftKey ? 10 : 1), v = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[e.key];
+    if (v) { e.preventDefault(); nudge(v[0], v[1]); return; }
+  }
   if (e.key === '+' || e.key === '=') { zoomBy(1.4); return; }
   if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
   if (e.key === '0') { resetView(); renderMap(); return; }
