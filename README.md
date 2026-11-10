@@ -13,7 +13,7 @@ https://claude.ai/artifact/2aTBjBBXxP2rNoepiPnhLe
 - **Plant database**: every species entered, shared across all gardens. Searchable, filterable by layer, sortable.
 - **Supplier availability**: import a nursery's availability list (Excel, CSV or pasted rows), kept separate from your plants. Tick lines to add them to your plant database with price, supplier, pot size and code; matching plants have their price and supplier updated. Claude can fill in height, spread, flowering, flower colour and layer for the plants you add.
 - **Presentation**: a client booklet (A4 landscape PDF) with a cover, the planting plan numbered to the palette, a numbered plant palette of close-up photos, the plant schedule, the flowering calendar and a pricing page with your own lines and optional VAT. Pages can be switched on or off.
-- **Preferences**: label size and text, grid, rulers, snap spacing (5 cm–1 m), default view, currency, and colours for each layer.
+- **Preferences**: a theme (Eiderdown, Woodwork, XP or root), label size and text, grid, rulers, snap spacing (5 cm–1 m), default view, currency, and colours for each layer.
 
 Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbaceous, Ground cover, Tubers & bulbs, Climbers.
 

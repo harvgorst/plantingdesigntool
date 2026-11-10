@@ -43,7 +43,7 @@ h2 { font-family: var(--f-display); font-weight: 600; font-size: 19px; line-heig
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.danger { color: var(--crit); }
 .btn.on { border-color: var(--accent); background: var(--accent-soft); }
-.btn.danger.solid { background: var(--crit); border-color: var(--crit); color: var(--panel); }
+.btn.danger.solid { background: var(--crit); border-color: var(--crit); }
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); background: rgba(20, 18, 15, 0.38); }
 .modal .card { max-width: 440px; width: 100%; overflow: visible; gap: 14px; padding: 22px; box-shadow: 0 18px 50px rgba(20, 18, 15, 0.25); }
 .modal h2 { font-size: 24px; }
@@ -114,7 +114,7 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 
 .mapwrap { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 /* the plan is a light drawing sheet in every theme, so labels stay black */
-.mapwrap { color-scheme: light; color: #2F2B25;
+.mapwrap, .sheetref { color-scheme: light; color: #2F2B25;
   --panel: #FBF8F1; --paper: #F4EFE4; --ink: #2F2B25; --muted: #7B7266; --line: #E0D7C6; --line-soft: #EBE4D6;
   --accent: #667D5E; --accent-ink: #FFFDF8; --accent-soft: #E5E9DA; --crit: #A8402F; --warn: #A06C1E;
   --ground: #F1EBDF; --grid: #E3DACA; --grid-major: #D2C6B1; --bed: #E6D6BE;
@@ -222,7 +222,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .pwrap { flex: none; box-shadow: 0 6px 24px rgba(20, 18, 15, 0.14); border-radius: 2px; overflow: hidden; }
 .pwrap > .bpage { transform-origin: 0 0; }
 /* booklet page: A4 landscape at 96 dpi */
-.bpage { width: 1123px; height: 794px; background: #F8F4EC; color: #2F2B25; font-family: var(--f-body); position: relative; overflow: hidden; box-sizing: border-box; padding: 54px 64px 60px; display: flex; flex-direction: column; }
+.bpage { --f-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --f-body: "Source Serif 4", "Iowan Old Style", Georgia, serif; width: 1123px; height: 794px; background: #F8F4EC; color: #2F2B25; font-family: var(--f-body); position: relative; overflow: hidden; box-sizing: border-box; padding: 54px 64px 60px; display: flex; flex-direction: column; }
 .bpage .bh { display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8A8073; border-bottom: 1px solid #DDD3C2; padding-bottom: 10px; margin-bottom: 26px; }
 .bpage .bf { position: absolute; left: 64px; right: 64px; bottom: 26px; display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #A39888; }
 .bpage h3 { font-family: var(--f-display); font-weight: 500; font-size: 40px; line-height: 1; margin: 0 0 6px; letter-spacing: -0.01em; color: #2F2B25; }
@@ -269,7 +269,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .rolecol input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); flex: none; }
 fieldset.pref legend { font-family: var(--f-display); font-weight: 600; font-size: 19px; padding: 0 6px; }
 fieldset.pref .field { grid-template-columns: 110px 1fr; }
-.pv-sample { background: var(--ground); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; color: #000; font-weight: 500; min-height: 2.6em; display: flex; align-items: center; }
+.pv-sample { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-weight: 500; min-height: 2.6em; display: flex; align-items: center; }
 .calscroll { overflow-x: auto; }
 .cal-grid { min-width: 720px; display: grid; grid-template-columns: minmax(170px, 240px) minmax(0, 1fr); column-gap: 14px; }
 .cal-months, .ctrack, .cal-seasons { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
@@ -288,6 +288,144 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 .cmix div span { flex: 1; }
 .ccount { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); text-align: center; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted); padding-top: 4px; }
 .ccount .gap { color: var(--crit); }
+
+/* ---------- themes: Eiderdown is the base above; the others override it ---------- */
+.pv-sample { background: #F1EBDF; color: #000; }
+.btn.danger.solid { color: #FFFDF8; }
+.thgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.thopt { position: relative; display: flex; flex-direction: column; gap: 6px; cursor: pointer; border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: var(--panel); }
+.thopt:hover { border-color: var(--muted); }
+.thopt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.thopt input { position: absolute; opacity: 0; pointer-events: none; }
+.thopt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.thprev { height: 58px; border-radius: 6px; overflow: hidden; display: grid; grid-template-rows: 14px 1fr; border: 1px solid rgba(0,0,0,.12); }
+.thprev .tb { display: flex; align-items: center; padding: 0 6px; font-size: 9px; line-height: 1; }
+.thprev .bd { display: flex; gap: 5px; padding: 6px; align-items: flex-start; }
+.thprev .bd i { display: block; height: 100%; border-radius: 3px; }
+.thopt b { font-weight: 600; font-size: 14px; }
+.thopt small { color: var(--muted); font-size: 12px; line-height: 1.3; }
+h1 .jp, .tabs .jp { display: none; }
+
+/* Woodwork: dark oak and walnut, same serif typefaces; the plan stays a light drawing sheet on the desk */
+html[data-skin=woodwork] { color-scheme: dark;
+  --paper: #241B15; --panel: #2E231B; --ink: #EDE0CA; --muted: #A99579; --line: #4A3A2C; --line-soft: #3A2E24;
+  --accent: #C99A5B; --accent-ink: #241B15; --accent-soft: #46361F;
+  --ground: #2A2019; --grid: #3A2E24; --grid-major: #4A3A2C;
+  --warn: #E0A955; --crit: #E07A62; --bar-edge: rgba(237, 224, 202, 0.25); }
+html[data-skin=woodwork] body { background: radial-gradient(1200px 600px at 20% -10%, #33271D, transparent 70%), var(--paper); }
+html[data-skin=woodwork] .mapwrap { --panel: #F5ECDC; --paper: #EFE4D0; --line: #6A5440; --ground: #F1E7D5; --grid: #E2D5BF; --grid-major: #CDBB9E; border-color: #5A4634; }
+html[data-skin=woodwork] .modal { background: rgba(10, 7, 4, 0.6); }
+html[data-skin=woodwork] .btn.primary { color: #241B15; }
+html[data-skin=woodwork] .card, html[data-skin=woodwork] .toolbar { box-shadow: inset 0 1px 0 rgba(255, 240, 215, 0.04); }
+
+/* XP: a nod to the classic early-2000s desktop: blue title bars, beige window faces, glossy buttons, Tahoma */
+html[data-skin=xp] { color-scheme: light;
+  --paper: #ECE9D8; --panel: #FFFFFF; --ink: #000000; --muted: #5A5A5A; --line: #ACA899; --line-soft: #E3E0D0;
+  --accent: #316AC5; --accent-ink: #FFFFFF; --accent-soft: #C7D9F4;
+  --ground: #FFFFFF; --grid: #E4E8F0; --grid-major: #C8D0DE;
+  --warn: #B36B00; --crit: #C1272D; --bar-edge: rgba(0, 0, 0, 0.25);
+  --f-display: "Trebuchet MS", Tahoma, Verdana, "DejaVu Sans", sans-serif;
+  --f-body: Tahoma, Verdana, "Segoe UI", "DejaVu Sans", sans-serif;
+  --f-mono: "Lucida Console", "Courier New", monospace; }
+html[data-skin=xp] body { font-size: 12.5px; background: linear-gradient(#5A8EDB, #3A6EA5 160px, #3A6EA5) fixed; }
+html[data-skin=xp] .app { gap: 0; padding-block: 10px; }
+html[data-skin=xp] .app > * { background: #ECE9D8; }
+html[data-skin=xp] .top { background: linear-gradient(#0A5FEA, #0453DE 8%, #0058EE 40%, #0C61F2 88%, #0044CF); border: 1px solid #0831D9; border-bottom: 0; border-radius: 8px 8px 0 0; padding: 0 6px 0 10px; color: #FFF; gap: 4px 20px; }
+html[data-skin=xp] .top h1 { font-family: var(--f-display); font-weight: 700; font-size: 15px; letter-spacing: 0; color: #FFF; text-shadow: 1px 1px 0 #0A1E8A; padding: 8px 0; }
+html[data-skin=xp] .top h1::before { content: ""; display: inline-block; width: 14px; height: 14px; margin-right: 7px; vertical-align: -2px; border-radius: 2px; background: radial-gradient(circle at 35% 35%, #B8E986, #3C9D37 70%); box-shadow: 0 0 0 1px rgba(255,255,255,.6); }
+html[data-skin=xp] .tabs { gap: 2px; align-self: end; }
+html[data-skin=xp] .tabs button { color: #000; background: linear-gradient(#FFF, #ECEBE5); border: 1px solid #919B9C; border-bottom: 0; border-radius: 3px 3px 0 0; padding: 4px 10px; margin-top: 6px; font-size: 12px; }
+html[data-skin=xp] .tabs button:hover { color: #000; border-top: 2px solid #FFC83C; }
+html[data-skin=xp] .tabs button[aria-pressed=true] { background: #ECE9D8; border-top: 3px solid #E68B2C; padding-top: 6px; margin-top: 2px; font-weight: 700; }
+html[data-skin=xp] .top select, html[data-skin=xp] .top .btn { color: #000; }
+html[data-skin=xp] #status { color: #DDE8FF; font-style: normal; }
+html[data-skin=xp] #status.err { color: #FFD0D0; }
+html[data-skin=xp] .toolbar { border: 1px solid #0831D9; border-top: 0; border-bottom: 1px solid #ACA899; border-radius: 0; background: linear-gradient(#F6F5F0, #ECE9D8); padding: 4px 8px; }
+html[data-skin=xp] .app > :not(.top):not(.toolbar) { border-left: 1px solid #0831D9; border-right: 1px solid #0831D9; }
+html[data-skin=xp] .app > :last-child { border-bottom: 1px solid #0831D9; padding: 8px; }
+html[data-skin=xp] .app.cal > :last-child { border-top: 0; }
+html[data-skin=xp] .props { background: #ECE9D8; }
+html[data-skin=xp] .btn, html[data-skin=xp] .seg { border: 1px solid #003C74; border-radius: 3px; background: linear-gradient(#FFFFFF, #F3F2EC 60%, #D6D0C5); box-shadow: inset 0 -1px 0 rgba(0,0,0,.04); }
+html[data-skin=xp] .btn:hover:not(:disabled) { border-color: #003C74; box-shadow: inset 0 -2px 0 #F8B330, inset 0 2px 0 #FFF0CF; }
+html[data-skin=xp] .btn:active:not(:disabled) { background: linear-gradient(#E5E3DA, #F2F1EC); }
+html[data-skin=xp] .btn.primary { background: linear-gradient(#FFFFFF, #F3F2EC 60%, #D6D0C5); color: #000; box-shadow: inset 0 0 0 2px #98B4E4; font-weight: 700; }
+html[data-skin=xp] .btn.on { background: linear-gradient(#E3E0D0, #F4F3EE); box-shadow: inset 1px 1px 2px rgba(0,0,0,.25); }
+html[data-skin=xp] .btn.danger.solid { background: linear-gradient(#E85C4A, #C1272D); border-color: #7A0F12; color: #FFF; }
+html[data-skin=xp] .seg { background: none; overflow: hidden; }
+html[data-skin=xp] .seg button + button { border-left: 1px solid #ACA899; }
+html[data-skin=xp] .seg button[aria-pressed=true] { background: linear-gradient(#E3E0D0, #F4F3EE); color: #000; box-shadow: inset 1px 1px 2px rgba(0,0,0,.25); font-weight: 700; }
+html[data-skin=xp] .tool { border-radius: 3px; font-size: 12.5px; }
+html[data-skin=xp] .tool:hover { background: none; border-color: #ACA899; box-shadow: inset 0 1px 0 #FFF; }
+html[data-skin=xp] .tool[aria-pressed=true] { background: #E3E0D0; border-color: #ACA899; box-shadow: inset 1px 1px 2px rgba(0,0,0,.2); }
+html[data-skin=xp] select, html[data-skin=xp] input[type=text], html[data-skin=xp] input[type=number], html[data-skin=xp] textarea { border: 1px solid #7F9DB9; border-radius: 0; background: #FFF; }
+html[data-skin=xp] .card, html[data-skin=xp] .calview, html[data-skin=xp] .presset, html[data-skin=xp] fieldset.pref { border: 1px solid #919B9C; border-radius: 0; }
+html[data-skin=xp] .card { background: #FFF; }
+html[data-skin=xp] fieldset.pref legend, html[data-skin=xp] .presset legend { font-family: var(--f-body); font-size: 12.5px; font-weight: 700; color: #0046D5; }
+html[data-skin=xp] h2 { font-family: var(--f-display); font-weight: 700; }
+html[data-skin=xp] .calhead h2, html[data-skin=xp] .presset h2 { font-size: 20px; color: #003399; }
+html[data-skin=xp] .lbl, html[data-skin=xp] .pf > span, html[data-skin=xp] .field > span { text-transform: none; letter-spacing: 0; font-size: 11.5px; color: #333; }
+html[data-skin=xp] .field > span.row { font-size: 12.5px; color: #000; }
+html[data-skin=xp] .lib li { border-radius: 0; }
+html[data-skin=xp] .lib li[aria-selected=true] { background: #316AC5; border-color: #316AC5; color: #FFF; }
+html[data-skin=xp] .lib li[aria-selected=true] i, html[data-skin=xp] .lib li[aria-selected=true] .meta { color: #E4ECFA; }
+html[data-skin=xp] .menu { border: 1px solid #ACA899; border-radius: 0; box-shadow: 2px 2px 3px rgba(0,0,0,.35); padding: 2px; background: #FFF; }
+html[data-skin=xp] .mi, html[data-skin=xp] .lrow { border-radius: 0; font-size: 12.5px; }
+html[data-skin=xp] .mi:hover:not(:disabled), html[data-skin=xp] .lrow:hover { background: #316AC5; color: #FFF; }
+html[data-skin=xp] .lrow:hover .n { color: #E4ECFA; }
+html[data-skin=xp] .mapwrap { border: 1px solid #7F9DB9; border-radius: 0; --panel: #FFFFFF; --ground: #FFFFFF; --grid: #E6E9EF; --grid-major: #CDD3DD; --accent: #316AC5; }
+html[data-skin=xp] .modal { background: rgba(0, 0, 0, 0.25); }
+html[data-skin=xp] .modal .card { background: linear-gradient(#0A5FEA, #0058EE 40%, #0C61F2 88%, #0044CF) 0 0 / 100% 26px no-repeat, #ECE9D8; border: 1px solid #0831D9; border-radius: 8px 8px 0 0; padding-top: 40px; box-shadow: 4px 6px 16px rgba(0,0,0,.4), inset 0 0 0 2px #0055EA; }
+html[data-skin=xp] .avbar { border-radius: 0; background: #FFFFE1; border-color: #000; }
+html[data-skin=xp] .splitter::before { border-radius: 0; }
+html[data-skin=xp] .thopt { border-radius: 0; }
+html[data-skin=xp] .cal-seasons span { font-style: normal; font-size: 12.5px; font-weight: 700; }
+
+/* root: two-tone terminal: phosphor green on near-black, monospace, a little Japanese */
+html[data-skin=root] { color-scheme: dark;
+  --paper: #0C0E0B; --panel: #111410; --ink: #CFE3BC; --muted: #6F8462; --line: #263022; --line-soft: #1A2117;
+  --accent: #9BE86A; --accent-ink: #0C0E0B; --accent-soft: #1C2A15;
+  --ground: #0F120E; --grid: #1A2117; --grid-major: #263022;
+  --warn: #E8C46A; --crit: #FF6B5E; --bar-edge: rgba(207, 227, 188, 0.25);
+  --f-display: "DotGothic16", "IBM Plex Mono", "Noto Sans JP", monospace;
+  --f-body: "IBM Plex Mono", "Noto Sans JP", ui-monospace, Menlo, Consolas, monospace;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace; }
+html[data-skin=root] body { font-size: 13px; letter-spacing: 0; }
+html[data-skin=root] :is(h1, h2):not(.bpage *) { font-weight: 400; letter-spacing: 0.02em; }
+html[data-skin=root] .top h1 { font-size: 20px; color: var(--accent); }
+html[data-skin=root] h1 .jp { display: inline; margin-right: 10px; padding: 0 6px; background: var(--accent); color: var(--accent-ink); }
+html[data-skin=root] .top h1::after { content: "_"; margin-left: 2px; animation: rootblink 1.1s steps(1) infinite; }
+@keyframes rootblink { 50% { opacity: 0; } }
+html[data-skin=root] .tabs { gap: 0 18px; }
+html[data-skin=root] .tabs button { font-size: 13px; text-transform: lowercase; }
+html[data-skin=root] .tabs .jp { display: inline; margin-right: 6px; font-family: "Noto Sans JP", var(--f-body); font-size: 11px; color: var(--muted); }
+html[data-skin=root] .tabs button[aria-pressed=true] .jp { color: var(--accent); }
+html[data-skin=root] .tabs button[aria-pressed=true]::before { content: "> "; color: var(--accent); }
+html[data-skin=root] #status { font-style: normal; }
+html[data-skin=root] #status::before { content: "$ "; color: var(--accent); }
+html[data-skin=root] .btn, html[data-skin=root] .seg, html[data-skin=root] select, html[data-skin=root] input[type=text], html[data-skin=root] input[type=number], html[data-skin=root] textarea,
+html[data-skin=root] .card, html[data-skin=root] .toolbar, html[data-skin=root] .calview, html[data-skin=root] .presset, html[data-skin=root] fieldset.pref, html[data-skin=root] .menu, html[data-skin=root] .mi,
+html[data-skin=root] .lrow, html[data-skin=root] .tool, html[data-skin=root] .lib li, html[data-skin=root] .mapwrap, html[data-skin=root] .avbar, html[data-skin=root] .thopt, html[data-skin=root] .confirm, html[data-skin=root] .presset fieldset { border-radius: 2px; }
+html[data-skin=root] .btn { background: transparent; }
+html[data-skin=root] .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+html[data-skin=root] .btn.primary:hover:not(:disabled) { color: var(--accent-ink); }
+html[data-skin=root] .btn.danger.solid { color: #0C0E0B; }
+html[data-skin=root] .lbl, html[data-skin=root] .pf > span, html[data-skin=root] .field > span { letter-spacing: 0.06em; }
+html[data-skin=root] fieldset.pref legend, html[data-skin=root] .presset legend { font-size: 15px; color: var(--accent); }
+html[data-skin=root] fieldset.pref legend::before, html[data-skin=root] .presset legend::before { content: "# "; color: var(--muted); }
+html[data-skin=root] .cal-seasons span { font-style: normal; font-size: 13px; }
+html[data-skin=root] .hint, html[data-skin=root] .empty { font-style: normal; }
+html[data-skin=root] .hint::before { content: "// "; }
+html[data-skin=root] .menu { box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgba(0,0,0,.6); }
+html[data-skin=root] .modal { background: rgba(0, 0, 0, 0.6); }
+html[data-skin=root] .modal .card { box-shadow: 0 0 0 1px var(--accent), 0 18px 50px rgba(0,0,0,.7); }
+html[data-skin=root] .mapwrap { color-scheme: dark; color: #CFE3BC;
+  --panel: #0F120E; --paper: #141812; --ink: #CFE3BC; --muted: #6F8462; --line: #263022; --line-soft: #1A2117;
+  --accent: #9BE86A; --accent-ink: #0C0E0B; --accent-soft: #1C2A15; --crit: #FF6B5E; --warn: #E8C46A;
+  --ground: #121610; --grid: #1B2318; --grid-major: #2A3625; --bed: #1C2618; --label: #E6F4D6; --exist: #8A9A80; }
+html[data-skin=root] #map image.ul { filter: invert(1) hue-rotate(180deg); }
+html[data-skin=root] .pv-sample { background: #121610; color: #E6F4D6; }
+html[data-skin=root] .cbar.unset { background: repeating-linear-gradient(45deg, var(--accent-soft) 0 5px, var(--panel) 5px 10px); }
+html[data-skin=root] ::selection { background: var(--accent); color: var(--accent-ink); }
 
 @media (max-width: 1200px) {
   html, body { height: auto; }
@@ -309,8 +447,8 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 
 <div class="app">
   <header class="top">
-    <h1>Garden Planting Map</h1>
-    <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true">Plan</button><button type="button" id="navSched" aria-pressed="false">Plant schedule</button><button type="button" id="navCal" aria-pressed="false">Flowering calendar</button><button type="button" id="navDb" aria-pressed="false">Plant database</button><button type="button" id="navPres" aria-pressed="false">Presentation</button><button type="button" id="navPrefs" aria-pressed="false">Preferences</button></nav>
+    <h1><span class="jp" aria-hidden="true">庭</span>Garden Planting Map</h1>
+    <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true"><span class="jp" aria-hidden="true">計画</span>Plan</button><button type="button" id="navSched" aria-pressed="false"><span class="jp" aria-hidden="true">植栽表</span>Plant schedule</button><button type="button" id="navCal" aria-pressed="false"><span class="jp" aria-hidden="true">花暦</span>Flowering calendar</button><button type="button" id="navDb" aria-pressed="false"><span class="jp" aria-hidden="true">図鑑</span>Plant database</button><button type="button" id="navPres" aria-pressed="false"><span class="jp" aria-hidden="true">発表</span>Presentation</button><button type="button" id="navPrefs" aria-pressed="false"><span class="jp" aria-hidden="true">設定</span>Preferences</button></nav>
     <div class="spacer"></div>
     <div class="gbox"><select id="gardenSel" aria-label="Choose a garden"></select><button class="btn sm" id="detailsBtn" type="button">Garden details</button></div>
     <span id="status">Connecting…</span>
@@ -417,6 +555,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
   </div>
 </div>
 
+<div class="sheetref" hidden aria-hidden="true"></div>
 <div class="modal" id="plantModal" hidden role="dialog" aria-modal="true" aria-label="Edit species"><div class="card" id="plantModalBody" style="max-width:560px;max-height:min(90vh, 860px);overflow:auto"></div></div>
 <div class="modal" id="detailsModal" hidden role="dialog" aria-modal="true" aria-labelledby="detailsH">
   <div class="card">
@@ -463,13 +602,28 @@ const HINTS = {
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
-const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, defaultView: 'mature', currency: '£', roleColors: {} };
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, defaultView: 'mature', currency: '£', roleColors: {}, theme: 'eiderdown' };
+const THEMES = {
+  eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
+  woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, same serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
+  xp: { name: 'XP', note: 'Blue title bars, beige windows and glossy buttons, early-2000s style.', bar: 'linear-gradient(#0A5FEA, #0058EE 45%, #0044CF)', barInk: '#FFFFFF', bg: '#ECE9D8', cols: ['#FFFFFF', '#316AC5', '#ACA899'], font: 'Tahoma, Verdana, sans-serif' },
+  root: { name: 'root', note: 'Two-tone terminal green on black, monospace, with a little Japanese.', bar: '#111410', barInk: '#9BE86A', bg: '#0C0E0B', cols: ['#121610', '#9BE86A', '#263022'], font: '"IBM Plex Mono", monospace', jp: '庭 ' },
+};
+const THEME_FONTS = { root: 'https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Noto+Sans+JP:wght@400;600&display=swap' };
+function applyTheme(t) {
+  if (!THEMES[t]) t = 'eiderdown';
+  document.documentElement.dataset.skin = t;
+  try { localStorage.setItem('gpm.theme', t); } catch {}
+  const href = THEME_FONTS[t];
+  if (href && !document.querySelector(`link[data-theme-font="${t}"]`)) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; l.dataset.themeFont = t; document.head.appendChild(l); }
+}
+(() => { let t = null; try { t = localStorage.getItem('gpm.theme'); } catch {} applyTheme(t); })();
 const ROLE_DEFAULTS = { canopy: '#2F5A3C', understory: '#4B807B', shrub: '#7E9A55', herbaceous: '#9C5378', ground: '#A39543', tuber: '#B97B42', climber: '#5D6FA3', existing: '#7B7266' };
 function applyRoleColours() {
-  const rc = S.prefs.roleColors || {}, mw = document.querySelector('.mapwrap');
+  const rc = S.prefs.roleColors || {}, mw = document.querySelector('.mapwrap'), sr = document.querySelector('.sheetref');
   for (const k of Object.keys(ROLE_DEFAULTS)) {
     const v = rc[k] && /^#[0-9a-f]{6}$/i.test(rc[k]) ? rc[k] : null, name = k === 'existing' ? '--exist' : '--r-' + k;
-    for (const el of [document.documentElement, mw]) { if (!el) continue; if (v) el.style.setProperty(name, v); else el.style.removeProperty(name); }
+    for (const el of [document.documentElement, mw, sr]) { if (!el) continue; if (v) el.style.setProperty(name, v); else el.style.removeProperty(name); }
   }
 }
 const S = {
@@ -646,7 +800,7 @@ function renderMap() {
   const u = g.underlay, showUl = u && !S.ulHidden && ulUrl(u);
   const parts = [];
   parts.push(`<rect x="0" y="0" width="${W}" height="${D}" style="fill:var(--ground)"/>`);
-  if (showUl) parts.push(`<image href="${esc(ulUrl(u))}" x="0" y="0" width="${u.natW * u.mPerPx}" height="${u.natH * u.mPerPx}" preserveAspectRatio="none" opacity="${num(u.opacity, 0.6)}" pointer-events="none"/>`);
+  if (showUl) parts.push(`<image class="ul" href="${esc(ulUrl(u))}" x="0" y="0" width="${u.natW * u.mPerPx}" height="${u.natH * u.mPerPx}" preserveAspectRatio="none" opacity="${num(u.opacity, 0.6)}" pointer-events="none"/>`);
   // grid
   const step = S.prefs.gridStep === 'auto' ? (M > 30 ? 5 : 1) : num(S.prefs.gridStep, 1);
   const gop = showUl ? 0.35 : 1, maj = v => Math.abs(v / 5 - Math.round(v / 5)) < 1e-6;
@@ -974,6 +1128,12 @@ function renderPrefs() {
   el.innerHTML = `<div class="calhead"><div><span class="lbl">Preferences</span><h2 id="prefsH">Preferences</h2></div>
       <div class="row"><span class="note">${S.online ? 'Saved automatically and used for every garden.' : 'Not saved in this view.'}</span><button class="btn sm" type="button" data-act="resetPrefs">Reset to defaults</button></div></div>
     <div class="prefgrid">
+      <fieldset class="pref" style="grid-column:1/-1"><legend>Theme</legend>
+        <div class="thgrid" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([k, t]) => `<label class="thopt"><input type="radio" name="pf-theme" data-pref="theme" value="${k}"${(THEMES[P.theme] ? P.theme : 'eiderdown') === k ? ' checked' : ''}>
+          <span class="thprev" aria-hidden="true" style="background:${t.bg}"><span class="tb" style="background:${t.bar};color:${t.barInk};font-family:${esc(t.font)}">${t.jp || ''}${esc(t.name)}</span><span class="bd">${t.cols.map((c, i) => `<i style="background:${c};flex:${i ? 1 : 3}"></i>`).join('')}</span></span>
+          <b>${esc(t.name)}</b><small>${esc(t.note)}</small></label>`).join('')}</div>
+        <p class="note" style="margin:0">The client booklet always uses the Eiderdown look, whichever theme you work in.</p>
+      </fieldset>
       <fieldset class="pref"><legend>Plan labels</legend>
         ${chk('pf-show', 'showLabels', 'Show plant and bed labels')}
         <label class="field"><span>Label size</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-size" data-pref="labelSize" min="0.5" max="2" step="0.1" value="${P.labelSize}" style="flex:1;accent-color:var(--accent)"><output id="pf-size-v" style="min-width:3.5em;text-align:right">${Math.round(P.labelSize * 100)}%</output></span></label>
@@ -1011,6 +1171,7 @@ function savePrefs() {
 }
 function setPref(k, v) {
   S.prefs[k] = v; savePrefs();
+  if (k === 'theme') { applyTheme(v); return; }
   if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
   if (k === 'snap') { const o = $('pf-snap-v'); if (o) o.textContent = snapText(v); }
   const smp = $('pf-sample');
@@ -1413,7 +1574,7 @@ async function planImage(numbered) {
   let markup;
   try { renderMap(); markup = svg.innerHTML; var vb = svg.getAttribute('viewBox'); }
   finally { Object.assign(S, { zoom: save.zoom, cx: save.cx, cy: save.cy, sel: save.sel, multi: save.multi, drag: save.drag, cal: save.cal }); S.prefs.labelMode = save.mode; S.prefs.labelQty = save.qty; S.prefs.labelSize = save.size; renderMap(); }
-  const cs = getComputedStyle(document.querySelector('.mapwrap'));
+  const ref = document.querySelector('.sheetref'), cs = getComputedStyle(ref);
   markup = markup.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#999');
   const hrefs = [...new Set([...markup.matchAll(/href="([^"]+)"/g)].map(m => m[1]))];
   for (const h of hrefs) {
@@ -1682,7 +1843,7 @@ app.addEventListener('click', async e => {
   if (act === 'delete') removeSel();
   if (act === 'clearPhoto' && S.editPlant) { S.editPlant.photoId = null; renderLibrary(); }
   if (act === 'deselect') select(null);
-  if (act === 'resetPrefs') { S.prefs = { ...PREF_DEFAULTS, roleColors: {} }; applyRoleColours(); savePrefs(); renderPrefs(); }
+  if (act === 'resetPrefs') { S.prefs = { ...PREF_DEFAULTS, roleColors: {}, theme: S.prefs.theme }; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'resetRoleCols') { S.prefs.roleColors = {}; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'clearColour') { S.editPlant.flowerColor = null; S.editPlant.flowerColorName = null; renderLibrary(); }
   if (act === 'editSpecies') { const it = findSel(); if (it?.plantId) openPlantEditor(it.plantId); }
@@ -1882,7 +2043,7 @@ async function init() {
     const first = !S.prefsLoaded; S.prefsLoaded = true;
     S.prefs = { ...PREF_DEFAULTS, ...(snap.exists ? snap.data() : {}) };
     if (first) S.view = S.prefs.defaultView === 'planted' ? 'planted' : 'mature';
-    applyRoleColours();
+    applyRoleColours(); applyTheme(S.prefs.theme);
     if (getPage() === 'preferences' && !document.activeElement?.dataset?.pref) renderPrefs();
     if (S.loaded) renderAll();
   }, () => {});
