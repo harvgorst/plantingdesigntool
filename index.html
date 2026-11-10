@@ -367,7 +367,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
         <select id="dbKind" aria-label="New or existing plants"><option value="">New and existing</option><option value="new">New plants only</option><option value="existing">Existing plants only</option></select>
         <span class="spacer"></span><span class="note" id="dbCount"></span><button class="btn sm" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div>
       <div style="overflow-x:auto"><table class="sched wide dbt" id="dbTable"></table></div>
-      <div class="avbar" id="dbBar" hidden><b id="dbSelN">0 selected</b><span class="note" id="dbBarMsg"></span><span class="spacer"></span><button class="btn sm" type="button" id="dbSelClear">Clear selection</button><button class="btn sm danger" type="button" id="dbSelRemove">Remove selected</button></div>
+      <div class="avbar" id="dbBar" hidden><b id="dbSelN">0 selected</b><span class="note" id="dbBarMsg"></span><span class="spacer"></span><button class="btn sm" type="button" id="dbSelClear">Clear selection</button><button class="btn sm danger" type="button" id="dbForce" hidden>Remove from gardens too</button><button class="btn sm danger" type="button" id="dbSelRemove">Remove selected</button></div>
     </div>
     <div id="dbAvail" hidden style="display:flex;flex-direction:column;gap:14px">
       <p class="note" style="margin:0;max-width:75ch">Supplier availability lists are kept separately from your plants. Tick the lines you want and add them to My plants. The price, supplier, pot size and code come across with them.</p>
@@ -2193,21 +2193,56 @@ $('dbTable').addEventListener('change', e => {
   if (t.id === 'dbAll') { for (const cb of $('dbTable').querySelectorAll('[data-dbsel]')) { cb.checked = t.checked; if (t.checked) DB.sel.add(cb.dataset.dbsel); else DB.sel.delete(cb.dataset.dbsel); } }
   else if (t.dataset.dbsel) { if (t.checked) DB.sel.add(t.dataset.dbsel); else DB.sel.delete(t.dataset.dbsel); }
   else return;
-  DB.arm = false; $('dbBarMsg').textContent = ''; renderDbBar();
+  DB.arm = false; $('dbBarMsg').textContent = ''; $('dbForce').hidden = true; renderDbBar();
 });
-$('dbSelClear').addEventListener('click', () => { DB.sel.clear(); DB.arm = false; $('dbBarMsg').textContent = ''; renderDatabase(); });
+$('dbSelClear').addEventListener('click', () => { DB.sel.clear(); DB.arm = false; $('dbBarMsg').textContent = ''; $('dbForce').hidden = true; renderDatabase(); });
 $('dbSelRemove').addEventListener('click', async () => {
   if (!DB.sel.size) return;
   if (!DB.arm) { DB.arm = true; renderDbBar(); setTimeout(() => { if (DB.arm) { DB.arm = false; renderDbBar(); } }, 4000); return; }
   DB.arm = false;
   const usage = usageByPlant(), ids = [...DB.sel], keep = ids.filter(id => (usage.get(id) || []).length), go = ids.filter(id => !keep.includes(id));
-  let removed = 0, failed = 0;
-  for (const id of go) { try { if (S.online) await S.db.doc('plants/' + id).delete(); removed++; } catch { failed++; } }
-  const gone = new Set(go.slice(0, removed));
-  S.plants = S.plants.filter(p => !gone.has(p.id)); if (gone.has(S.activePlant)) S.activePlant = null;
-  DB.sel = new Set(keep);
-  $('dbBarMsg').textContent = [removed && `${plural(removed, 'species')} removed.`.replace('speciess', 'species'), keep.length && `${keep.length} kept because ${keep.length === 1 ? 'it is' : 'they are'} used in a garden (still ticked).`, failed && `${failed} couldn’t be removed.`].filter(Boolean).join(' ');
+  const { removed, failed } = await deletePlants(go);
+  DB.sel = new Set(keep); DB.forceArm = false;
+  const gardens = [...new Set(keep.flatMap(id => usage.get(id) || []))];
+  $('dbBarMsg').textContent = [removed && `${removed} species removed.`, keep.length && `${keep.length} still ticked because ${keep.length === 1 ? 'it’s' : 'they’re'} used in ${gardens.map(n => '“' + n + '”').join(', ')}.`, failed && `${failed} couldn’t be removed.`].filter(Boolean).join(' ');
+  $('dbForce').hidden = !keep.length;
   renderDatabase(); renderLibrary();
+});
+async function deletePlants(ids) {
+  let removed = 0, failed = 0; const gone = new Set();
+  for (const id of ids) { try { if (S.online) await S.db.doc('plants/' + id).delete(); gone.add(id); removed++; } catch { failed++; } }
+  S.plants = S.plants.filter(p => !gone.has(p.id)); if (gone.has(S.activePlant)) S.activePlant = null;
+  return { removed, failed };
+}
+$('dbForce').addEventListener('click', async () => {
+  const ids = new Set(DB.sel); if (!ids.size) return;
+  const b = $('dbForce');
+  if (!DB.forceArm) { DB.forceArm = true; b.textContent = 'Click again: remove them from every garden and delete'; setTimeout(() => { if (DB.forceArm) { DB.forceArm = false; b.textContent = 'Remove from gardens too'; } }, 5000); return; }
+  DB.forceArm = false; b.disabled = true; b.textContent = 'Removing…';
+  let changed = 0;
+  try {
+    for (const g of S.gardens) {
+      const cur = S.g && S.g.id === g.id ? S.g : g;
+      const uses = cur.plantings.some(x => ids.has(x.plantId)) || cur.areas.some(x => ids.has(x.plantId));
+      if (!uses) continue;
+      if (cur === S.g) {
+        checkpoint();
+        S.g.plantings = S.g.plantings.filter(x => !ids.has(x.plantId)); S.g.areas = S.g.areas.filter(x => !ids.has(x.plantId)); S.sel = null; S.multi = [];
+        saveGarden(); if (saveTimer) { clearTimeout(saveTimer); await flushSave(); }
+      } else {
+        const body = JSON.parse(JSON.stringify(g)); delete body.id;
+        body.plantings = body.plantings.filter(x => !ids.has(x.plantId)); body.areas = body.areas.filter(x => !ids.has(x.plantId)); body.updatedAt = Date.now();
+        if (S.online) await S.db.doc('gardens/' + g.id).set(body);
+        S.gardens = S.gardens.map(x => x.id === g.id ? { id: g.id, ...body } : x);
+      }
+      changed++;
+    }
+    const { removed, failed } = await deletePlants([...ids]);
+    DB.sel.clear();
+    $('dbBarMsg').textContent = `${removed} species removed${changed ? `, and taken off the plan in ${plural(changed, 'garden')}` : ''}.${failed ? ` ${failed} couldn’t be removed.` : ''}`;
+  } catch (e) { $('dbBarMsg').textContent = 'Couldn’t finish removing: ' + (e?.message || 'try again'); }
+  b.disabled = false; b.textContent = 'Remove from gardens too'; b.hidden = true;
+  renderAll(); renderDatabase();
 });
 $('dbTable').addEventListener('click', e => {
   const sb = e.target.closest('[data-sort]'); if (sb) { const k = sb.dataset.sort; DB.dir = DB.sort === k ? -DB.dir : 1; DB.sort = k; renderDatabase(); return; }
