@@ -2900,7 +2900,7 @@ $('avAdd').addEventListener('click', async () => {
     if (it.pr != null) base.cost = it.pr;
     base.supplier = l.supplier;
     base.source = { list: l.id, listName: `${l.supplier} · ${l.name}`, code: it.code || '', stock: it.st || '', checkedAt: Date.now() };
-    base.role = layerPick;
+    if (!mine) base.role = layerPick;   // a species you already have keeps its layer
     fill('height', it.h ?? (num(d.height_m, NaN) > 0 ? +d.height_m : null));
     fill('spread', it.sp ?? (num(d.spread_m, NaN) > 0 ? +d.spread_m : null));
     fill('potSpread', num(d.planted_spread_m, NaN) > 0 ? +d.planted_spread_m : null);
