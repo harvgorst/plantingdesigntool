@@ -15,7 +15,7 @@ https://claude.ai/artifact/2aTBjBBXxP2rNoepiPnhLe
 - **Order lists**: one list per supplier, with codes and prices, flagging lines where you need more than the stock on the supplier's availability list.
 - **Interest calendar**: months across, species down. Wide bars are flowers in each plant's flower colour; narrow bars are berries, autumn colour, stems, seed heads or foliage; a green line marks evergreens. A month-by-month strip shows interest and gaps.
 - **Plant database**: every species entered, shared across all gardens. Searchable, filterable by layer, sortable.
-- **Supplier availability**: import a nursery's availability list (Excel, CSV or pasted rows), kept separate from your plants. Tick lines to add them to your plant database with price, supplier, pot size and code; matching plants have their price and supplier updated. Claude can fill in height, spread, flowering, foliage, other interest and layer for the plants you add.
+- **Supplier availability**: import a nursery's availability list (Excel, CSV or pasted rows), kept separate from your plants. Tick lines to add them to your plant database with price, supplier, pot size and code; matching plants have their price and supplier updated.
 - **Presentation**: a client booklet (A4 landscape PDF) with a cover and your logo, the planting plan numbered to the palette, a numbered plant palette of close-up photos, the plant schedule, the interest calendar and a pricing page with your own lines and optional VAT. The plan is drawn as vector lines and the text can be searched and copied.
 - **Scaled plan sheet**: the plan on its own at a true scale (1:20 to 1:500) on A4 to A1, with a title block and plant key.
 - **Backup**: download a garden, the plant library or everything as one file, and restore from it.
@@ -31,7 +31,7 @@ Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbace
 
 ## Storage
 
-The app is written for the claude.ai artifact runtime. Gardens, the plant database, supplier availability lists and preferences are saved through its `db` capability, imported plans, plant photos and the logo through its `assets` capability, plant details are looked up through its `sample` capability, and PDFs and backups are saved through its `downloads` capability. Opened as a plain local file, the app still works but nothing is saved.
+The app is written for the claude.ai artifact runtime. Gardens, the plant database, supplier availability lists and preferences are saved through its `db` capability, imported plans, plant photos and the logo through its `assets` capability, and PDFs and backups are saved through its `downloads` capability. Opened as a plain local file, the app still works but nothing is saved.
 
 Each garden is stored as one record of at most 256 KiB, which is roughly 3,000 to 4,000 separate placements. The app warns as a plan nears that size. Groups count as one placement however many plants they hold.
 

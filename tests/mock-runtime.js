@@ -27,11 +27,8 @@ window.__mock = (() => {
     upload: async (b, o) => { const id = 'up' + String(upN++).padStart(30, '0'); blobs.set(id, new Blob([b], { type: o?.type || b.type })); return { id, url: '/_blob/' + id, sizeBytes: b.size, contentType: o?.type || b.type }; },
     delete: async id => ({ deleted: blobs.delete(id) }),
     list: async () => ({ assets: [...blobs.entries()].map(([id, b]) => ({ id, url: '/_blob/' + id, contentType: b.type, sizeBytes: b.size, createdAt: '' })), usage: {} }) });
-  const sample = async () => ({ text: '', truncated: false });
-  sample.json = async prompt => deepFreeze([...prompt.matchAll(/^\d+\. (.+?) \|/gm)].map(m => ({ botanical: m[1], layer: 'shrub', height_m: 0.6, spread_m: 0.5, planted_spread_m: 0.15, flower_from: 5, flower_to: 7, flower_colour: 'Pink', foliage: 'evergreen', interest: [{ kind: 'berries', from: 9, to: 11, colour: 'Red' }] })));
-  Object.freeze(sample);
   const saved = [];
   const downloads = Object.freeze({ save: async ({ filename, data }) => { const blob = data instanceof Blob ? data : new Blob([data]); saved.push({ filename, blob }); return { status: 'saved' }; } });
-  window.claude = Object.freeze({ use: async n => ({ db, assets, sample, downloads }[n] || null) });
+  window.claude = Object.freeze({ use: async n => ({ db, assets, downloads }[n] || null) });
   return { store, blobs, saved };
 })();
