@@ -300,6 +300,14 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 .order .cn { color: var(--muted); }
 .shortn { color: var(--crit); font-size: 12.5px; border: 1px solid currentColor; border-radius: 4px; padding: 0 6px; }
 .bcover .cl .blogo { max-width: 240px; max-height: 76px; object-fit: contain; object-position: left center; display: block; margin-bottom: 26px; }
+.modepick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.modepick label { display: flex; flex-direction: column; gap: 3px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; background: var(--panel); text-transform: none; letter-spacing: 0; }
+.modepick label:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.modepick input { position: absolute; opacity: 0; pointer-events: none; }
+.modepick b { font-size: 13.5px; color: var(--ink); }
+.modepick small { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+@media (max-width: 520px) { .modepick { grid-template-columns: 1fr; } }
+html[data-skin=xp] .modepick label { border-radius: 0; }
 .pcrow { flex-wrap: nowrap; gap: 8px; align-items: center; }
 .pcrow .swv { flex: none; }
 .pcrow input[type=color] { width: 40px; min-width: 40px; height: 28px; flex: none; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
@@ -538,7 +546,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="menuwrap">
       <button class="btn sm" id="layerBtn" type="button" aria-expanded="false" aria-controls="layerMenu">Layers: all ▾</button>
       <div class="menu" id="layerMenu" hidden role="group" aria-label="Layers to show">
-        <div class="row" style="justify-content:space-between;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px"><span class="lbl">Colour plants by</span><span class="seg" role="group" aria-label="Colour plants by"><button type="button" data-colorby="layer">Layer</button><button type="button" data-colorby="species">Species</button></span></div>
+        
         <div class="row" style="justify-content:space-between;padding:4px 6px 6px"><span class="lbl">Show on the plan</span><span class="row" style="gap:4px"><button class="btn sm" type="button" data-layers="all">All</button><button class="btn sm" type="button" data-layers="none">None</button></span></div>
         <div id="layerList" style="display:flex;flex-direction:column;gap:1px"></div>
       </div>
@@ -633,6 +641,8 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="card-h"><h2 id="detailsH">Garden details</h2><button class="btn sm" type="button" id="detailsDone">Done</button></div>
     <label class="field"><span>Name</span><input id="g-name" type="text" data-g="name"></label>
     <label class="field"><span>Client</span><input id="g-client" type="text" data-g="client"></label>
+    <label class="field"><span>Kind of garden</span><select id="g-mode"><option value="forest">Forest garden</option><option value="perennial">Perennial border</option></select></label>
+    <p class="note" id="modeNote" style="margin:0"></p>
     <div class="field"><span>Size</span><div class="row" style="flex-wrap:nowrap"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.5" data-g="width" style="width:5.5em"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.5" data-g="depth" style="width:5.5em"> m</div></div>
     <div class="field"><span>Area</span><output id="dims">—</output></div>
     <div class="field"><span>North</span><div class="row" style="flex-wrap:nowrap"><input type="range" id="g-north-r" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="flex:1;accent-color:var(--accent)"><input id="g-north" type="number" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="width:4.8em"><span class="pv">°</span><svg id="g-north-dial" width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><circle r="13" fill="none" style="stroke:var(--line)"/><path id="g-north-needle" d="M0 -11 L4 5 L0 2 L-4 5 Z" style="fill:var(--ink)"/></svg></div></div>
@@ -685,7 +695,7 @@ const HINTS = {
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
-const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, defaultView: 'mature', currency: '£', roleColors: {}, theme: 'eiderdown', colorBy: 'layer', pgrid: 'off', pgridSpace: 0.3 };
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'eiderdown', pgridSpace: 0.3 };
 const THEMES = {
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
   woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
@@ -750,7 +760,11 @@ function code(p) {
 const SPECIES_COLS = ['#C0504D', '#4F81BD', '#9BBB59', '#8064A2', '#F79646', '#2E9AB0', '#D4A017', '#2E7D5B', '#B5487E', '#6D8FD1', '#A0522D', '#6FB3A0', '#E57FA0', '#6B7A2F', '#9C89C9', '#D9A066', '#3F6E8C', '#C9C04E'];
 const PATTERNS = { solid: 'Solid', hatch: 'Diagonal lines', back: 'Back diagonals', cross: 'Cross-hatch', dots: 'Dots', horiz: 'Horizontal lines', vert: 'Vertical lines', grid: 'Grid' };
 const PAT_KEYS = Object.keys(PATTERNS);
-const byspecies = () => S.prefs.colorBy === 'species';
+/* two kinds of garden: a forest garden (seven layers, placed freely, coloured by layer) and a perennial border (interlocked grid, each species its own colour) */
+const MODES = { forest: ['Forest garden', 'Seven layers, coloured by layer. Plants go exactly where you click.'], perennial: ['Perennial border', 'Each species its own colour and pattern. Plants are painted onto a 30 cm interlocked grid and drawn touching.'] };
+const perennial = (g = S.g) => g?.mode === 'perennial';
+const modeView = (g = S.g) => perennial(g) ? 'spacing' : 'mature';
+const byspecies = () => perennial();
 function ensureColours() {
   const g = S.g; if (!g) return;
   const map = g.colors && typeof g.colors === 'object' ? g.colors : (g.colors = {}), used = new Set(Object.values(map));
@@ -782,11 +796,11 @@ function plantSwatch(p, size = 12, force = false) {
   return `<svg class="swv" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${st.pat === 'solid' ? '' : `<defs>${patternDef(id, st.col, st.pat, size / 3.2)}</defs>`}<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${st.pat === 'solid' ? st.col : `url(#${id})`}"${st.pat === 'solid' ? ' fill-opacity="0.7"' : ''} stroke="${st.col}" stroke-width="1.2"/></svg>`;
 }
 /* the interlocked (staggered) planting grid */
-const gridOn = () => S.prefs.pgrid === 'tri' || S.prefs.pgrid === 'square';
+const gridFor = p => perennial() && !!p && !p.existing;   // existing plants always go exactly where they are
+const gridOn = () => gridFor(plantById(S.activePlant));
 const gridSpace = () => clamp(num(S.prefs.pgridSpace, 0.3), 0.05, 2);
 function latticeSnap(x, y) {
   const s = gridSpace();
-  if (S.prefs.pgrid === 'square') return { x: +(Math.round(x / s) * s).toFixed(3), y: +(Math.round(y / s) * s).toFixed(3) };
   const dy = s * Math.sqrt(3) / 2, j0 = Math.round(y / dy); let best = null;
   for (let j = j0 - 1; j <= j0 + 1; j++) { const off = (j & 1) ? s / 2 : 0, i = Math.round((x - off) / s), px = i * s + off, py = j * dy, dd = Math.hypot(px - x, py - y); if (!best || dd < best.d) best = { x: px, y: py, d: dd }; }
   return { x: +best.x.toFixed(3), y: +best.y.toFixed(3) };
@@ -1102,7 +1116,7 @@ function renderMap() {
     if (b) parts.push(`<line x1="${S.cal.a.x}" y1="${S.cal.a.y}" x2="${b.x}" y2="${b.y}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
     for (const q of [S.cal.a, S.cal.b].filter(Boolean)) parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${px * 5}" style="fill:var(--panel);stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
-  if (S.tool === 'plant' && gridOn() && S.activePlant && S.hover && !pr && !S.drag) {
+  if (S.tool === 'plant' && gridOn() && S.hover && !S.hoverShift && !pr && !S.drag) {
     const q = latticeSnap(S.hover.x, S.hover.y), p = plantById(S.activePlant);
     parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${spacingOf(p) / 2}" fill="none" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
@@ -1224,12 +1238,11 @@ function renderInspector() {
     return;
   }
   if (S.tool === 'plant' && S.activePlant && !S.sel && !S.multi.length) {
-    const p = plantById(S.activePlant), o = (v, l) => `<option value="${v}"${(S.prefs.pgrid || 'off') === v ? ' selected' : ''}>${l}</option>`;
+    const p = plantById(S.activePlant);
     hint.hidden = true; el.hidden = false;
     el.innerHTML = `<span class="pk">${plantSwatch(p, 14)}${esc(p?.common || 'Plant')}</span>
-      <label class="pf"><span>Snap</span><select id="pg-mode">${o('off', 'Free')}${o('tri', 'Interlocked grid')}${o('square', 'Square grid')}</select></label>
       ${gridOn() ? `<label class="pf"><span>Grid</span><input id="pg-space" class="n" type="number" min="0.05" max="2" step="0.05" value="${gridSpace()}"><span class="pv">m</span></label>` : ''}
-      <span class="pv">${gridOn() ? `Click or drag to paint plants onto the grid. Alt-drag rubs them out. ${esc(p?.common || '')} is drawn ${spacingOf(p).toFixed(2)} m across in the Spacing view.` : 'Click to place a plant. Interlocked snaps to a staggered grid, the usual layout for a perennial border.'}</span>`;
+      <span class="pv">${gridOn() ? `Click or drag to paint plants onto the grid. Alt-drag rubs them out. ${esc(p?.common || '')} is drawn ${spacingOf(p).toFixed(2)} m across. Hold Shift to place one off the grid, such as a specimen shrub.` : perennial() && p?.existing ? 'Existing plants go exactly where you click, off the grid. Paint the planting round them.' : 'Click to place a plant.'}</span>`;
     return;
   }
   if (S.tool === 'row' && S.activePlant) {
@@ -1291,6 +1304,7 @@ function renderGardenFields() {
     const el = $(id); el.disabled = !S.g;
     if (document.activeElement !== el) el.value = S.g ? (S.g[k] ?? '') : '';
   }
+  { const el = $('g-mode'); el.disabled = !S.g; el.value = perennial() ? 'perennial' : 'forest'; $('modeNote').textContent = MODES[el.value][1]; }
   { const el = $('g-loc'); el.disabled = !S.g; if (document.activeElement !== el) el.value = S.g && S.g.lat != null ? `${S.g.lat}, ${S.g.lon}` : ''; }
   if (!S.g) $('dims').textContent = '—';
   else { const n = $('g-north'), r = $('g-north-r'); if (n && document.activeElement !== n && !S.g.north) n.value = 0; if (r && !S.g.north) r.value = 0; $('g-north-needle')?.setAttribute('transform', `rotate(${num(S.g.north, 0)})`); }
@@ -1414,6 +1428,7 @@ function renderOverlay() {
     ov.innerHTML = `<form class="card" id="newGardenForm"><h2>New garden</h2>
       <label class="field"><span>Name</span><input id="ng-name" type="text" required placeholder="e.g. Rear garden, 14 Elm Road"></label>
       <label class="field"><span>Client</span><input id="ng-client" type="text"></label>
+      <div class="field"><span>Kind of garden</span><div class="modepick">${Object.entries(MODES).map(([k, [t, d]], i) => `<label><input type="radio" name="ng-mode" value="${k}"${i ? '' : ' checked'}><b>${t}</b><small>${d}</small></label>`).join('')}</div></div>
       <label class="field"><span>Existing plan</span><input id="ng-file" type="file" accept=".svg,.pdf,image/svg+xml,application/pdf,image/png,image/jpeg,image/webp"></label>
       <div class="field"><span>Size (m)</span><div class="pair"><input id="ng-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.5" value="10" required><input id="ng-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.5" value="8" required></div></div>
       <p class="note" style="margin:0">Attach your site plan as an SVG, PDF or image. You’ll set its scale next by clicking two points a known distance apart. Without a plan, give the plot’s width and depth.</p>
@@ -1505,7 +1520,6 @@ function renderPrefs() {
       </fieldset>
       <fieldset class="pref"><legend>Plan display</legend>
         ${chk('pf-grid', 'showGrid', 'Show grid')}
-        <label class="field"><span>Colour plants by</span>${sel('pf-colorby', 'colorBy', [['layer', 'Layer'], ['species', 'Species (own colour and pattern)']])}</label>
         <label class="field"><span>Grid spacing</span>${sel('pf-step', 'gridStep', [['auto', 'Automatic'], ['0.5', '0.5 m'], ['1', '1 m'], ['2', '2 m'], ['5', '5 m']])}</label>
         ${chk('pf-rulers', 'showRulers', 'Show measurements along the edges')}
         ${chk('pf-scale', 'showScale', 'Show scale bar and north arrow')}
@@ -1513,7 +1527,6 @@ function renderPrefs() {
       <fieldset class="pref"><legend>Placing plants</legend>
         <label class="field"><span>Snap to</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-snap" data-pref="snap" min="0.05" max="1" step="0.05" value="${clamp(num(P.snap, 0.1), 0.05, 1)}" style="flex:1;accent-color:var(--accent)"><output id="pf-snap-v" style="min-width:3.5em;text-align:right">${snapText(P.snap)}</output></span></label>
         <p class="note" style="margin:0">Plants jump to this spacing when you place or drag them.</p>
-        <label class="field"><span>Plans open in</span>${sel('pf-view', 'defaultView', [['mature', 'Design intent (mature size)'], ['spacing', 'Spacing (plants touch)'], ['planted', 'As planted (pot size)']])}</label>
       </fieldset>
       <fieldset class="pref"><legend>Layer colours</legend>
         <p class="note" style="margin:0">Used for plants and library dots in every garden. Flower colours are set per species.</p>
@@ -1541,7 +1554,7 @@ function savePrefs() {
 function setPref(k, v) {
   S.prefs[k] = v; savePrefs();
   if (k === 'theme') { applyTheme(v); return; }
-  if (k === 'colorBy' || k === 'pgrid' || k === 'pgridSpace') { if (S.loaded) { renderLibrary(); renderLayers(); renderMap(); } return; }
+  if (k === 'pgridSpace') { if (S.loaded) { renderLibrary(); renderLayers(); renderMap(); } return; }
   if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
   if (k === 'snap') { const o = $('pf-snap-v'); if (o) o.textContent = snapText(v); }
   const smp = $('pf-sample');
@@ -1937,7 +1950,7 @@ svg.addEventListener('pointermove', e => {
     const one = d.items.length === 1;
     for (const { m, orig } of d.items) {
       if (m.kind === 'area') m.it.pts = orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
-      else if (one && gridOn() && m.kind === 'planting' && (m.it.qty || 1) === 1) { const q = latticeSnap(orig.x + dx, orig.y + dy); m.it.x = q.x; m.it.y = q.y; }
+      else if (one && !e.shiftKey && gridFor(plantById(m.it.plantId)) && m.kind === 'planting' && (m.it.qty || 1) === 1) { const q = latticeSnap(orig.x + dx, orig.y + dy); m.it.x = q.x; m.it.y = q.y; }
       else if (one) { m.it.x = snap(orig.x + dx); m.it.y = snap(orig.y + dy); }
       else { m.it.x = r2(orig.x + dx); m.it.y = r2(orig.y + dy); }
     }
@@ -2078,7 +2091,7 @@ function bookletInput(t) {
   clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 350);
 }
 async function planImage(numbered) {
-  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.colorBy, S.prefs.pgridSpace, S.plants.map(p => [p.planColor, p.planPattern, p.spacing].join()).join()]);
+  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.g.mode, S.prefs.pgridSpace, S.plants.map(p => [p.planColor, p.planPattern, p.spacing].join()).join()]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
   S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = {};
@@ -2453,11 +2466,11 @@ let fieldCheckpointed = false;
 app.addEventListener('focusin', () => { fieldCheckpointed = false; });
 app.addEventListener('input', e => {
   const t = e.target;
-  if (t.id === 'pg-mode') { setPref('pgrid', t.value); renderInspector(); return; }
   if (t.id === 'pg-space') { setPref('pgridSpace', clamp(num(t.value, 0.3), 0.05, 2)); renderMapSoon(); return; }
   if (t.id === 'blk-h') { if (S.blk) S.blk.h = clamp(num(t.value, 1.8), 0.1, 100); return; }
   if (t.dataset.blk === 'h') { const b = (S.g?.blocks || []).find(x => x.id === S.blockSel); if (!b) return; if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; } b.h = clamp(num(t.value, b.h), 0.1, 100); saveGarden(); renderMapSoon(); return; }
   if (t.id === 'g-loc') { setLocation(t.value, true); return; }
+  if (t.id === 'g-mode') { if (!S.g) return; checkpoint(); if (t.value === 'perennial') S.g.mode = 'perennial'; else delete S.g.mode; S.view = modeView(); saveGarden(); renderAll(); return; }
   if (t.id === 'row-gap') { S.rowGap = num(t.value, 0) > 0 ? clamp(num(t.value), 0.05, 20) : null; updateLive(); renderMapSoon(); return; }
   if (t.dataset.g) {
     if (!S.g) return;
@@ -2607,7 +2620,6 @@ function layerCounts() {
   return c;
 }
 function renderLayers() {
-  for (const b of document.querySelectorAll('[data-colorby]')) b.setAttribute('aria-pressed', String((S.prefs.colorBy || 'layer') === b.dataset.colorby));
   const n = Object.keys(ROLES).filter(k => S.layers.has(k)).length, all = n === 7 && S.showExisting;
   $('layerBtn').textContent = `Layers: ${all ? 'all' : n === 0 ? 'none' : n === 7 ? 'all, no existing' : n + ' of 7'} ▾`;
   $('layerBtn').classList.toggle('on', !all);
@@ -2626,7 +2638,6 @@ $('layerMenu').addEventListener('change', e => {
   afterLayerChange();
 });
 $('layerMenu').addEventListener('click', e => {
-  const cb = e.target.closest('[data-colorby]'); if (cb) { setPref('colorBy', cb.dataset.colorby); renderAll(); return; }
   const b = e.target.closest('[data-layers]'); if (!b) return;
   if (b.dataset.layers === 'all') { S.layers = new Set(Object.keys(ROLES)); S.showExisting = true; } else { S.layers = new Set(); S.showExisting = false; }
   afterLayerChange();
@@ -2648,8 +2659,9 @@ $('overlay').addEventListener('submit', async e => {
   e.preventDefault();
   const file = $('ng-file').files?.[0];
   const g = { id: uid(), name: $('ng-name').value.trim() || 'Untitled garden', client: $('ng-client').value.trim(), width: clamp(num($('ng-w').value, 10), 1, 500), depth: clamp(num($('ng-d').value, 8), 1, 500), underlay: null, areas: [], plantings: [], updatedAt: Date.now() };
+  if (document.querySelector('input[name=ng-mode]:checked')?.value === 'perennial') g.mode = 'perennial';
   if (S.online) { const body = { ...g }; delete body.id; try { await S.db.doc('gardens/' + g.id).set(body); } catch (err) { setStatus('Couldn’t create garden: ' + (err?.message || ''), true); return; } setStatus('Saved'); }
-  S.gardens.push(g); S.newGarden = false; S.g = JSON.parse(JSON.stringify(g)); clearHistory(); S.sel = null; store.set('gpm.last', g.id); resetView();
+  S.gardens.push(g); S.newGarden = false; S.g = JSON.parse(JSON.stringify(g)); clearHistory(); S.sel = null; S.view = modeView(); store.set('gpm.last', g.id); resetView();
   S.tool = 'select'; renderAll();
   if (file) importPlan(file);
 });
@@ -2745,7 +2757,7 @@ function normGarden(id, d) {
   return { id, name: d.name || 'Untitled garden', client: d.client || '', width: num(d.width, 10), depth: num(d.depth, 8), north: num(d.north, 0),
     underlay: d.underlay && d.underlay.natW ? d.underlay : null,
     areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind === 'drift' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
-    plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example,
+    plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example, mode: d.mode === 'perennial' ? 'perennial' : undefined,
     booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, colors: d.colors && typeof d.colors === 'object' ? d.colors : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined,
     lat: Number.isFinite(d.lat) ? d.lat : undefined, lon: Number.isFinite(d.lon) ? d.lon : undefined,
     blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined };
@@ -2753,7 +2765,7 @@ function normGarden(id, d) {
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
   const g = S.gardens.find(x => x.id === id); if (!g) return;
-  S.g = JSON.parse(JSON.stringify(g)); clearHistory(); S.sel = null; S.multi = []; S.cal = null; S.confirm = null;
+  S.g = JSON.parse(JSON.stringify(g)); clearHistory(); S.sel = null; S.multi = []; S.cal = null; S.confirm = null; S.view = modeView();
   if (S.tool === 'scale') S.tool = 'select';
   store.set('gpm.last', id); resetView(); renderAll();
 }
@@ -2770,7 +2782,6 @@ async function init() {
     if (prefTimer) return;
     const first = !S.prefsLoaded; S.prefsLoaded = true; S.prefsExist = !!snap.exists;
     S.prefs = { ...PREF_DEFAULTS, ...(snap.exists ? snap.data() : {}) };
-    if (first) S.view = ['planted', 'spacing'].includes(S.prefs.defaultView) ? S.prefs.defaultView : 'mature';
     applyRoleColours(); applyTheme(S.prefs.theme);
     if (getPage() === 'preferences' && !document.activeElement?.dataset?.pref) renderPrefs();
     if (S.loaded) renderAll();
@@ -2791,7 +2802,7 @@ async function init() {
     if (!S.g) {
       const last = store.get('gpm.last');
       const pick = S.gardens.find(g => g.id === last) || S.gardens.find(g => !g.example) || S.gardens[0];
-      if (pick) S.g = JSON.parse(JSON.stringify(pick));
+      if (pick) { S.g = JSON.parse(JSON.stringify(pick)); S.view = modeView(); }
       if (S.loaded) renderAll();
     } else if (!busy() && !snap.metadata.hasPendingWrites) {
       const remote = S.gardens.find(g => g.id === S.g.id);
@@ -3392,6 +3403,7 @@ function cleanGarden(d) {
   const xy = v => r2(clamp(numOrNull(v) ?? 0, -1000, 2000));
   const g = { id, name: str(d.name, 200) || 'Untitled garden', client: str(d.client, 200), width: clamp(numOrNull(d.width) ?? 10, 1, 500), depth: clamp(numOrNull(d.depth) ?? 8, 1, 500),
     north: ((Math.round(numOrNull(d.north) ?? 0) % 360) + 360) % 360, updatedAt: Date.now(), underlay: null, areas: [], plantings: [] };
+  if (d.mode === 'perennial') g.mode = 'perennial';
   for (const x of Array.isArray(d.plantings) ? d.plantings : []) {
     const pid = safeId(x?.plantId); if (!pid) continue;
     const pl = { id: safeId(x.id) || uid(), plantId: pid, x: xy(x.x), y: xy(x.y), qty: clamp(Math.round(numOrNull(x.qty) ?? 1), 1, 500) };
@@ -3503,8 +3515,8 @@ async function restoreBackup(file) {
       const p = data.prefs, rc = {}; for (const k of Object.keys(ROLE_DEFAULTS)) if (hexOrNull(p.roleColors?.[k])) rc[k] = p.roleColors[k];
       S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false,
         showGrid: p.showGrid !== false, gridStep: ['auto', '0.5', '1', '2', '5'].includes(String(p.gridStep)) ? String(p.gridStep) : 'auto', showRulers: p.showRulers !== false, showScale: p.showScale !== false, snap: clamp(numOrNull(p.snap) ?? 0.1, 0.05, 1),
-        defaultView: ['planted', 'spacing'].includes(p.defaultView) ? p.defaultView : 'mature', currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown',
-        colorBy: p.colorBy === 'species' ? 'species' : 'layer', pgrid: ['tri', 'square'].includes(p.pgrid) ? p.pgrid : 'off', pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2) };
+        currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown',
+        pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2) };
       const logo = await asset(p.logoId); if (logo) S.prefs.logoId = logo;
       applyRoleColours(); applyTheme(S.prefs.theme); savePrefs();
     }

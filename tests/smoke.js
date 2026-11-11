@@ -288,11 +288,16 @@ test('booklet PDF: searchable text and a vector plan', async open => {
   else console.log('     (pdftotext not installed, so the text layer was not read back)');
 });
 
-test('border planting: interlocked grid, painting, Spacing view and species colours', async open => {
+test('perennial mode: interlocked grid, painting, Spacing view and species colours', async open => {
   const seed = sample(); seed['gardens/g1'].plantings = [];
   const app = await open(seed);
+  eq(await app.page.getAttribute('#vMature', 'aria-pressed'), 'true', 'a forest garden opens in Design intent');
+  await app.page.click('#lib [data-pid=p1]');
+  ok(!(await app.page.$('#pg-space')), 'no grid in forest garden mode');
+  await app.page.click('#detailsBtn'); await app.page.selectOption('#g-mode', 'perennial'); await app.page.click('#detailsDone'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).mode, 'perennial', 'mode saved with the garden');
+  eq(await app.page.getAttribute('#vSpacing', 'aria-pressed'), 'true', 'perennial mode switches to the Spacing view');
   await app.page.click('#lib [data-pid=p1]');                       // salvia, herbaceous: 0.3 m spacing by default
-  await app.page.selectOption('#pg-mode', 'tri');
   eq(await app.page.inputValue('#pg-space'), '0.3', 'grid starts at 30 cm');
   const row = n => +(n * 0.3 * Math.sqrt(3) / 2).toFixed(3);         // y of a row of the staggered grid
   await app.dragPlan(2, row(15), 4.4, row(15));                      // paint a row along the border
@@ -315,16 +320,22 @@ test('border planting: interlocked grid, painting, Spacing view and species colo
   // Alt-drag rubs plants out
   await app.page.keyboard.down('Alt'); await app.dragPlan(2, row(16), 2.8, row(16)); await app.page.keyboard.up('Alt'); await app.page.waitForTimeout(900);
   ok((await app.store('gardens/g1')).plantings.filter(q => q.plantId === 'p4').length < row2.length, 'Alt-drag removed some');
+  // existing plants, and anything placed with Shift, go exactly where you click
+  await app.page.click('#lib [data-pid=ex1]'); await app.clickPlan(7.13, 6.21);
+  await app.page.waitForTimeout(900); pl = (await app.store('gardens/g1')).plantings;
+  const tree = pl.find(q => q.plantId === 'ex1'); ok(tree && Math.abs(tree.x - 7.13) < 0.06 && Math.abs(tree.y - 6.21) < 0.06, 'existing tree placed freely, got ' + JSON.stringify(tree));
+  await app.page.click('#lib [data-pid=p2]'); await app.clickPlan(9.07, 6.53, { modifiers: ['Shift'] }); await app.page.waitForTimeout(900);
+  const rose = (await app.store('gardens/g1')).plantings.find(q => q.plantId === 'p2'); ok(rose && Math.abs(rose.y - 6.53) < 0.06, 'Shift places off the grid, got ' + JSON.stringify(rose));
+  await app.page.click('#lib [data-pid=p1]');
   // Spacing view: 30 cm circles that touch; species colours with patterns; one label per block
-  await app.page.click('#vSpacing');
-  const r = await app.page.evaluate(() => +document.querySelector('#map [data-kind=planting] circle').getAttribute('r'));
+  const sid = (await app.store('gardens/g1')).plantings.find(q => q.plantId === 'p1').id;
+  const r = await app.page.evaluate(id => +document.querySelector(`#map [data-kind=planting][data-id="${id}"] circle`).getAttribute('r'), sid);
   eq(r, 0.15, 'circle radius is half the spacing');
-  await app.page.click('#layerBtn'); await app.page.click('[data-colorby=species]'); await app.page.keyboard.press('Escape');
   const fills = await app.page.evaluate(() => [...new Set([...document.querySelectorAll('#map [data-kind=planting] circle')].map(c => c.style.fill))]);
-  eq(fills.length, 2, 'two species, two fills');
-  const labels = await app.page.evaluate(() => [...document.querySelectorAll('#map [data-kind=planting] text')].map(t => t.textContent));
-  eq(labels.length, 2, 'one label per block, got ' + JSON.stringify(labels));
-  eq((await app.store('gardens/g1')).colors, { p1: 0, p4: 1 }, 'colours kept with the garden');
+  ok(fills.length >= 3, 'each species its own fill, got ' + fills.length);
+  const nlab = await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=planting] text').length);
+  ok(nlab <= 4, 'one label per block (plus the tree and rose), got ' + nlab);
+  const cols = (await app.store('gardens/g1')).colors; eq([cols.p1, cols.p4], [0, 1], 'colours kept with the garden');
 });
 
 test('large plans: a warning near the limit, a clear message over it', async open => {
