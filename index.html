@@ -166,6 +166,8 @@ table.sched.wide { font-size: 14px; min-width: 640px; }
 .mslider .mrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; font-size: 12.5px; }
 .mslider .mrow label { white-space: nowrap; }
 .mslider #msl-txt { color: var(--ink); }
+.swv { flex: none; display: inline-block; vertical-align: -2px; overflow: visible; }
+.blegend .swv { margin-right: 8px; vertical-align: -2px; }
 .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
 .swatches button { aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 1px solid var(--bar-edge); cursor: pointer; padding: 0; }
 .swatches button[aria-pressed=true] { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -530,12 +532,14 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="menuwrap">
       <button class="btn sm" id="layerBtn" type="button" aria-expanded="false" aria-controls="layerMenu">Layers: all ▾</button>
       <div class="menu" id="layerMenu" hidden role="group" aria-label="Layers to show">
+        <div class="row" style="justify-content:space-between;padding:4px 6px 8px;border-bottom:1px solid var(--line);margin-bottom:4px"><span class="lbl">Colour plants by</span><span class="seg" role="group" aria-label="Colour plants by"><button type="button" data-colorby="layer">Layer</button><button type="button" data-colorby="species">Species</button></span></div>
         <div class="row" style="justify-content:space-between;padding:4px 6px 6px"><span class="lbl">Show on the plan</span><span class="row" style="gap:4px"><button class="btn sm" type="button" data-layers="all">All</button><button class="btn sm" type="button" data-layers="none">None</button></span></div>
         <div id="layerList" style="display:flex;flex-direction:column;gap:1px"></div>
       </div>
     </div>
     <div class="seg" role="group" aria-label="Plant size shown">
       <button type="button" id="vMature" aria-pressed="true" title="Plants drawn at mature spread (5–10 years)">Design intent</button>
+      <button type="button" id="vSpacing" aria-pressed="false" title="Each plant drawn at its planting spacing, so neighbours touch">Spacing</button>
       <button type="button" id="vPlanted" aria-pressed="false" title="Plants drawn at supplied pot size">As planted</button>
     </div>
     <button class="btn sm" id="sunBtn" type="button" aria-pressed="false" title="Sun study: shadows through the day and year">Sun</button>
@@ -675,7 +679,7 @@ const HINTS = {
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
-const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, defaultView: 'mature', currency: '£', roleColors: {}, theme: 'eiderdown' };
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, defaultView: 'mature', currency: '£', roleColors: {}, theme: 'eiderdown', colorBy: 'layer', pgrid: 'off', pgridSpace: 0.3 };
 const THEMES = {
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
   woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
@@ -735,8 +739,59 @@ function code(p) {
   if (b.length >= 2) return b[0].slice(0, 3) + ' ' + b[1].slice(0, 3).toLowerCase();
   return (p.common || b[0] || '?').slice(0, 6);
 }
+/* planting spacing, centre to centre: what each plant is drawn at in the Spacing view */
+/* colour by species: each species in a garden gets its own colour, and a pattern once the colours run out */
+const SPECIES_COLS = ['#C0504D', '#4F81BD', '#9BBB59', '#8064A2', '#F79646', '#2E9AB0', '#D4A017', '#2E7D5B', '#B5487E', '#6D8FD1', '#A0522D', '#6FB3A0', '#E57FA0', '#6B7A2F', '#9C89C9', '#D9A066', '#3F6E8C', '#C9C04E'];
+const PATTERNS = { solid: 'Solid', hatch: 'Diagonal lines', back: 'Back diagonals', cross: 'Cross-hatch', dots: 'Dots', horiz: 'Horizontal lines', vert: 'Vertical lines', grid: 'Grid' };
+const PAT_KEYS = Object.keys(PATTERNS);
+const byspecies = () => S.prefs.colorBy === 'species';
+function ensureColours() {
+  const g = S.g; if (!g) return;
+  const map = g.colors && typeof g.colors === 'object' ? g.colors : (g.colors = {}), used = new Set(Object.values(map));
+  for (const x of [...g.plantings, ...g.areas]) {
+    if (map[x.plantId] != null) continue;
+    let i = 0; while (used.has(i)) i++;
+    map[x.plantId] = i; used.add(i);
+  }
+}
+function speciesStyle(p) {
+  if (!p) return { col: '#999999', pat: 'solid' };
+  let idx = S.g?.colors?.[p.id];
+  if (idx == null) { let h = 0; for (const ch of String(p.id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; idx = h % (SPECIES_COLS.length * PAT_KEYS.length); }
+  const col = /^#[0-9a-f]{6}$/i.test(p.planColor || '') ? p.planColor : SPECIES_COLS[idx % SPECIES_COLS.length];
+  const pat = PATTERNS[p.planPattern] ? p.planPattern : PAT_KEYS[idx % PAT_KEYS.length];   // 18 colours and 8 patterns: 72 species before any pair repeats
+  return { col, pat };
+}
+/* the pattern itself, in plan units; t is the repeat */
+function patternDef(id, col, pat, t) {
+  const sw = +(t * 0.24).toFixed(4), L = `<path d="M0 ${t / 2}H${t}" stroke="${col}" stroke-width="${sw}"/>`, V = `<path d="M${t / 2} 0V${t}" stroke="${col}" stroke-width="${sw}"/>`;
+  const [rot, inner] = { hatch: [45, L], back: [-45, L], horiz: [0, L], vert: [0, V], cross: [45, L + V], grid: [0, L + V], dots: [45, `<circle cx="${t / 2}" cy="${t / 2}" r="${+(t * 0.2).toFixed(4)}" fill="${col}"/>`] }[pat] || [0, ''];
+  return `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${t}" height="${t}"${rot ? ` patternTransform="rotate(${rot})"` : ''}><rect width="${t}" height="${t}" fill="${col}" fill-opacity="0.28"/>${inner}</pattern>`;
+}
+/* a small key swatch for a species, in whichever colour scheme is on */
+function plantSwatch(p, size = 12) {
+  if (p?.existing) return `<span class="sw round" style="background:none;border:1.5px dashed var(--exist)"></span>`;
+  if (!byspecies()) return `<span class="sw round" style="background:var(--r-${p?.role || 'herbaceous'});border-color:var(--r-${p?.role || 'herbaceous'})"></span>`;
+  const st = speciesStyle(p), id = 'sws-' + String(p?.id).replace(/[^\w-]/g, '') + '-' + size, r = size / 2 - 0.75;
+  return `<svg class="swv" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${st.pat === 'solid' ? '' : `<defs>${patternDef(id, st.col, st.pat, size / 3.2)}</defs>`}<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${st.pat === 'solid' ? st.col : `url(#${id})`}"${st.pat === 'solid' ? ' fill-opacity="0.7"' : ''} stroke="${st.col}" stroke-width="1.2"/></svg>`;
+}
+/* the interlocked (staggered) planting grid */
+const gridOn = () => S.prefs.pgrid === 'tri' || S.prefs.pgrid === 'square';
+const gridSpace = () => clamp(num(S.prefs.pgridSpace, 0.3), 0.05, 2);
+function latticeSnap(x, y) {
+  const s = gridSpace();
+  if (S.prefs.pgrid === 'square') return { x: +(Math.round(x / s) * s).toFixed(3), y: +(Math.round(y / s) * s).toFixed(3) };
+  const dy = s * Math.sqrt(3) / 2, j0 = Math.round(y / dy); let best = null;
+  for (let j = j0 - 1; j <= j0 + 1; j++) { const off = (j & 1) ? s / 2 : 0, i = Math.round((x - off) / s), px = i * s + off, py = j * dy, dd = Math.hypot(px - x, py - y); if (!best || dd < best.d) best = { x: px, y: py, d: dd }; }
+  return { x: +best.x.toFixed(3), y: +best.y.toFixed(3) };
+}
+function spacingDefault(p) { const r = layerOf(p?.role); return r === 'tuber' ? 0.15 : (r === 'herbaceous' || r === 'ground') ? clamp(num(S.prefs.pgridSpace, 0.3), 0.05, 2) : num(p?.spread, 0.5); }
+function spacingOf(p) { return p && num(p.spacing) > 0 ? num(p.spacing) : spacingDefault(p); }
+/* a group of plants packed on an interlocked grid around its centre: offsets for one-metre spacing, nearest first */
+const HEX = (() => { const out = []; for (let j = -14; j <= 14; j++) for (let i = -14; i <= 14; i++) { const x = i + ((j & 1) ? 0.5 : 0), y = j * Math.sqrt(3) / 2; out.push([x, y, Math.hypot(x, y), Math.atan2(y, x)]); } return out.sort((a, b) => a[2] - b[2] || a[3] - b[3]).slice(0, 500); })();
+const hexR = n => HEX[clamp(n, 1, 500) - 1][2];
 function spreadOf(p) { if (!p) return 0.5; if (p.existing) return num(p.spread, 0.5); return S.view === 'mature' ? num(p.spread, 0.5) : num(p.potSpread, 0.2); }
-function radiusOf(pl) { const p = plantById(pl.plantId); const s = p?.existing && num(pl.spread) > 0 ? num(pl.spread) : spreadOf(p); return (s / 2) * Math.sqrt(Math.max(1, pl.qty || 1)); }
+function radiusOf(pl) { const p = plantById(pl.plantId); if (S.view === 'spacing' && p && !p.existing) { const s = spacingOf(p); return hexR(Math.max(1, pl.qty || 1)) * s + s / 2; } const s = p?.existing && num(pl.spread) > 0 ? num(pl.spread) : spreadOf(p); return (s / 2) * Math.sqrt(Math.max(1, pl.qty || 1)); }
 function defaultDensity(p) { const s = num(p?.spread, 0.5); return Math.round((1 / (s * s)) * 10) / 10; }
 
 /* ---------- curve geometry (closed Catmull-Rom splines) ---------- */
@@ -936,13 +991,35 @@ function renderMap() {
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
   const ls = fs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
   if (S.sun.on && !pr) parts.push(sunLayer(W, D, M, pad, fs, px, halo));
+  ensureColours();
+  const bysp = byspecies(), spacingV = S.view === 'spacing', defs = new Map(), patT = +Math.max(0.03, Math.min(0.08, px * 7)).toFixed(4);
+  const spFill = p => { const st = speciesStyle(p); if (st.pat === 'solid') return { fill: st.col, op: 0.55, line: st.col }; const id = 'pat-' + String(p.id).replace(/[^\w-]/g, ''); if (!defs.has(id)) defs.set(id, patternDef(id, st.col, st.pat, patT)); return { fill: `url(#${id})`, op: 1, line: st.col }; };
+  /* in the Spacing view, touching plants of one species form a block that is labelled once */
+  let blockLab = null;
+  if (spacingV && showL) {
+    blockLab = new Map(); const by = new Map();
+    for (const pl of g.plantings) { const p = plantById(pl.plantId); if (!p || p.existing || (pl.qty || 1) > 1 || !isVisible(p) || pl.lx != null) continue; if (!by.has(p.id)) by.set(p.id, []); by.get(p.id).push(pl); }
+    for (const [pid, list] of by) {
+      if (list.length < 2) continue;
+      const lim = spacingOf(plantById(pid)) * 1.2, up = list.map((_, i) => i), find = i => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; }, H = new Map(), key = (a, b) => a + ',' + b;
+      list.forEach((q, i) => { const k = key(Math.floor(q.x / lim), Math.floor(q.y / lim)); if (!H.has(k)) H.set(k, []); H.get(k).push(i); });
+      list.forEach((q, i) => { const cx = Math.floor(q.x / lim), cy = Math.floor(q.y / lim); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const j of H.get(key(cx + a, cy + b)) || []) if (j > i && Math.hypot(list[j].x - q.x, list[j].y - q.y) <= lim) up[find(j)] = find(i); });
+      const groups = new Map(); list.forEach((q, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(q); });
+      for (const mem of groups.values()) {
+        if (mem.length < 2) continue;
+        const mx = mem.reduce((t, q) => t + q.x, 0) / mem.length, my = mem.reduce((t, q) => t + q.y, 0) / mem.length;
+        let rep = mem[0]; for (const q of mem) if (Math.hypot(q.x - mx, q.y - my) < Math.hypot(rep.x - mx, rep.y - my)) rep = q;
+        for (const q of mem) blockLab.set(q.id, q === rep ? mem.length : 0);
+      }
+    }
+  }
   const areas = g.areas;
   const planted = S.view === 'planted';
   for (const a of areas) {
     const p = plantById(a.plantId);
     if (!isVisible(p)) continue;
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
-    const ex = !!p?.existing, sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`;
+    const ex = !!p?.existing, sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : ex ? 'var(--exist)' : bysp ? speciesStyle(p).col : `var(--r-${p?.role || 'herbaceous'})`;
     const dots = planted && !ex ? driftDots(a) : null, potr = potR(p);
     parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? halo(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }) : ''}</g>`);
   }
@@ -953,11 +1030,18 @@ function renderMap() {
     if (!isVisible(p)) continue;
     const ex = !!p?.existing, st = pl.status || 'retain', qty = Math.max(1, pl.qty || 1);
     const se = S.season && !pr ? seasonOf(p, S.season) : null;
-    const c = se ? (se.col || 'var(--muted)') : ex ? 'var(--exist)' : `var(--r-${p?.role || 'herbaceous'})`, sc = se ? 'var(--muted)' : c, fo = se ? se.op : ex ? 0.13 : 0.3;
+    const spf = bysp && !se && !ex && p ? spFill(p) : null;
+    const c = se ? (se.col || 'var(--muted)') : ex ? 'var(--exist)' : spf ? spf.line : `var(--r-${p?.role || 'herbaceous'})`, sc = se ? 'var(--muted)' : c, fo = se ? se.op : ex ? 0.13 : 0.3;
+    const fillOf = () => (spf ? spf.fill : c), opOf = () => (spf ? spf.op : fo);
     const isSel = isSelected('planting', pl.id);
-    const lbl = (S.prefs.labelQty && qty > 1 ? qty + ' ' : '') + plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '');
+    let lbl = (S.prefs.labelQty && qty > 1 ? qty + ' ' : '') + plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '');
     let body, ringR;
-    if (planted && !ex) {
+    if (spacingV && !ex && p) {
+      const s = spacingOf(p), r = s / 2;
+      const one = (x, y) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${r}" style="fill:${fillOf()};stroke:${sc}" fill-opacity="${se ? Math.max(se.op, 0.12) : spf ? spf.op : 0.38}" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+      body = qty > 1 ? HEX.slice(0, qty).map(([hx, hy]) => one(pl.x + hx * s, pl.y + hy * s)).join('') : one(pl.x, pl.y);
+      ringR = hexR(qty) * s + r;
+    } else if (planted && !ex) {
       const pr = potR(p), R = (num(p?.spread, 0.5) / 2) * Math.sqrt(qty);
       if (qty > 1) {
         const dots = [];
@@ -970,17 +1054,20 @@ function renderMap() {
       }
     } else {
       const r = radiusOf(pl), k = r * 0.7071;
-      body = `<circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${c};stroke:${sc}" fill-opacity="${fo}" stroke-width="${se ? 1 : 1.5}" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
+      body = `<circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${fillOf()};stroke:${sc}" fill-opacity="${opOf()}" stroke-width="${se ? 1 : 1.5}" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
       ${ex && st === 'remove' ? `<path d="M${pl.x - k} ${pl.y - k} L${pl.x + k} ${pl.y + k} M${pl.x + k} ${pl.y - k} L${pl.x - k} ${pl.y + k}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}
-      ${S.prefs.labelMode === 'number' && showL ? '' : `<circle cx="${pl.x}" cy="${pl.y}" r="${fs * 0.18}" style="fill:${c}"/>`}`;
+      ${(S.prefs.labelMode === 'number' && showL) || spf ? '' : `<circle cx="${pl.x}" cy="${pl.y}" r="${fs * 0.18}" style="fill:${c}"/>`}`;
       ringR = r;
     }
     /* the label: above or inside the plant by default, or wherever it has been dragged, with a leader line back to the plant */
     let lab = '';
-    if (showL) {
-      const isNum = S.prefs.labelMode === 'number', moved = pl.lx != null && pl.ly != null;
-      const size = isNum && !moved ? Math.min(ls * 0.68, Math.max(ringR * 1.15, ls * 0.2)) : ls * 0.68;   // a number is kept small enough to sit inside its plant
-      const bx = pl.x + (moved ? pl.lx : 0), by = pl.y + (moved ? pl.ly : isNum ? size * 0.34 : -(planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32));
+    const blk = blockLab?.get(pl.id);
+    if (showL && blk !== 0) {
+      const isNum = S.prefs.labelMode === 'number', moved = pl.lx != null && pl.ly != null, inside = isNum || (spacingV && !ex);
+      if (blk > 1) lbl = (S.prefs.labelQty ? blk + ' ' : '') + plantLabel(p);
+      /* inside the plant, a label is sized to fit it; a block's one label may spread across its neighbours */
+      const size = moved ? ls * 0.68 : blk > 1 ? ls * 0.8 : inside ? Math.min(ls * 0.68, Math.max(ls * 0.2, isNum ? ringR * 1.15 : ringR * 1.8 / Math.max(2, lbl.length * 0.5))) : ls * 0.68;
+      const bx = pl.x + (moved ? pl.lx : 0), by = pl.y + (moved ? pl.ly : inside ? size * 0.34 : -(planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32));
       const tw = lbl.length * size * 0.5, cy = by - size * 0.32;
       if (moved) {
         const dx = bx - pl.x, dy = cy - pl.y, dist = Math.hypot(dx, dy);
@@ -1009,6 +1096,10 @@ function renderMap() {
     if (b) parts.push(`<line x1="${S.cal.a.x}" y1="${S.cal.a.y}" x2="${b.x}" y2="${b.y}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
     for (const q of [S.cal.a, S.cal.b].filter(Boolean)) parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${px * 5}" style="fill:var(--panel);stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
+  if (S.tool === 'plant' && gridOn() && S.activePlant && S.hover && !pr && !S.drag) {
+    const q = latticeSnap(S.hover.x, S.hover.y), p = plantById(S.activePlant);
+    parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${spacingOf(p) / 2}" fill="none" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+  }
   if (S.tool === 'row' && S.row?.a && !pr) {
     const p = plantById(S.activePlant), a = S.row.a, b = S.hover ? rowEnd(a, S.hover, S.hoverShift) : null, col = `var(--r-${p?.role || 'herbaceous'})`, rr = Math.max(spreadOf(p) / 2, px * 3);
     if (b) parts.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
@@ -1036,6 +1127,7 @@ function renderMap() {
       <text x="${lx}" y="${ly + fs * 0.32}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--ink)">N</text>
       ${isN ? `<text x="${nx}" y="${ny + fs * 2.4}" font-size="${fs * 0.7}" text-anchor="middle" style="fill:var(--muted)">${Math.round(deg)}°</text>` : ''}</g>`);
   }
+  if (defs.size) parts.unshift(`<defs>${[...defs.values()].join('')}</defs>`);
   svg.innerHTML = parts.join('');
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
 }
@@ -1087,7 +1179,7 @@ function renderLibrary() {
   const list = S.plants.filter(p => !q || [p.common, p.botanical, ROLES[p.role]].join(' ').toLowerCase().includes(q)).sort((a, b) => (a.common || '').localeCompare(b.common || ''));
   if (!S.plants.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${S.loaded ? 'Your library is empty. Use Add species to start it. Every species you add here is reused across all your gardens.' : 'Loading your plant library…'}</li>`; return; }
   if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">No species match “${esc(S.filter)}”.</li>`; return; }
-  $('lib').innerHTML = list.map(p => `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan"><span class="sw round" style="${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span><span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || 'Flower colour')}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
+  $('lib').innerHTML = list.map(p => `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || 'Flower colour')}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
 }
 function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
 function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
@@ -1125,6 +1217,15 @@ function renderInspector() {
       <span class="acts"><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
     return;
   }
+  if (S.tool === 'plant' && S.activePlant && !S.sel && !S.multi.length) {
+    const p = plantById(S.activePlant), o = (v, l) => `<option value="${v}"${(S.prefs.pgrid || 'off') === v ? ' selected' : ''}>${l}</option>`;
+    hint.hidden = true; el.hidden = false;
+    el.innerHTML = `<span class="pk">${plantSwatch(p, 14)}${esc(p?.common || 'Plant')}</span>
+      <label class="pf"><span>Snap</span><select id="pg-mode">${o('off', 'Free')}${o('tri', 'Interlocked grid')}${o('square', 'Square grid')}</select></label>
+      ${gridOn() ? `<label class="pf"><span>Grid</span><input id="pg-space" class="n" type="number" min="0.05" max="2" step="0.05" value="${gridSpace()}"><span class="pv">m</span></label>` : ''}
+      <span class="pv">${gridOn() ? `Click or drag to paint plants onto the grid. Alt-drag rubs them out. ${esc(p?.common || '')} is drawn ${spacingOf(p).toFixed(2)} m across in the Spacing view.` : 'Click to place a plant. Interlocked snaps to a staggered grid, the usual layout for a perennial border.'}</span>`;
+    return;
+  }
   if (S.tool === 'row' && S.activePlant) {
     hint.hidden = true; el.hidden = false;
     el.innerHTML = `<span class="pk">${toolSwatch({ icon: 'row' })} Row of ${esc(plantById(S.activePlant)?.common || 'plants')}</span>
@@ -1158,7 +1259,7 @@ function renderInspector() {
   if (S.sel.kind === 'planting') {
     const p = plantById(it.plantId);
     const fl = p?.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : 'no flowers';
-    el.innerHTML = `<span class="pk"><span class="sw round" style="${p?.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p?.role || 'herbaceous'});border-color:var(--r-${p?.role || 'herbaceous'})`}"></span>${esc(p?.common || 'Missing species')}${p?.existing ? '<span class="ex exist">Existing</span>' : ''}</span>
+    el.innerHTML = `<span class="pk">${plantSwatch(p, 14)}${esc(p?.common || 'Missing species')}${p?.existing ? '<span class="ex exist">Existing</span>' : ''}</span>
       <label class="pf"><span>Species</span><select id="pl-species" data-f="plantId">${speciesOpts(it.plantId)}</select></label>
       <label class="pf"><span>Qty</span><input id="pl-qty" class="n" type="number" min="1" max="500" step="1" data-f="qty" value="${it.qty || 1}"></label>
       ${p?.existing ? `<label class="pf"><span>Status</span><select id="pl-status" data-f="status">${opt(STATUS, it.status || 'retain')}</select></label>
@@ -1227,7 +1328,9 @@ function renderPlantEditor(el) {
       <button class="btn sm" type="button" data-act="addInterest" style="align-self:flex-start">Add berries, autumn colour, stems…</button>
     </div></div>
     <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
-    ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>`}
+    ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>
+    <label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>
+    <div class="field"><span>Plan colour</span><div class="row" style="flex-wrap:nowrap">${plantSwatch({ ...p, existing: false }, 22).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
     ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
@@ -1396,6 +1499,7 @@ function renderPrefs() {
       </fieldset>
       <fieldset class="pref"><legend>Plan display</legend>
         ${chk('pf-grid', 'showGrid', 'Show grid')}
+        <label class="field"><span>Colour plants by</span>${sel('pf-colorby', 'colorBy', [['layer', 'Layer'], ['species', 'Species (own colour and pattern)']])}</label>
         <label class="field"><span>Grid spacing</span>${sel('pf-step', 'gridStep', [['auto', 'Automatic'], ['0.5', '0.5 m'], ['1', '1 m'], ['2', '2 m'], ['5', '5 m']])}</label>
         ${chk('pf-rulers', 'showRulers', 'Show measurements along the edges')}
         ${chk('pf-scale', 'showScale', 'Show scale bar and north arrow')}
@@ -1403,7 +1507,7 @@ function renderPrefs() {
       <fieldset class="pref"><legend>Placing plants</legend>
         <label class="field"><span>Snap to</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-snap" data-pref="snap" min="0.05" max="1" step="0.05" value="${clamp(num(P.snap, 0.1), 0.05, 1)}" style="flex:1;accent-color:var(--accent)"><output id="pf-snap-v" style="min-width:3.5em;text-align:right">${snapText(P.snap)}</output></span></label>
         <p class="note" style="margin:0">Plants jump to this spacing when you place or drag them.</p>
-        <label class="field"><span>Plans open in</span>${sel('pf-view', 'defaultView', [['mature', 'Design intent (mature size)'], ['planted', 'As planted (pot size)']])}</label>
+        <label class="field"><span>Plans open in</span>${sel('pf-view', 'defaultView', [['mature', 'Design intent (mature size)'], ['spacing', 'Spacing (plants touch)'], ['planted', 'As planted (pot size)']])}</label>
       </fieldset>
       <fieldset class="pref"><legend>Layer colours</legend>
         <p class="note" style="margin:0">Used for plants and library dots in every garden. Flower colours are set per species.</p>
@@ -1431,6 +1535,7 @@ function savePrefs() {
 function setPref(k, v) {
   S.prefs[k] = v; savePrefs();
   if (k === 'theme') { applyTheme(v); return; }
+  if (k === 'colorBy' || k === 'pgrid' || k === 'pgridSpace') { if (S.loaded) { renderLibrary(); renderLayers(); renderMap(); } return; }
   if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
   if (k === 'snap') { const o = $('pf-snap-v'); if (o) o.textContent = snapText(v); }
   const smp = $('pf-sample');
@@ -1486,7 +1591,7 @@ function applyPage() {
   $('navPlan').setAttribute('aria-pressed', plan); $('navSched').setAttribute('aria-pressed', pg === 'schedule'); $('navCal').setAttribute('aria-pressed', pg === 'flowering'); $('navPrefs').setAttribute('aria-pressed', pg === 'preferences');
   if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'presentation') renderPresentation(true); else if (pg === 'database') { showDbView(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
 }
-function renderAll() { renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
+function renderAll() { renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vSpacing').setAttribute('aria-pressed', S.view === 'spacing'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
 function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
 
@@ -1627,7 +1732,7 @@ function movePinch() {
 function beginPan(d, e) { d.pan = true; d.sx = e ? e.clientX : d.sx; d.sy = e ? e.clientY : d.sy; d.cx = S.cx; d.cy = S.cy; svg.classList.add('panning'); }
 const snapStep = () => clamp(num(S.prefs.snap, 0.1), 0.05, 1);
 /* rows: evenly spaced single plants between two points */
-function rowGap() { return clamp(S.rowGap || r2(num(plantById(S.activePlant)?.spread, 0.5)), 0.05, 20); }
+function rowGap() { return clamp(S.rowGap || r2(spacingOf(plantById(S.activePlant))), 0.05, 20); }
 function rowEnd(a, p, straight) {
   if (!straight) return { x: snap(p.x), y: snap(p.y) };
   const L = Math.hypot(p.x - a.x, p.y - a.y), ang = Math.round(Math.atan2(p.y - a.y, p.x - a.x) / (Math.PI / 4)) * (Math.PI / 4);
@@ -1641,7 +1746,7 @@ function rowPoints(a, b) {
 function rowInfo() {
   if (S.row?.a && S.hover) { const b = rowEnd(S.row.a, S.hover, S.hoverShift), n = rowPoints(S.row.a, b).length, L = Math.hypot(b.x - S.row.a.x, b.y - S.row.a.y); return `${plural(n, 'plant')} over ${L.toFixed(2)} m, ${(n > 1 ? L / (n - 1) : 0).toFixed(2)} m apart`; }
   if (S.row?.a) return 'Now click where the row ends.';
-  return S.rowMade ? `Placed ${plural(S.rowMade, 'plant')}. Click to start another row.` : 'Spacing starts at the plant’s mature spread.';
+  return S.rowMade ? `Placed ${plural(S.rowMade, 'plant')}. Click to start another row.` : 'Spacing starts at the plant’s planting spacing.';
 }
 function updateLive() { const el = $('row-info'); if (el) el.textContent = rowInfo(); }
 /* duplicate, copy, paste and nudge */
@@ -1684,11 +1789,30 @@ function nudge(dx, dy) {
   for (const m of items) { if (m.kind === 'area') m.it.pts = m.it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]); else { m.it.x = r2(m.it.x + dx); m.it.y = r2(m.it.y + dy); } }
   saveGarden(); renderMapSoon();
 }
-const wantsHover = () => (S.tool === 'block' && S.blk?.pts.length) || (S.cal?.a && !S.cal.b) || (S.tool === 'row' && S.row?.a) || (S.tool === 'measure' && S.meas?.a && !S.meas.b);
+const wantsHover = () => (S.tool === 'plant' && S.activePlant && gridOn()) || (S.tool === 'block' && S.blk?.pts.length) || (S.cal?.a && !S.cal.b) || (S.tool === 'row' && S.row?.a) || (S.tool === 'measure' && S.meas?.a && !S.meas.b);
 function trackHover(e) {
   const p = toM(e); S.ptr = { x: p.x, y: p.y };
   if (!wantsHover()) return;
   S.hover = { x: r2(p.x), y: r2(p.y) }; S.hoverShift = e.shiftKey; renderMapSoon(); updateLive();
+}
+/* paint onto the planting grid: one plant per free grid point; with Alt, rub plants out */
+function paintAt(d, p) {
+  if (!S.g || !(p.x >= 0 && p.y >= 0 && p.x <= S.g.width && p.y <= S.g.depth)) return;
+  const q = latticeSnap(p.x, p.y), s = gridSpace();
+  if (d.erase) {
+    const keep = S.g.plantings.filter(x => !((x.qty || 1) === 1 && !plantById(x.plantId)?.existing && Math.hypot(x.x - p.x, x.y - p.y) < s * 0.55));
+    if (keep.length === S.g.plantings.length) return;
+    if (!d.changed) { pushHistory(d.before); d.changed = true; }
+    S.g.plantings = keep; renderMapSoon(); return;
+  }
+  const np = plantById(S.activePlant), sp = spacingOf(np);
+  for (const x of S.g.plantings) {
+    const xp = plantById(x.plantId); if (!xp || xp.existing) continue;
+    const reach = (x.qty || 1) > 1 ? hexR(x.qty) * spacingOf(xp) + spacingOf(xp) / 2 + sp / 2 : (sp + spacingOf(xp)) / 2;
+    if (Math.hypot(x.x - q.x, x.y - q.y) < reach * 0.9) return;
+  }
+  if (!d.changed) { pushHistory(d.before); d.changed = true; }
+  S.g.plantings.push({ id: uid(), plantId: S.activePlant, x: q.x, y: q.y, qty: 1 }); renderMapSoon();
 }
 function toolClick(tool, p, shift) {
   const sp = { x: snap(p.x), y: snap(p.y) };
@@ -1739,6 +1863,11 @@ svg.addEventListener('pointerdown', e => {
   if (hit?.dataset.kind === 'north') { S.drag = { north: true, moved: false, before: JSON.stringify(S.g) }; renderMap(); return; }
   if (hit?.dataset.kind === 'block' && tool === 'select') { S.sel = null; S.multi = []; S.blockSel = hit.dataset.id; renderInspector(); renderMap(); return; }
   if (hit?.dataset.kind === 'lblh') { const pl = S.g.plantings.find(x => x.id === hit.dataset.id); if (pl) S.drag = { label: true, pl, start: p, moved: false, before: JSON.stringify(S.g), orig: { x: num(hit.dataset.lx), y: num(hit.dataset.ly) } }; return; }
+  if (tool === 'plant' && S.activePlant && gridOn() && !e.shiftKey && hit?.dataset.kind !== 'handle') {
+    S.sel = null; S.multi = [];
+    const d = { paint: true, erase: e.altKey, last: p, before: JSON.stringify(S.g), changed: false };
+    S.drag = d; paintAt(d, p); renderInspector(); return;
+  }
   const selecting = tool === 'select' || (tool === 'plant' && hit && (hit.dataset.kind === 'planting' || hit.dataset.kind === 'handle' || !S.activePlant));
   if (selecting && hit) {
     const kind = hit.dataset.kind, id = hit.dataset.id;
@@ -1759,6 +1888,11 @@ svg.addEventListener('pointermove', e => {
   if (S.pinch) { if (ptrs.size >= 2) movePinch(); return; }
   const d = S.drag;
   if (!d) { trackHover(e); return; }
+  if (d.paint) {
+    const p = toM(e), L = Math.hypot(p.x - d.last.x, p.y - d.last.y), n = Math.max(1, Math.ceil(L / (gridSpace() / 3)));
+    for (let k = 1; k <= n; k++) paintAt(d, { x: d.last.x + (p.x - d.last.x) * k / n, y: d.last.y + (p.y - d.last.y) * k / n });
+    d.last = p; return;
+  }
   if (d.pan) {
     if (!d.moved && Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 3) return;
     d.moved = true;
@@ -1797,6 +1931,7 @@ svg.addEventListener('pointermove', e => {
     const one = d.items.length === 1;
     for (const { m, orig } of d.items) {
       if (m.kind === 'area') m.it.pts = orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
+      else if (one && gridOn() && m.kind === 'planting' && (m.it.qty || 1) === 1) { const q = latticeSnap(orig.x + dx, orig.y + dy); m.it.x = q.x; m.it.y = q.y; }
       else if (one) { m.it.x = snap(orig.x + dx); m.it.y = snap(orig.y + dy); }
       else { m.it.x = r2(orig.x + dx); m.it.y = r2(orig.y + dy); }
     }
@@ -1806,6 +1941,7 @@ svg.addEventListener('pointermove', e => {
 function endDrag() {
   const d = S.drag; if (!d) return;
   S.drag = null;
+  if (d.paint) { if (d.changed) saveGarden(); renderInspector(); refreshDerived(); return; }
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
   if (d.north) { if (d.moved) saveGarden(); renderMap(); return; }
   if (d.pending) {
@@ -1850,8 +1986,8 @@ $('lib').addEventListener('click', e => {
   const ed = e.target.closest('[data-edit]'); if (ed) { openPlantEditor(ed.dataset.edit); return; }
   const li = e.target.closest('[data-pid]'); if (!li) return;
   S.activePlant = li.dataset.pid;
-  if (S.tool !== 'row') S.tool = 'plant'; else { S.rowGap = null; renderInspector(); renderMapSoon(); }
-  renderTools();
+  if (S.tool !== 'row') { S.tool = 'plant'; S.sel = null; S.multi = []; } else { S.rowGap = null; renderMapSoon(); }
+  renderTools(); renderInspector();
   for (const el of $('lib').querySelectorAll('[data-pid]')) el.setAttribute('aria-selected', el.dataset.pid === S.activePlant);
 });
 /* ---------- presentation booklet ---------- */
@@ -1936,7 +2072,7 @@ function bookletInput(t) {
   clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 350);
 }
 async function planImage(numbered) {
-  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors]);
+  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.colorBy, S.prefs.pgridSpace, S.plants.map(p => [p.planColor, p.planPattern, p.spacing].join()).join()]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
   S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = {};
@@ -1976,7 +2112,7 @@ function bookletPages(planImg, forExport) {
     const used = LAYER_ORDER.filter(k => pal.some(r => layerOf(r.p.role) === k));
     pages.push({ html: `${head('Planting plan')}<h3>Planting plan</h3><p class="bsub">${g.width} × ${g.depth} m${b.numberPlan ? ' · numbers refer to the plant palette' : ''}</p>
       <div class="bbody"><div class="bplan">${planImg ? `<img data-plan src="${planImg}" alt="Planting plan">` : ''}</div>
-      <div class="blegend"><div class="t">Layers</div>${used.map(k => `<div><span class="d" style="background:var(--r-${k})"></span>${ROLES[k]}</div>`).join('')}${exRows.length ? `<div><span class="d" style="border:1.5px dashed var(--exist);background:none"></span>Existing plants</div>` : ''}
+      <div class="blegend">${byspecies() ? `<div class="t">Plants</div>${pal.slice(0, 22).map(r => `<div>${plantSwatch(r.p, 12)}${b.numberPlan ? r.n + '&nbsp; ' : ''}<i>${esc(r.p.botanical || r.p.common)}</i></div>`).join('')}${pal.length > 22 ? `<div>and ${pal.length - 22} more</div>` : ''}` : `<div class="t">Layers</div>${used.map(k => `<div><span class="d" style="background:var(--r-${k})"></span>${ROLES[k]}</div>`).join('')}`}${exRows.length ? `<div><span class="d" style="border:1.5px dashed var(--exist);background:none"></span>Existing plants</div>` : ''}
       <div class="t" style="margin-top:14px">Plants</div><div>${pal.reduce((t, r) => t + r.qty, 0)} new plants</div><div>${pal.length} species</div></div></div>` });
   }
   if (b.pages.palette && pal.length) chunk(pal, 12).forEach((part, i, all) => pages.push({ html: `${head('Plant palette')}<h3>Plant palette${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Numbered to match the planting plan and schedule</p>
@@ -2155,7 +2291,7 @@ async function exportSheet() {
     if (logoUrl()) { try { const im = await imageData(logoUrl()), k = Math.min(tw / im.w, 18 / im.h); pdf.addImage(im.data, 'PNG', x0, y - 2, im.w * k, im.h * k); y += im.h * k + 5; } catch {} }
     y += 2; para(g.name || 'Planting plan', 13, 'bold'); if (g.client) para(g.client, 9);
     para(lay.o.numbered ? 'Planting plan, numbered' : 'Planting plan', 9.5, 'bold'); y += 1; rule();
-    for (const [k, val] of [['Scale', `1:${f.scale} at ${lay.o.paper}`], ['Date', b.date], ['Drawn by', b.designer], ['Site', b.site], ['Plants shown', S.view === 'planted' ? 'As planted (pot size)' : 'At mature spread']]) { if (!val) continue; small(k); para(val, 8.5); y += 0.6; }
+    for (const [k, val] of [['Scale', `1:${f.scale} at ${lay.o.paper}`], ['Date', b.date], ['Drawn by', b.designer], ['Site', b.site], ['Plants shown', S.view === 'planted' ? 'As planted (pot size)' : S.view === 'spacing' ? 'At planting spacing' : 'At mature spread']]) { if (!val) continue; small(k); para(val, 8.5); y += 0.6; }
     rule();
     // plant key
     const rows = paletteRows(), ex = existingRows().filter(r => r.retain + r.prune > 0), cs = getComputedStyle(document.querySelector('.sheetref'));
@@ -2164,7 +2300,8 @@ async function exportSheet() {
     let rh = 3.7, size = 7; if (rows.length * rh > room) { const k = Math.max(0.68, room / (rows.length * rh)); rh *= k; size *= k; }
     const fitN = Math.max(0, Math.floor(room / rh)), shown = rows.length > fitN ? rows.slice(0, Math.max(0, fitN - 1)) : rows, lblW = lay.o.numbered ? 6 : 13;
     for (const r of shown) {
-      pdf.setFillColor(cs.getPropertyValue('--r-' + layerOf(r.p.role)).trim() || '#888888'); pdf.circle(x0 + 1, y - size * 0.12, size * 0.13, 'F');
+      if (byspecies()) { const sw = new DOMParser().parseFromString(plantSwatch(r.p, 12).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 'image/svg+xml').documentElement; const z = size * 0.42; try { await pdf.svg(sw, { x: x0 + 1 - z / 2, y: y - size * 0.12 - z / 2, width: z, height: z }); } catch {} }
+      else { pdf.setFillColor(cs.getPropertyValue('--r-' + layerOf(r.p.role)).trim() || '#888888'); pdf.circle(x0 + 1, y - size * 0.12, size * 0.13, 'F'); }
       pdf.setTextColor(25); pdf.setFontSize(size); pdf.setFont('helvetica', 'bold'); pdf.text(pdfText(lay.o.numbered ? String(r.n) : code(r.p)), x0 + 3.2, y);
       pdf.setFont('helvetica', 'italic'); let name = pdfText(r.p.botanical || r.p.common || ''); const maxW = tw - lblW - 3.2 - 8; while (name.length > 4 && pdf.getTextWidth(name) > maxW) name = name.slice(0, -2); if (name !== pdfText(r.p.botanical || r.p.common || '')) name += '.';
       pdf.text(name, x0 + 3.2 + lblW, y); pdf.setFont('helvetica', 'normal'); pdf.text(String(r.qty), x0 + tw, y, { align: 'right' }); y += rh;
@@ -2310,6 +2447,8 @@ let fieldCheckpointed = false;
 app.addEventListener('focusin', () => { fieldCheckpointed = false; });
 app.addEventListener('input', e => {
   const t = e.target;
+  if (t.id === 'pg-mode') { setPref('pgrid', t.value); renderInspector(); return; }
+  if (t.id === 'pg-space') { setPref('pgridSpace', clamp(num(t.value, 0.3), 0.05, 2)); renderMapSoon(); return; }
   if (t.id === 'blk-h') { if (S.blk) S.blk.h = clamp(num(t.value, 1.8), 0.1, 100); return; }
   if (t.dataset.blk === 'h') { const b = (S.g?.blocks || []).find(x => x.id === S.blockSel); if (!b) return; if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; } b.h = clamp(num(t.value, b.h), 0.1, 100); saveGarden(); renderMapSoon(); return; }
   if (t.id === 'g-loc') { setLocation(t.value, true); return; }
@@ -2353,6 +2492,7 @@ app.addEventListener('input', e => {
     return;
   }
   if (t.dataset.p === 'flowerColor') { S.editPlant.flowerColor = t.value; S.editPlant.flowerColorName = 'Custom colour'; markSwatches(); return; }
+  if ((t.dataset.p === 'planColor' || t.dataset.p === 'planPattern') && S.editPlant) { S.editPlant[t.dataset.p] = t.value || null; const sw = $('sp-swatch'); if (sw) sw.outerHTML = plantSwatch({ ...S.editPlant, existing: false }, 22).replace('class="swv"', 'class="swv" id="sp-swatch"'); return; }
   if (t.dataset.p) { const k = t.dataset.p; S.editPlant[k] = t.type === 'number' ? (t.value === '' ? null : num(t.value)) : (k === 'flowerFrom' || k === 'flowerTo') ? (t.value ? +t.value : null) : t.value; return; }
   if (t.dataset.arr) { const k = t.dataset.arr; S.editPlant[k] = [...app.querySelectorAll(`[data-arr="${k}"]:checked`)].map(x => x.value); return; }
   if (t.dataset.f) {
@@ -2401,6 +2541,7 @@ app.addEventListener('click', async e => {
   if (act === 'resetPrefs') { S.prefs = { ...PREF_DEFAULTS, roleColors: {}, theme: S.prefs.theme }; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'resetRoleCols') { S.prefs.roleColors = {}; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'addInterest' && S.editPlant) { const used = new Set((S.editPlant.interest || []).map(x => x.kind)), k = Object.keys(INTEREST).find(x => !used.has(x)) || 'berries', v = INTEREST[k]; S.editPlant.interest = [...(S.editPlant.interest || []), { kind: k, from: v[1], to: v[2], color: v[3] }].slice(0, 8); renderLibrary(); }
+  if (act === 'autoPlanColour' && S.editPlant) { S.editPlant.planColor = null; S.editPlant.planPattern = null; renderLibrary(); }
   if (act === 'clearColour') { S.editPlant.flowerColor = null; S.editPlant.flowerColorName = null; renderLibrary(); }
   if (act === 'editSpecies') { const it = findSel(); if (it?.plantId) openPlantEditor(it.plantId); }
   if (act === 'calApply') applyScale(num($('cal-m')?.value));
@@ -2439,6 +2580,7 @@ app.addEventListener('click', async e => {
 });
 $('vMature').addEventListener('click', () => { S.view = 'mature'; renderAll(); });
 $('vPlanted').addEventListener('click', () => { S.view = 'planted'; renderAll(); });
+$('vSpacing').addEventListener('click', () => { S.view = 'spacing'; renderAll(); });
 $('undoBtn').addEventListener('click', undo);
 $('redoBtn').addEventListener('click', redo);
 $('zIn').addEventListener('click', () => zoomBy(1.4));
@@ -2459,6 +2601,7 @@ function layerCounts() {
   return c;
 }
 function renderLayers() {
+  for (const b of document.querySelectorAll('[data-colorby]')) b.setAttribute('aria-pressed', String((S.prefs.colorBy || 'layer') === b.dataset.colorby));
   const n = Object.keys(ROLES).filter(k => S.layers.has(k)).length, all = n === 7 && S.showExisting;
   $('layerBtn').textContent = `Layers: ${all ? 'all' : n === 0 ? 'none' : n === 7 ? 'all, no existing' : n + ' of 7'} ▾`;
   $('layerBtn').classList.toggle('on', !all);
@@ -2477,6 +2620,7 @@ $('layerMenu').addEventListener('change', e => {
   afterLayerChange();
 });
 $('layerMenu').addEventListener('click', e => {
+  const cb = e.target.closest('[data-colorby]'); if (cb) { setPref('colorBy', cb.dataset.colorby); renderAll(); return; }
   const b = e.target.closest('[data-layers]'); if (!b) return;
   if (b.dataset.layers === 'all') { S.layers = new Set(Object.keys(ROLES)); S.showExisting = true; } else { S.layers = new Set(); S.showExisting = false; }
   afterLayerChange();
@@ -2596,7 +2740,7 @@ function normGarden(id, d) {
     underlay: d.underlay && d.underlay.natW ? d.underlay : null,
     areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind === 'drift' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
     plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example,
-    booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined,
+    booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, colors: d.colors && typeof d.colors === 'object' ? d.colors : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined,
     lat: Number.isFinite(d.lat) ? d.lat : undefined, lon: Number.isFinite(d.lon) ? d.lon : undefined,
     blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined };
 }
@@ -2620,7 +2764,7 @@ async function init() {
     if (prefTimer) return;
     const first = !S.prefsLoaded; S.prefsLoaded = true; S.prefsExist = !!snap.exists;
     S.prefs = { ...PREF_DEFAULTS, ...(snap.exists ? snap.data() : {}) };
-    if (first) S.view = S.prefs.defaultView === 'planted' ? 'planted' : 'mature';
+    if (first) S.view = ['planted', 'spacing'].includes(S.prefs.defaultView) ? S.prefs.defaultView : 'mature';
     applyRoleColours(); applyTheme(S.prefs.theme);
     if (getPage() === 'preferences' && !document.activeElement?.dataset?.pref) renderPrefs();
     if (S.loaded) renderAll();
@@ -3229,6 +3373,9 @@ function cleanPlant(d) {
   if (safeId(d.photoId)) p.photoId = d.photoId;
   if (d.source && typeof d.source === 'object') p.source = { list: str(d.source.list, 64), listName: str(d.source.listName, 200), code: str(d.source.code, 80), stock: str(d.source.stock, 40), checkedAt: numOrNull(d.source.checkedAt) ?? 0 };
   if (FOLIAGE[d.foliage]) p.foliage = d.foliage;
+  if (numOrNull(d.spacing) > 0) p.spacing = clamp(+d.spacing, 0.05, 20);
+  if (hexOrNull(d.planColor)) p.planColor = d.planColor;
+  if (PATTERNS[d.planPattern]) p.planPattern = d.planPattern;
   const interest = cleanInterest(d.interest); if (interest.length) p.interest = interest;
   if (d.example) p.example = true;
   return p;
@@ -3264,6 +3411,7 @@ function cleanGarden(d) {
   const blocks = (Array.isArray(d.blocks) ? d.blocks : []).slice(0, 200).filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2)
     .map(b => ({ id: safeId(b.id) || uid(), pts: b.pts.slice(0, 100).map(q => [xy(q?.[0]), xy(q?.[1])]), closed: !!b.closed && b.pts.length >= 3, h: clamp(numOrNull(b.h) ?? 1.8, 0.1, 100) }));
   if (blocks.length) g.blocks = blocks;
+  if (d.colors && typeof d.colors === 'object') { const c = {}; for (const [k, v] of Object.entries(d.colors)) if (safeId(k) && Number.isInteger(v) && v >= 0 && v < 1000) c[k] = v; g.colors = c; }
   if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered };
   if (d.example) g.example = true;
   return g;
@@ -3349,7 +3497,8 @@ async function restoreBackup(file) {
       const p = data.prefs, rc = {}; for (const k of Object.keys(ROLE_DEFAULTS)) if (hexOrNull(p.roleColors?.[k])) rc[k] = p.roleColors[k];
       S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false,
         showGrid: p.showGrid !== false, gridStep: ['auto', '0.5', '1', '2', '5'].includes(String(p.gridStep)) ? String(p.gridStep) : 'auto', showRulers: p.showRulers !== false, showScale: p.showScale !== false, snap: clamp(numOrNull(p.snap) ?? 0.1, 0.05, 1),
-        defaultView: p.defaultView === 'planted' ? 'planted' : 'mature', currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown' };
+        defaultView: ['planted', 'spacing'].includes(p.defaultView) ? p.defaultView : 'mature', currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown',
+        colorBy: p.colorBy === 'species' ? 'species' : 'layer', pgrid: ['tri', 'square'].includes(p.pgrid) ? p.pgrid : 'off', pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2) };
       const logo = await asset(p.logoId); if (logo) S.prefs.logoId = logo;
       applyRoleColours(); applyTheme(S.prefs.theme); savePrefs();
     }

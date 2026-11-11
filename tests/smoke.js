@@ -288,6 +288,45 @@ test('booklet PDF: searchable text and a vector plan', async open => {
   else console.log('     (pdftotext not installed, so the text layer was not read back)');
 });
 
+test('border planting: interlocked grid, painting, Spacing view and species colours', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = [];
+  const app = await open(seed);
+  await app.page.click('#lib [data-pid=p1]');                       // salvia, herbaceous: 0.3 m spacing by default
+  await app.page.selectOption('#pg-mode', 'tri');
+  eq(await app.page.inputValue('#pg-space'), '0.3', 'grid starts at 30 cm');
+  const row = n => +(n * 0.3 * Math.sqrt(3) / 2).toFixed(3);         // y of a row of the staggered grid
+  await app.dragPlan(2, row(15), 4.4, row(15));                      // paint a row along the border
+  await app.page.waitForTimeout(900);
+  let pl = (await app.store('gardens/g1')).plantings;
+  ok(pl.length >= 8 && pl.length <= 10, 'about one plant every 30 cm over 2.4 m, got ' + pl.length);
+  const xs = pl.map(q => q.x).sort((a, b) => a - b), gaps = xs.slice(1).map((x, i) => +(x - xs[i]).toFixed(3));
+  ok(gaps.every(g => Math.abs(g - 0.3) < 0.002), 'evenly 30 cm apart, got ' + JSON.stringify(gaps));
+  await app.dragPlan(2, row(15), 4.4, row(15));                      // painting again over the same row adds nothing
+  await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).plantings.length, pl.length, 'occupied grid points are skipped');
+  // a second species in the next row of the staggered grid
+  await app.page.click('#lib [data-pid=p4]');
+  await app.dragPlan(2, row(16), 4.4, row(16));
+  await app.page.waitForTimeout(900);
+  pl = (await app.store('gardens/g1')).plantings;
+  const row2 = pl.filter(q => q.plantId === 'p4');
+  ok(row2.length >= 7 && row2.every(q => Math.abs(q.y - 0.3 * Math.sqrt(3) / 2 * Math.round(q.y / (0.3 * Math.sqrt(3) / 2))) < 0.002), 'second row sits on the staggered grid');
+  ok(row2.every(q => Math.abs(((q.x / 0.15) % 2) - 1) < 0.02 || Math.abs(((q.x / 0.15) % 2) - 1) > 0.98), 'offset by half a spacing from the first row');
+  // Alt-drag rubs plants out
+  await app.page.keyboard.down('Alt'); await app.dragPlan(2, row(16), 2.8, row(16)); await app.page.keyboard.up('Alt'); await app.page.waitForTimeout(900);
+  ok((await app.store('gardens/g1')).plantings.filter(q => q.plantId === 'p4').length < row2.length, 'Alt-drag removed some');
+  // Spacing view: 30 cm circles that touch; species colours with patterns; one label per block
+  await app.page.click('#vSpacing');
+  const r = await app.page.evaluate(() => +document.querySelector('#map [data-kind=planting] circle').getAttribute('r'));
+  eq(r, 0.15, 'circle radius is half the spacing');
+  await app.page.click('#layerBtn'); await app.page.click('[data-colorby=species]'); await app.page.keyboard.press('Escape');
+  const fills = await app.page.evaluate(() => [...new Set([...document.querySelectorAll('#map [data-kind=planting] circle')].map(c => c.style.fill))]);
+  eq(fills.length, 2, 'two species, two fills');
+  const labels = await app.page.evaluate(() => [...document.querySelectorAll('#map [data-kind=planting] text')].map(t => t.textContent));
+  eq(labels.length, 2, 'one label per block, got ' + JSON.stringify(labels));
+  eq((await app.store('gardens/g1')).colors, { p1: 0, p4: 1 }, 'colours kept with the garden');
+});
+
 test('large plans: a warning near the limit, a clear message over it', async open => {
   // fill a garden with single plants until its saved record reaches a share of the 256 KiB cap
   const fill = share => { const seed = sample(), g = seed['gardens/g1']; let i = 0;
