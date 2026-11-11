@@ -300,6 +300,12 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 .order .cn { color: var(--muted); }
 .shortn { color: var(--crit); font-size: 12.5px; border: 1px solid currentColor; border-radius: 4px; padding: 0 6px; }
 .bcover .cl .blogo { max-width: 240px; max-height: 76px; object-fit: contain; object-position: left center; display: block; margin-bottom: 26px; }
+.pcrow { flex-wrap: nowrap; gap: 8px; align-items: center; }
+.pcrow .swv { flex: none; }
+.pcrow input[type=color] { width: 40px; min-width: 40px; height: 28px; flex: none; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
+.pcrow select { flex: 1; min-width: 0; }
+.pcrow .btn { flex: none; }
+html[data-skin=xp] .pcrow input[type=color] { border-radius: 0; }
 .irow input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 .ctrack { align-content: center; padding: 5px 0; }
 .cbar.sm { height: 7px; border-radius: 4px; margin-top: 3px; }
@@ -769,9 +775,9 @@ function patternDef(id, col, pat, t) {
   return `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${t}" height="${t}"${rot ? ` patternTransform="rotate(${rot})"` : ''}><rect width="${t}" height="${t}" fill="${col}" fill-opacity="0.28"/>${inner}</pattern>`;
 }
 /* a small key swatch for a species, in whichever colour scheme is on */
-function plantSwatch(p, size = 12) {
+function plantSwatch(p, size = 12, force = false) {
   if (p?.existing) return `<span class="sw round" style="background:none;border:1.5px dashed var(--exist)"></span>`;
-  if (!byspecies()) return `<span class="sw round" style="background:var(--r-${p?.role || 'herbaceous'});border-color:var(--r-${p?.role || 'herbaceous'})"></span>`;
+  if (!byspecies() && !force) return `<span class="sw round" style="background:var(--r-${p?.role || 'herbaceous'});border-color:var(--r-${p?.role || 'herbaceous'})"></span>`;
   const st = speciesStyle(p), id = 'sws-' + String(p?.id).replace(/[^\w-]/g, '') + '-' + size, r = size / 2 - 0.75;
   return `<svg class="swv" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${st.pat === 'solid' ? '' : `<defs>${patternDef(id, st.col, st.pat, size / 3.2)}</defs>`}<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${st.pat === 'solid' ? st.col : `url(#${id})`}"${st.pat === 'solid' ? ' fill-opacity="0.7"' : ''} stroke="${st.col}" stroke-width="1.2"/></svg>`;
 }
@@ -1330,7 +1336,7 @@ function renderPlantEditor(el) {
     <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
     ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>
     <label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>
-    <div class="field"><span>Plan colour</span><div class="row" style="flex-wrap:nowrap">${plantSwatch({ ...p, existing: false }, 22).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
+    <div class="field"><span>Plan colour</span><div class="row pcrow">${plantSwatch({ ...p, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
     ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
@@ -2492,7 +2498,7 @@ app.addEventListener('input', e => {
     return;
   }
   if (t.dataset.p === 'flowerColor') { S.editPlant.flowerColor = t.value; S.editPlant.flowerColorName = 'Custom colour'; markSwatches(); return; }
-  if ((t.dataset.p === 'planColor' || t.dataset.p === 'planPattern') && S.editPlant) { S.editPlant[t.dataset.p] = t.value || null; const sw = $('sp-swatch'); if (sw) sw.outerHTML = plantSwatch({ ...S.editPlant, existing: false }, 22).replace('class="swv"', 'class="swv" id="sp-swatch"'); return; }
+  if ((t.dataset.p === 'planColor' || t.dataset.p === 'planPattern') && S.editPlant) { S.editPlant[t.dataset.p] = t.value || null; const sw = $('sp-swatch'); if (sw) sw.outerHTML = plantSwatch({ ...S.editPlant, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"'); return; }
   if (t.dataset.p) { const k = t.dataset.p; S.editPlant[k] = t.type === 'number' ? (t.value === '' ? null : num(t.value)) : (k === 'flowerFrom' || k === 'flowerTo') ? (t.value ? +t.value : null) : t.value; return; }
   if (t.dataset.arr) { const k = t.dataset.arr; S.editPlant[k] = [...app.querySelectorAll(`[data-arr="${k}"]:checked`)].map(x => x.value); return; }
   if (t.dataset.f) {
