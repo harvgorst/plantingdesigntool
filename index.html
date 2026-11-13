@@ -196,6 +196,8 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .tabs button[aria-pressed=true] { color: var(--ink); border-bottom-color: var(--accent); }
 .gbox { display: flex; gap: 6px; align-items: center; }
 .gbox select { max-width: 240px; }
+.modeseg button { padding: 4px 10px; font-size: 13px; white-space: nowrap; }
+.modeseg button:disabled { cursor: default; opacity: 0.5; }
 .menuwrap { position: relative; }
 .menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 25; min-width: 240px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(20, 18, 15, 0.16); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
 .mi { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; border: 0; background: none; padding: 7px 10px; border-radius: 7px; cursor: pointer; font-size: 14px; }
@@ -529,7 +531,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <h1><span class="jp" aria-hidden="true">庭</span>SevenLayers</h1>
     <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true"><span class="jp" aria-hidden="true">計画</span>Plan</button><button type="button" id="navSched" aria-pressed="false"><span class="jp" aria-hidden="true">植栽表</span>Plant schedule</button><button type="button" id="navCal" aria-pressed="false"><span class="jp" aria-hidden="true">花暦</span>Interest calendar</button><button type="button" id="navDb" aria-pressed="false"><span class="jp" aria-hidden="true">図鑑</span>Plant database</button><button type="button" id="navPres" aria-pressed="false"><span class="jp" aria-hidden="true">発表</span>Presentation</button><button type="button" id="navPrefs" aria-pressed="false"><span class="jp" aria-hidden="true">設定</span>Preferences</button></nav>
     <div class="spacer"></div>
-    <div class="gbox"><select id="gardenSel" aria-label="Choose a garden"></select><button class="btn sm" id="detailsBtn" type="button">Garden details</button></div>
+    <div class="gbox"><select id="gardenSel" aria-label="Choose a garden"></select><span class="seg modeseg" id="modeSeg" role="group" aria-label="Kind of garden"><button type="button" data-mode="forest" title="Seven layers, coloured by layer. Plants go exactly where you click.">Forest garden</button><button type="button" data-mode="perennial" title="Each species its own colour and pattern, painted onto a 30 cm interlocked grid.">Perennial border</button></span><button class="btn sm" id="detailsBtn" type="button">Garden details</button></div>
     <span id="status">Connecting…</span>
   </header>
 
@@ -1671,7 +1673,9 @@ function applyPage() {
   $('navPlan').setAttribute('aria-pressed', plan); $('navSched').setAttribute('aria-pressed', pg === 'schedule'); $('navCal').setAttribute('aria-pressed', pg === 'flowering'); $('navPrefs').setAttribute('aria-pressed', pg === 'preferences');
   if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'presentation') renderPresentation(true); else if (pg === 'database') { showDbView(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
 }
-function renderAll() { renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vSpacing').setAttribute('aria-pressed', S.view === 'spacing'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
+function setMode(m) { if (!S.g || (m === 'perennial') === perennial()) return; checkpoint(); if (m === 'perennial') S.g.mode = 'perennial'; else delete S.g.mode; S.view = modeView(); saveGarden(); renderAll(); }
+function renderModeSeg() { for (const b of document.querySelectorAll('#modeSeg [data-mode]')) { b.disabled = !S.g; b.setAttribute('aria-pressed', String(!!S.g && (b.dataset.mode === 'perennial') === perennial())); } }
+function renderAll() { renderModeSeg(); renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vSpacing').setAttribute('aria-pressed', S.view === 'spacing'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
 function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
 
@@ -2525,7 +2529,7 @@ app.addEventListener('input', e => {
   if (t.id === 'blk-h') { if (S.blk) S.blk.h = clamp(num(t.value, 1.8), 0.1, 100); return; }
   if (t.dataset.blk === 'h') { const b = (S.g?.blocks || []).find(x => x.id === S.blockSel); if (!b) return; if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; } b.h = clamp(num(t.value, b.h), 0.1, 100); saveGarden(); renderMapSoon(); return; }
   if (t.id === 'g-loc') { setLocation(t.value, true); return; }
-  if (t.id === 'g-mode') { if (!S.g) return; checkpoint(); if (t.value === 'perennial') S.g.mode = 'perennial'; else delete S.g.mode; S.view = modeView(); saveGarden(); renderAll(); return; }
+  if (t.id === 'g-mode') { setMode(t.value); return; }
   if (t.id === 'row-gap') { S.rowGap = num(t.value, 0) > 0 ? clamp(num(t.value), 0.05, 20) : null; updateLive(); renderMapSoon(); return; }
   if (t.dataset.g) {
     if (!S.g) return;
@@ -2709,6 +2713,7 @@ function closeUlMenu() { $('ulMenu').hidden = true; $('ulMenuBtn').setAttribute(
 $('ulMenuBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('ulMenu').hidden; $('ulMenu').hidden = !open; $('ulMenuBtn').setAttribute('aria-expanded', String(open)); });
 document.addEventListener('pointerdown', e => { const w = e.target.closest('.menuwrap'); if (!$('ulMenu').hidden && !(w && w.contains($('ulMenu')))) closeUlMenu(); if (!$('layerMenu').hidden && !(w && w.contains($('layerMenu')))) closeLayerMenu(); }, true);
 $('newGardenBtn').addEventListener('click', startNewGarden);
+$('modeSeg').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (b) setMode(b.dataset.mode); });
 $('overlay').addEventListener('click', e => { if (e.target.id === 'ngCancel') { S.newGarden = false; renderOverlay(); } });
 $('overlay').addEventListener('submit', async e => {
   e.preventDefault();

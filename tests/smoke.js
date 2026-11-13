@@ -294,7 +294,7 @@ test('perennial mode: interlocked grid, painting, Spacing view and species colou
   eq(await app.page.getAttribute('#vMature', 'aria-pressed'), 'true', 'a forest garden opens in Design intent');
   await app.page.click('#lib [data-pid=p1]');
   ok(!(await app.page.$('#pg-space')), 'no grid in forest garden mode');
-  await app.page.click('#detailsBtn'); await app.page.selectOption('#g-mode', 'perennial'); await app.page.click('#detailsDone'); await app.page.waitForTimeout(900);
+  await app.page.click('#modeSeg [data-mode=perennial]'); await app.page.waitForTimeout(900);
   eq((await app.store('gardens/g1')).mode, 'perennial', 'mode saved with the garden');
   eq(await app.page.getAttribute('#vSpacing', 'aria-pressed'), 'true', 'perennial mode switches to the Spacing view');
   await app.page.click('#lib [data-pid=p1]');                       // salvia, herbaceous: 0.3 m spacing by default
