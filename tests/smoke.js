@@ -259,6 +259,14 @@ test('scaled plan sheet: A3 at a true 1:50, with a logo', async open => {
   eq((await app.saved()).map(s => s.filename), ['Elm Road - planting plan 1-50 A3.pdf'], 'file name');
   const pdf = await app.savedBytes(0), text = pdf.toString('latin1');
   ok(/\/MediaBox \[0 0 1190\.5\d* 841\.8\d*\]/.test(text), 'A3 landscape page, got ' + (text.match(/\/MediaBox[^\]]*\]/) || [''])[0]);
+  // portrait, when asked for
+  await app.page.selectOption('[data-sheet=orient]', 'portrait');
+  ok((await app.page.textContent('#sheetNote')).includes('A3 portrait'), 'note says portrait, got: ' + await app.page.textContent('#sheetNote'));
+  await app.page.click('#sheetPdf');
+  await app.page.waitForFunction(() => window.__mock.saved.length === 2 || /Couldn/.test(document.getElementById('presMsg').textContent), null, { timeout: 30000 });
+  const ptext = (await app.savedBytes(1)).toString('latin1');
+  ok(/\/MediaBox \[0 0 841\.8\d* 1190\.5\d*\]/.test(ptext), 'A3 portrait page, got ' + (ptext.match(/\/MediaBox[^\]]*\]/) || [''])[0]);
+  await app.page.selectOption('[data-sheet=orient]', 'auto');
   // if poppler is installed, measure the printed rulers: 12 m at 1:50 must be 240 mm
   let words = null;
   try { const f = path.join(os.tmpdir(), 'sl-sheet-' + process.pid + '.pdf'); fs.writeFileSync(f, pdf); words = execFileSync('pdftotext', ['-bbox', f, '-'], { encoding: 'utf8' }); fs.unlinkSync(f); } catch {}

@@ -1185,6 +1185,7 @@ function renderMap() {
   if (S.prefs.showRulers) for (let y = lab; y <= D + 1e-6; y += lab) parts.push(`<text x="${-fs * 0.6}" y="${y + fs * 0.3}" font-size="${fs * 0.9}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${y}</text>`);
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
   const ls = fs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
+  const NUM = ls * 0.62, NAME = ls * 0.68;   // every number on the plan is one size, and every name another
   if (S.sun.on && !pr) parts.push(sunLayer(W, D, M, pad, fs, px, halo));
   {
     const edit = S.tool === 'bed' && !pr;
@@ -1239,14 +1240,14 @@ function renderMap() {
       const clip = r.bed ? ` clip-path="url(#bedclip-${r.bed})"` : '';
       L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"${clip}><path d="${r.d}" fill-rule="evenodd" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
       if (!pr && r.ids.every(id => isSelected('planting', id))) L.over.push(`<path d="${r.d}" fill="none" style="stroke:var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
-      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = Math.min(ls * 0.78, Math.max(ls * 0.35, Math.sqrt(r.area) * 0.42)); L.over.push(halo(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(halo(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
     }
     for (const c of od.singles) {
       const p = plantById(c.pid); if (!isVisible(p)) continue;
       const sr = spacingOf(p) / 2;
       const se = S.season && !pr ? seasonOf(p, S.season) : null, f = se ? { fill: se.col || 'var(--muted)', op: se.op } : spFill(p), sel = !pr && isSelected('planting', c.id);
       L.field.push(`<g data-kind="planting" data-id="${c.id}" style="cursor:move"><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:var(--ground)"/><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" vector-effect="non-scaling-stroke"/>${sel ? `<circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr + fs * 0.5}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}</g>`);
-      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = Math.min(ls * 0.6, sr * 1.6 / Math.max(2, t.length * 0.5) * 2.2); L.over.push(halo(c.x, c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(halo(c.x, c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
     }
   }
   for (const pl of pls) {
@@ -1297,7 +1298,7 @@ function renderMap() {
       const isNum = S.prefs.labelMode === 'number', moved = pl.lx != null && pl.ly != null, inside = isNum || grid;
       if (blk > 1) lbl = (S.prefs.labelQty ? blk + ' ' : '') + plantLabel(p);
       /* inside the plant, a label is sized to fit it; a block's one label may spread across its neighbours */
-      const size = moved ? ls * 0.68 : blk > 1 ? ls * 0.8 : inside ? Math.min(ls * 0.68, Math.max(ls * 0.2, isNum ? ringR * 1.15 : ringR * 1.8 / Math.max(2, lbl.length * 0.5))) : ls * 0.68;
+      const size = /^\d+$/.test(lbl) ? NUM : !moved && !(blk > 1) && inside ? Math.min(NAME, Math.max(ls * 0.2, ringR * 1.8 / Math.max(2, lbl.length * 0.5))) : NAME;   // a name inside a lone plant on the grid still shrinks to fit it
       const bx = pl.x + (moved ? pl.lx : 0), by = pl.y + (moved ? pl.ly : kind === 'bulb' && !isNum ? spacingOf(p) * 0.3 + size * 0.95 : inside ? size * 0.34 : -(planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32));
       const tw = lbl.length * size * 0.5, cy = by - size * 0.32;
       if (moved) {
@@ -2515,6 +2516,7 @@ function renderPresSettings() {
     <fieldset><legend>Scaled plan sheet</legend>
       <p class="note" style="margin:0">The plan on its own at a true scale, with a title block and plant key, for setting out on site.</p>
       <label class="field"><span>Paper</span><select data-sheet="paper">${Object.keys(PAPER).map(k => `<option${sheetOpts().paper === k ? ' selected' : ''}>${k}</option>`).join('')}</select></label>
+      <label class="field"><span>Orientation</span><select data-sheet="orient">${[['auto', 'Whichever fits best'], ['landscape', 'Landscape'], ['portrait', 'Portrait']].map(([v, l]) => `<option value="${v}"${sheetOpts().orient === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field"><span>Scale</span><select data-sheet="scale"><option value="0">Largest that fits</option>${[20, 25, 50, 100, 200, 250, 500].map(n => `<option value="${n}"${sheetOpts().scale === n ? ' selected' : ''}>1:${n}</option>`).join('')}</select></label>
       <label class="checks"><input type="checkbox" data-sheet="numbered"${sheetOpts().numbered ? ' checked' : ''}> Number plants to match the schedule</label>
       <p class="note" id="sheetNote" style="margin:0">${esc(sheetNote())}</p>
@@ -2585,19 +2587,20 @@ async function drawPlanVector(pdf, v, x, y, w, h) {
   await pdf.svg(doc.documentElement, { x, y, width: w, height: h });
 }
 /* ----- scaled plan sheet ----- */
-function sheetOpts() { const s = S.g?.sheet || {}; return { paper: PAPER[s.paper] ? s.paper : 'A3', scale: SCALES.includes(+s.scale) ? +s.scale : 0, numbered: !!s.numbered }; }
+function sheetOpts() { const s = S.g?.sheet || {}; return { paper: PAPER[s.paper] ? s.paper : 'A3', scale: SCALES.includes(+s.scale) ? +s.scale : 0, numbered: !!s.numbered, orient: ['landscape', 'portrait'].includes(s.orient) ? s.orient : 'auto' }; }
 function sheetLayout(o = sheetOpts()) {
   const g = S.g, [long, short] = PAPER[o.paper], tb = clamp(long * 0.2, 60, 100), m = 10, gap = 4;
-  const tryFit = (pw, ph, scale) => { const fs = 3.4 * scale / 1000, pad = fs * 5.5, needW = (g.width + 2 * pad) * 1000 / scale, needH = (g.depth + 2 * pad) * 1000 / scale, availW = pw - 2 * m - tb - gap, availH = ph - 2 * m; return { ok: needW <= availW && needH <= availH, pw, ph, scale, fs, pad, availW, availH }; };
-  const pick = scale => [[long, short], [short, long]].map(([pw, ph]) => tryFit(pw, ph, scale)).find(f => f.ok) || null;
+  const tryFit = (pw, ph, scale) => { const band = ph > pw, tbH = band ? clamp(ph * 0.17, 52, 110) : 0, fs = 3.4 * scale / 1000, pad = fs * 5.5, needW = (g.width + 2 * pad) * 1000 / scale, needH = (g.depth + 2 * pad) * 1000 / scale, availW = pw - 2 * m - (band ? 0 : tb + gap), availH = ph - 2 * m - (band ? tbH + gap : 0); return { ok: needW <= availW && needH <= availH, pw, ph, scale, fs, pad, availW, availH, band, tbH }; };
+  const sides = o.orient === 'landscape' ? [[long, short]] : o.orient === 'portrait' ? [[short, long]] : [[long, short], [short, long]];
+  const pick = scale => sides.map(([pw, ph]) => tryFit(pw, ph, scale)).find(f => f.ok) || null;
   const wanted = o.scale ? pick(o.scale) : null, best = SCALES.map(pick).find(Boolean) || null;
   return { o, fit: wanted || best, fell: !!o.scale && !wanted, tb, m, gap };
 }
 function sheetNote() {
   if (!S.g) return '';
-  const l = sheetLayout(), f = l.fit; if (!f) return `This garden is too large to draw on ${l.o.paper}. Pick a larger sheet.`;
+  const l = sheetLayout(), f = l.fit; if (!f) return `This garden is too large to draw on ${l.o.paper}${l.o.orient === 'auto' ? '' : ' ' + l.o.orient}. Pick a larger sheet${l.o.orient === 'auto' ? '' : ' or the other orientation'}.`;
   const how = `${l.o.paper} ${f.pw > f.ph ? 'landscape' : 'portrait'}`;
-  return l.fell ? `Too large for ${l.o.paper} at 1:${l.o.scale}, so it will print at 1:${f.scale}. Pick a larger sheet to keep 1:${l.o.scale}.` : `Prints at 1:${f.scale} on ${how}. Print at 100% (actual size) for the scale to be true.`;
+  return l.fell ? `Too large for ${l.o.orient === 'auto' ? l.o.paper : how} at 1:${l.o.scale}, so it will print at 1:${f.scale} on ${how}. Pick a larger sheet to keep 1:${l.o.scale}.` : `Prints at 1:${f.scale} on ${how}. Print at 100% (actual size) for the scale to be true.`;
 }
 function sheetInput(t) {
   if (!S.g) return; const k = t.dataset.sheet;
@@ -2621,35 +2624,45 @@ async function exportSheet() {
     const v = await planVectorMarkup({ numbered: lay.o.numbered, fs: f.fs, pad: f.pad, sheet: true, lw: 0.18 / mmPerM });
     const w = v.vb[2] * mmPerM, h = v.vb[3] * mmPerM;
     await drawPlanVector(pdf, v, m + (f.availW - w) / 2, m + (f.availH - h) / 2, w, h);
-    // frame and title block
-    const tx = f.pw - m - lay.tb, x0 = tx + 5, tw = lay.tb - 10, bottom = f.ph - m;
-    pdf.setDrawColor(40); pdf.setLineWidth(0.35); pdf.rect(m, m, f.pw - 2 * m, f.ph - 2 * m); pdf.line(tx, m, tx, bottom);
-    let y = m + 7;
-    const rule = () => { pdf.setLineWidth(0.15); pdf.setDrawColor(150); pdf.line(tx, y, f.pw - m, y); y += 5; };
+    /* frame and title block: a strip down the right on a landscape sheet, a band along the bottom on a portrait one,
+       with the details on the left of the band and the plant key beside them */
+    const band = f.band, bandTop = f.ph - m - (f.tbH || 0), infoW = band ? Math.min(95, (f.pw - 2 * m) * 0.36) : lay.tb;
+    const tx = band ? m : f.pw - m - lay.tb, x0 = tx + 5, tw = infoW - 10, bottom = f.ph - m;
+    pdf.setDrawColor(40); pdf.setLineWidth(0.35); pdf.rect(m, m, f.pw - 2 * m, f.ph - 2 * m);
+    if (band) { pdf.line(m, bandTop, f.pw - m, bandTop); pdf.line(m + infoW, bandTop, m + infoW, bottom); } else pdf.line(tx, m, tx, bottom);
+    let y = band ? bandTop + 7 : m + 7;
+    const rule = () => { pdf.setLineWidth(0.15); pdf.setDrawColor(150); pdf.line(tx, y, tx + infoW, y); y += 5; };
     const small = t => { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(120); pdf.text(pdfText(t).toUpperCase(), x0, y, { charSpace: 0.25 }); y += 3.6; };
     const para = (t, size, style = 'normal') => { pdf.setFont('helvetica', style); pdf.setFontSize(size); pdf.setTextColor(25); const lines = pdf.splitTextToSize(pdfText(t), tw); pdf.text(lines, x0, y); y += lines.length * size * 0.42 + 1.6; };
     if (logoUrl()) { try { const im = await imageData(logoUrl()), k = Math.min(tw / im.w, 18 / im.h); pdf.addImage(im.data, 'PNG', x0, y - 2, im.w * k, im.h * k); y += im.h * k + 5; } catch {} }
     y += 2; para(g.name || 'Planting plan', 13, 'bold'); if (g.client) para(g.client, 9);
     para(lay.o.numbered ? 'Planting plan, numbered' : 'Planting plan', 9.5, 'bold'); y += 1; rule();
-    for (const [k, val] of [['Scale', `1:${f.scale} at ${lay.o.paper}`], ['Date', b.date], ['Drawn by', b.designer], ['Site', b.site], ['Plants shown', S.view === 'planted' ? 'Trees and shrubs as planted (pot size)' : 'Trees and shrubs at mature spread']]) { if (!val) continue; small(k); para(val, 8.5); y += 0.6; }
-    rule();
-    // plant key
+    const meta = [['Scale', `1:${f.scale} at ${lay.o.paper}`], ['Date', b.date], ['Drawn by', b.designer], ['Site', b.site], ['Plants shown', S.view === 'planted' ? 'Trees and shrubs as planted (pot size)' : 'Trees and shrubs at mature spread']].filter(([, v]) => v);
+    if (band) { for (const [k, val] of meta) { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(120); pdf.text(pdfText(k).toUpperCase(), x0, y, { charSpace: 0.25 }); pdf.setFontSize(8); pdf.setTextColor(25); pdf.text(pdfText(val), x0 + 24, y); y += 4; } }
+    else { for (const [k, val] of meta) { small(k); para(val, 8.5); y += 0.6; } rule(); }
+    // plant key: under the details on a landscape sheet; beside them, in up to two columns, on a portrait one
     const rows = paletteRows(), ex = existingRows().filter(r => r.retain + r.prune > 0), cs = getComputedStyle(document.querySelector('.sheetref'));
-    small(`Plant key · ${rows.reduce((t, r) => t + r.qty, 0)} plants`); y += 1;
-    const noteH = 16, room = bottom - noteH - y - (ex.length ? 6 : 0);
-    let rh = 3.7, size = 7; if (rows.length * rh > room) { const k = Math.max(0.68, room / (rows.length * rh)); rh *= k; size *= k; }
-    const fitN = Math.max(0, Math.floor(room / rh)), shown = rows.length > fitN ? rows.slice(0, Math.max(0, fitN - 1)) : rows, lblW = lay.o.numbered ? 6 : 13;
-    for (const r of shown) {
+    const keyX = band ? m + infoW + 5 : x0, keyW = band ? f.pw - 2 * m - infoW - 10 : tw;
+    if (band) y = bandTop + 7;
+    const sm = t => { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(120); pdf.text(pdfText(t).toUpperCase(), keyX, y, { charSpace: 0.25 }); y += 3.6; };
+    sm(`Plant key · ${rows.reduce((t, r) => t + r.qty, 0)} plants`); y += 1;
+    const keyTop = y, noteH = band ? 8 : 16, room = bottom - noteH - y - (ex.length ? 6 : 0), cols = band && rows.length * 3.7 > room ? 2 : 1, colW = (keyW - (cols - 1) * 6) / cols;
+    let rh = 3.7, size = 7; if (rows.length * rh > room * cols) { const k = Math.max(0.68, room * cols / (rows.length * rh)); rh *= k; size *= k; }
+    const fitN = Math.max(0, Math.floor(room / rh) * cols), shown = rows.length > fitN ? rows.slice(0, Math.max(0, fitN - 1)) : rows, lblW = lay.o.numbered ? 6 : 13, perCol = Math.ceil(shown.length / cols);
+    let x0k = keyX;
+    for (const [ri, r] of shown.entries()) {
+      if (ri && ri % perCol === 0) { x0k += colW + 6; y = keyTop; }
+      const x0 = x0k, tw = colW;
       if (onGrid(r.p)) { const sw = new DOMParser().parseFromString(plantSwatch(r.p, 12).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 'image/svg+xml').documentElement; const z = size * 0.42; try { await pdf.svg(sw, { x: x0 + 1 - z / 2, y: y - size * 0.12 - z / 2, width: z, height: z }); } catch {} }
       else { pdf.setFillColor(cs.getPropertyValue('--r-' + layerOf(r.p.role)).trim() || '#888888'); pdf.circle(x0 + 1, y - size * 0.12, size * 0.13, 'F'); }
       pdf.setTextColor(25); pdf.setFontSize(size); pdf.setFont('helvetica', 'bold'); pdf.text(pdfText(lay.o.numbered ? String(r.n) : code(r.p)), x0 + 3.2, y);
       pdf.setFont('helvetica', 'italic'); let name = pdfText(r.p.botanical || r.p.common || ''); const maxW = tw - lblW - 3.2 - 8; while (name.length > 4 && pdf.getTextWidth(name) > maxW) name = name.slice(0, -2); if (name !== pdfText(r.p.botanical || r.p.common || '')) name += '.';
       pdf.text(name, x0 + 3.2 + lblW, y); pdf.setFont('helvetica', 'normal'); pdf.text(String(r.qty), x0 + tw, y, { align: 'right' }); y += rh;
     }
-    if (shown.length < rows.length) { pdf.setFont('helvetica', 'italic'); pdf.setFontSize(size); pdf.text(`and ${rows.length - shown.length} more species: see the plant schedule`, x0, y); y += rh; }
-    if (ex.length) { y += 1.5; pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(90); pdf.text(`Dashed outlines: ${plural(ex.reduce((t, r) => t + r.retain + r.prune, 0), 'existing plant')} kept`, x0, y); }
+    if (shown.length < rows.length) { pdf.setFont('helvetica', 'italic'); pdf.setFontSize(size); pdf.text(`and ${rows.length - shown.length} more species: see the plant schedule`, x0k, y); y += rh; }
+    if (ex.length) { y += 1.5; pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(90); pdf.text(`Dashed outlines: ${plural(ex.reduce((t, r) => t + r.retain + r.prune, 0), 'existing plant')} kept`, keyX, y); }
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(110);
-    pdf.text(pdf.splitTextToSize(`Print at 100% (actual size) on ${lay.o.paper} for the scale to be true. Check all dimensions on site.`, tw), x0, bottom - noteH + 5);
+    pdf.text(pdf.splitTextToSize(`Print at 100% (actual size) on ${lay.o.paper} for the scale to be true. Check all dimensions on site.`, band ? keyW : tw), band ? keyX : x0, bottom - noteH + (band ? 3.5 : 5));
     const blob = pdf.output('blob'), name = `${(g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} - planting plan 1-${f.scale} ${lay.o.paper}.pdf`;
     await saveFile(name, blob);
     msg.textContent = `Plan sheet saved at 1:${f.scale} on ${lay.o.paper}.`;
@@ -3755,7 +3768,7 @@ function cleanGarden(d) {
     .map(b => ({ id: safeId(b.id) || uid(), pts: b.pts.slice(0, 100).map(q => [xy(q?.[0]), xy(q?.[1])]), closed: !!b.closed && b.pts.length >= 3, h: clamp(numOrNull(b.h) ?? 1.8, 0.1, 100) }));
   if (blocks.length) g.blocks = blocks;
   if (d.colors && typeof d.colors === 'object') { const c = {}; for (const [k, v] of Object.entries(d.colors)) if (safeId(k) && Number.isInteger(v) && v >= 0 && v < 1000) c[k] = v; g.colors = c; }
-  if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered };
+  if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered, orient: ['landscape', 'portrait'].includes(d.sheet.orient) ? d.sheet.orient : 'auto' };
   if (d.example) g.example = true;
   if (Array.isArray(d.beds)) { const beds = d.beds.map(b => ({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) })).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
   return g;
