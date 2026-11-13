@@ -258,6 +258,15 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .bcard .num { position: absolute; left: 8px; top: 8px; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 13px; background: #F8F4EC; color: #2F2B25; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
 .bcard .bn { font-style: italic; font-size: 13.5px; line-height: 1.25; color: #2F2B25; }
 .bcard .cn { font-size: 11.5px; color: #7B7266; }
+.bcard .cr { position: absolute; right: 0; bottom: 0; max-width: 100%; padding: 2px 5px; font-size: 7.5px; line-height: 1.25; color: #F8F4EC; background: rgba(30, 27, 22, 0.55); border-top-left-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bcard .ph .add u { cursor: pointer; }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: min(56vh, 520px); overflow: auto; padding: 2px; }
+.pgrid button { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; text-align: left; overflow: hidden; color: var(--ink); font: inherit; }
+.pgrid button:hover, .pgrid button:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.pgrid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--grid); }
+.pgrid small { display: block; padding: 0 7px 7px; font-size: 10.5px; line-height: 1.3; color: var(--muted); }
+.pgroup { margin: 4px 0 6px; font-size: 12px; color: var(--muted); }
+html[data-skin=xp] .pgrid button { border-radius: 0; }
 .btable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .btable th { text-align: left; font-weight: 400; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8073; border-bottom: 1px solid #CFC4B1; padding: 0 8px 7px; }
 .btable td { border-bottom: 1px solid #E6DECF; padding: 7px 8px; vertical-align: top; }
@@ -653,6 +662,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
   </div>
 </div>
 <div class="modal" id="importModal" hidden role="dialog" aria-modal="true" aria-labelledby="impH"><div class="card" id="importBody" style="max-width:860px;max-height:min(92vh, 900px);overflow:auto"></div></div>
+<div class="modal" id="photoModal" hidden role="dialog" aria-modal="true" aria-labelledby="photoH"><div class="card" id="photoBody" style="max-width:760px;width:100%"></div></div>
 <div class="modal" id="clearModal" hidden role="dialog" aria-modal="true" aria-labelledby="clearH">
   <div class="card">
     <h2 id="clearH">Clear this plan?</h2>
@@ -1617,7 +1627,7 @@ function renderPlantEditor(el) {
     ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
-    <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div></div>
+    <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label>${p.existing ? '' : `<button class="btn sm" type="button" data-act="findPhotoEdit">Find a photo online</button>`}${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div>${p.photoCredit && p.photoId ? `<span class="note">${esc(photoCreditText(p.photoCredit))}</span>` : ''}</div>
     <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing plants are drawn dashed at that size and left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets plant size in Design intent and the starting spacing for a row.'}</p>
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
     ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants from the plan first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
@@ -2376,10 +2386,88 @@ async function setPlantPhoto(plantId, file) {
   const p = plantById(plantId); if (!p) return;
   const r = await uploadPhoto(file);
   if (r.local) { BK.localPhotos[plantId] = r.local; renderPresentation(); return; }
-  const rec = { ...p, photoId: r.id }; const body = { ...rec }; delete body.id;
+  const rec = { ...p, photoId: r.id }; delete rec.photoCredit; const body = { ...rec }; delete body.id;
   if (S.online) await S.db.doc('plants/' + plantId).set(body);
   upsertPlant(rec); renderPresentation();
 }
+
+/* ---------- plant photos from Wikimedia Commons ----------
+   Searched by botanical name, cultivar first, then the plain species. Only photos whose licence allows use in a paid
+   piece of work are offered (public domain, CC0, CC BY, CC BY-SA); the one chosen is copied into this garden's storage
+   with its photographer and licence, which the booklet prints with it. */
+const phPlant = id => (S.editPlant && S.editPlant.id === id ? S.editPlant : plantById(id));   // the species being edited may not be saved yet
+const PH = { queue: [], i: 0, results: null, busy: false, q: '', msg: '' };
+const COMMONS = 'https://commons.wikimedia.org/w/api.php';
+const okLicence = l => /^(cc0|cc[- ]?by(-sa)?( [\d.]+)?|public domain|pd\b|pd-)/i.test(l || '') && !/nc|nd/i.test(l || '');
+const plain = h => { const d = document.createElement('div'); d.innerHTML = String(h || ''); return d.textContent.replace(/\s+/g, ' ').trim(); };
+async function commonsSearch(q, n = 10) {
+  const u = COMMONS + '?' + new URLSearchParams({ action: 'query', format: 'json', origin: '*', generator: 'search', gsrsearch: q + ' filetype:bitmap', gsrnamespace: '6', gsrlimit: String(n),
+    prop: 'imageinfo', iiprop: 'url|mime|extmetadata', iiurlwidth: '640', iiextmetadatafilter: 'Artist|LicenseShortName|LicenseUrl' });
+  const r = await fetch(u); if (!r.ok) throw new Error(r.status === 429 ? 'Wikimedia Commons is busy; try again in a minute' : 'Wikimedia Commons didn’t answer');
+  const data = await r.json();
+  return Object.values(data?.query?.pages || {}).sort((a, b) => (a.index || 0) - (b.index || 0)).map(pg => {
+    const ii = pg.imageinfo?.[0] || {}, md = ii.extmetadata || {};
+    return { title: String(pg.title || '').replace(/^File:/, ''), thumb: ii.thumburl || ii.url, page: ii.descriptionurl, mime: ii.mime, by: plain(md.Artist?.value).slice(0, 120) || 'Unknown', licence: plain(md.LicenseShortName?.value), licUrl: md.LicenseUrl?.value || '' };
+  }).filter(x => x.thumb && /^image\/(jpeg|png|webp)$/.test(x.mime || '') && okLicence(x.licence));
+}
+function searchTerms(p) {
+  const full = String(p.botanical || '').replace(/[‘’“”"']/g, '').replace(/\s+/g, ' ').trim(), sp = full.split(' ').slice(0, 2).join(' ');
+  return { full, sp: sp && sp !== full ? sp : '', common: p.common || '' };
+}
+async function findPhotos(p, custom) {
+  PH.busy = true; PH.results = null; PH.msg = ''; renderPhotoPicker();
+  try {
+    const t = searchTerms(p), groups = [];
+    if (custom) groups.push({ label: `Photos for “${custom}”`, items: await commonsSearch(custom, 16) });
+    else {
+      if (t.full) groups.push({ label: `Photos of ${String(p.botanical).trim()}`, items: await commonsSearch(t.full) });
+      if (t.sp && (groups[0]?.items.length || 0) < 6) groups.push({ label: `Photos of the species, ${t.sp}: check they match the cultivar`, items: await commonsSearch(t.sp) });
+      if (!t.full && t.common) groups.push({ label: `Photos for “${t.common}”`, items: await commonsSearch(t.common) });
+    }
+    const seen = new Set(); for (const g of groups) g.items = g.items.filter(x => !seen.has(x.title) && seen.add(x.title));
+    PH.results = groups.filter(g => g.items.length);
+    if (!PH.results.length) PH.msg = 'No photos with a licence that allows use in client work were found. Try different words below, or add your own photo.';
+  } catch (e) { PH.results = []; PH.msg = /fetch|network|load/i.test(e?.message || '') || e instanceof TypeError ? 'Couldn’t reach Wikimedia Commons from this page. Check your connection; some hosted pages block outside sites.' : (e?.message || 'Search failed') + '.'; }
+  PH.busy = false; renderPhotoPicker();
+}
+function openPhotoPicker(ids) {
+  PH.queue = ids.filter(id => phPlant(id)); PH.i = 0; if (!PH.queue.length) return;
+  PH.q = ''; $('photoModal').hidden = false; findPhotos(phPlant(PH.queue[0]));
+}
+function closePhotoPicker() { $('photoModal').hidden = true; PH.queue = []; PH.results = null; if (getPage() === 'presentation') renderPresentation(); if (S.editPlant) renderLibrary(); }
+function nextPhoto() { PH.i++; if (PH.i >= PH.queue.length) { closePhotoPicker(); return; } PH.q = ''; findPhotos(phPlant(PH.queue[PH.i])); }
+function renderPhotoPicker() {
+  const el = $('photoBody'), p = phPlant(PH.queue[PH.i]); if (!el || !p) return;
+  const many = PH.queue.length > 1, cand = PH.results || [];
+  el.innerHTML = `<div class="card-h"><h2 id="photoH">Photo for <i>${esc(p.botanical || p.common)}</i>${many ? ` <span class="pv">${PH.i + 1} of ${PH.queue.length}</span>` : ''}</h2><button class="btn sm" type="button" data-ph="close">Close</button></div>
+    <p class="note" style="margin:0">From Wikimedia Commons. Only photos you may use in client work are shown; the photographer and licence are kept with the photo and printed in the booklet.</p>
+    ${PH.busy ? '<p class="empty">Searching…</p>' : PH.msg ? `<p class="note" style="color:var(--warn)">${esc(PH.msg)}</p>` : ''}
+    ${cand.map((g, gi) => `<div class="pgroup">${esc(g.label)}</div><div class="pgrid">${g.items.map((x, i) => `<button type="button" data-pick="${gi}:${i}" title="${esc(x.title)}"><img src="${esc(x.thumb)}" alt="${esc(x.title)}" loading="lazy"><small>${esc(x.by)} · ${esc(x.licence)}</small></button>`).join('')}</div>`).join('')}
+    <form class="row" data-ph-search style="flex-wrap:nowrap"><input type="text" id="ph-q" value="${esc(PH.q)}" placeholder="Search other words, e.g. ${esc(searchTerms(p).sp || p.common || 'Salvia')} flower" style="flex:1"><button class="btn sm" type="submit">Search</button></form>
+    <div class="row" style="justify-content:flex-end">${many ? `<button class="btn sm" type="button" data-ph="skip">Skip this plant</button>` : ''}<button class="btn sm" type="button" data-ph="close">${many ? 'Stop' : 'Cancel'}</button></div>`;
+}
+async function choosePhoto(x) {
+  const p = phPlant(PH.queue[PH.i]); if (!p) return;
+  PH.busy = true; PH.msg = ''; renderPhotoPicker(); $('photoBody').querySelector('.empty').textContent = 'Saving the photo…';
+  try {
+    const r = await fetch(x.thumb); if (!r.ok) throw new Error('the photo couldn’t be downloaded');
+    const blob = await shrinkImage(await r.blob(), 1000), credit = { by: x.by, licence: x.licence, licUrl: x.licUrl, page: x.page, title: x.title };
+    if (S.editPlant && S.editPlant.id === p.id) { const up = await S.assets.upload(blob, { type: 'image/jpeg' }); S.editPlant.photoId = up.id; S.editPlant.photoCredit = credit; }
+    else {
+      const up = await S.assets.upload(blob, { type: 'image/jpeg' }), before = { ...p }, after = { ...p, photoId: up.id, photoCredit: credit }, entry = { plants: [{ id: p.id, before, after }] };
+      pushHistory(entry); await applyPlantChange(entry, 'after');
+    }
+    PH.busy = false; nextPhoto();
+  } catch (e) { PH.busy = false; PH.msg = 'Couldn’t save that photo: ' + (e?.message || 'try another') + '.'; renderPhotoPicker(); }
+}
+$('photoModal').addEventListener('click', e => {
+  if (e.target.id === 'photoModal') { closePhotoPicker(); return; }
+  const b = e.target.closest('[data-ph]'); if (b) { if (b.dataset.ph === 'close') closePhotoPicker(); else if (b.dataset.ph === 'skip') nextPhoto(); return; }
+  const pk = e.target.closest('[data-pick]'); if (pk && !PH.busy) { const [g, i] = pk.dataset.pick.split(':').map(Number); const x = PH.results?.[g]?.items[i]; if (x) choosePhoto(x); }
+});
+document.addEventListener('click', e => { const f = e.target.closest('[data-findphoto]'); if (f) { e.preventDefault(); openPhotoPicker([f.dataset.findphoto]); } });
+$('photoModal').addEventListener('submit', e => { e.preventDefault(); const q = $('ph-q').value.trim(); if (!q) return; PH.q = q; findPhotos(phPlant(PH.queue[PH.i]), q); });
+const photoCreditText = c => c ? `Photo: ${c.by}${c.licence ? ', ' + c.licence : ''}${c.page ? ', Wikimedia Commons' : ''}` : '';
 /* plants per square metre, set from the bar under the toolbar; kept with the species and undoable */
 function setDensity(id, v) {
   const p = plantById(id); if (!p || !(v > 0)) return;
@@ -2394,7 +2482,7 @@ document.body.addEventListener('change', async e => {
   const t = e.target;
   if (t.dataset.photoEdit !== undefined && S.editPlant && t.files?.[0]) {
     const f = t.files[0]; t.value = '';
-    try { const r = await uploadPhoto(f); if (r.local) BK.localPhotos[S.editPlant.id] = r.local; else S.editPlant.photoId = r.id; renderLibrary(); }
+    try { const r = await uploadPhoto(f); if (r.local) BK.localPhotos[S.editPlant.id] = r.local; else { S.editPlant.photoId = r.id; S.editPlant.photoCredit = null; } renderLibrary(); }
     catch (err) { const pe = $('plantErr'); if (pe) pe.textContent = 'Couldn’t add the photo: ' + (err?.message || ''); }
   }
   if (t.dataset.logo !== undefined && t.files?.[0]) {
@@ -2463,7 +2551,7 @@ function bookletPages(planImg, forExport) {
       <div class="t" style="margin-top:14px">Plants</div><div>${pal.reduce((t, r) => t + r.qty, 0)} new plants</div><div>${pal.length} species</div></div></div>` });
   }
   if (b.pages.palette && pal.length) chunk(pal, 12).forEach((part, i, all) => pages.push({ html: `${head('Plant palette')}<h3>Plant palette${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Numbered to match the planting plan and schedule</p>
-      <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<label class="add" style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label>`}`}<div class="num">${r.n}</div></div><div class="bn">${esc(r.p.botanical || r.p.common)}</div><div class="cn">${esc(r.p.common && r.p.botanical ? r.p.common : '')}${r.p.common && r.p.botanical ? ' · ' : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
+      <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<span class="add"><label style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label> · <u data-findphoto="${r.id}">Find photo</u></span>`}`}${u && r.p.photoCredit ? `<div class="cr">${esc(photoCreditText(r.p.photoCredit))}</div>` : ''}<div class="num">${r.n}</div></div><div class="bn">${esc(r.p.botanical || r.p.common)}</div><div class="cn">${esc(r.p.common && r.p.botanical ? r.p.common : '')}${r.p.common && r.p.botanical ? ' · ' : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
   if (b.pages.schedule && (pal.length || exRows.length)) {
     const rows = pal.map(r => `<tr><td class="no">${r.n}</td><td><i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}</span></td><td>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${esc(r.p.supply || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td></tr>`);
     const total = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
@@ -2526,10 +2614,12 @@ function renderPresSettings() {
       <label class="checks"><input type="checkbox" data-sheet="numbered"${sheetOpts().numbered ? ' checked' : ''}> Number plants to match the schedule</label>
       <p class="note" id="sheetNote" style="margin:0">${esc(sheetNote())}</p>
       <button class="btn" type="button" id="sheetPdf" style="align-self:flex-start">Download plan sheet</button></fieldset>
-    <p class="note" id="presMsg" style="margin:0" aria-live="polite">Click “Add photo” on a plant in the palette to add its close-up.</p>`;
+    <button class="btn" type="button" id="findMissing" style="align-self:flex-start"${paletteRows().some(r => !photoUrl(r.p)) ? '' : ' disabled'}>Find missing photos online</button>
+    <p class="note" id="presMsg" style="margin:0" aria-live="polite">Click “Add photo” on a plant in the palette to use your own close-up, or “Find photo” to choose one from Wikimedia Commons.</p>`;
 }
 $('presSet').addEventListener('click', e => {
   if (!S.g) return;
+  if (e.target.id === 'findMissing') { openPhotoPicker(paletteRows().filter(r => !photoUrl(r.p)).map(r => r.id)); return; }
   const b = bk();
   if (e.target.closest('[data-bkadd]')) { b.lines = [...b.lines, { label: '', amount: 0 }]; S.g.booklet = b; saveGarden(); renderPresSettings(); renderPages(); return; }
   const del = e.target.closest('[data-bkdel]'); if (del) { b.lines = b.lines.filter((_, i) => i !== +del.dataset.bkdel); S.g.booklet = b; saveGarden(); renderPresSettings(); renderPages(); return; }
@@ -2879,7 +2969,8 @@ app.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act;
   if (act === 'delete') removeSel();
-  if (act === 'clearPhoto' && S.editPlant) { S.editPlant.photoId = null; renderLibrary(); }
+  if (act === 'clearPhoto' && S.editPlant) { S.editPlant.photoId = null; S.editPlant.photoCredit = null; renderLibrary(); }
+  if (act === 'findPhotoEdit' && S.editPlant) openPhotoPicker([S.editPlant.id]);
   if (act === 'deselect') select(null);
   if (act === 'duplicate') duplicateSel();
   if (act === 'blkDone') finishBlock(false);
@@ -3062,6 +3153,7 @@ document.addEventListener('keydown', e => {
   if (!$('layerMenu').hidden && e.key === 'Escape') { closeLayerMenu(); $('layerBtn').focus(); return; }
   if (!$('plantModal').hidden && e.key === 'Escape') { S.editPlant = null; S.confirm = null; renderLibrary(); return; }
   if (!$('clearModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeClear(); } return; }
+  if (!$('photoModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closePhotoPicker(); } return; }
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
   if ((e.ctrlKey || e.metaKey) && !typing && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
@@ -3731,6 +3823,7 @@ function cleanPlant(d) {
     supply: str(d.supply, 200), supplier: str(d.supplier, 200), flowerFrom: monthOrNull(d.flowerFrom), flowerTo: monthOrNull(d.flowerTo), flowerColor: hexOrNull(d.flowerColor), flowerColorName: str(d.flowerColorName, 60) };
   if (!p.common) p.common = p.botanical || 'Unnamed';
   if (safeId(d.photoId)) p.photoId = d.photoId;
+  if (d.photoCredit && typeof d.photoCredit === 'object') { const c = d.photoCredit, u = v => /^https:\/\/[^\s"<>]+$/.test(String(v || '')) ? String(v) : ''; p.photoCredit = { by: str(c.by, 120), licence: str(c.licence, 60), licUrl: u(c.licUrl), page: u(c.page), title: str(c.title, 200) }; }
   if (d.source && typeof d.source === 'object') p.source = { list: str(d.source.list, 64), listName: str(d.source.listName, 200), code: str(d.source.code, 80), stock: str(d.source.stock, 40), checkedAt: numOrNull(d.source.checkedAt) ?? 0 };
   if (FOLIAGE[d.foliage]) p.foliage = d.foliage;
   if (numOrNull(d.spacing) > 0) p.spacing = clamp(+d.spacing, 0.05, 20);

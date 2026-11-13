@@ -27,6 +27,16 @@ async function open(seed = {}, opts = {}) {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   await page.route('http://app.test/', r => r.fulfill({ contentType: 'text/html', body: html }));
   await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
+  // Wikimedia Commons stand-in, in the API's own response format; never the real site
+  await page.route('https://commons.wikimedia.org/**', r => {
+    const q = new URL(r.request().url()).searchParams.get('gsrsearch') || '';
+    const page = (i, title, artist, lic) => ({ pageid: i, ns: 6, title: 'File:' + title, index: i, imageinfo: [{ thumburl: `https://upload.wikimedia.org/thumb/${i}.jpg`, url: `https://upload.wikimedia.org/${i}.jpg`, descriptionurl: `https://commons.wikimedia.org/wiki/File:${encodeURIComponent(title)}`, mime: 'image/jpeg',
+      extmetadata: { Artist: { value: `<a href="//commons.wikimedia.org/wiki/User:${artist}">${artist}</a>` }, LicenseShortName: { value: lic }, LicenseUrl: { value: 'https://creativecommons.org/licenses/by-sa/4.0' } } }] });
+    const pages = /Caradonna/.test(q) ? { 1: page(1, 'Salvia Caradonna.jpg', 'Fern Gardener', 'CC BY-SA 4.0'), 2: page(2, 'Salvia Caradonna NC.jpg', 'Someone', 'CC BY-NC 2.0') }
+      : /Salvia nemorosa/.test(q) ? { 3: page(3, 'Salvia nemorosa.jpg', 'Kew Visitor', 'CC BY 3.0'), 4: page(4, 'Salvia nemorosa 2.jpg', 'Anon', 'Public domain') } : {};
+    return r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ batchcomplete: '', query: { pages } }) });
+  });
+  await page.route('https://upload.wikimedia.org/**', r => r.fulfill({ contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PIXEL }));
   if (LIBS) await page.route(/https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/.*/, r => {
     const key = Object.keys(LIB_FILES).find(k => r.request().url().includes(k));
     const f = key && path.join(LIBS, LIB_FILES[key]);

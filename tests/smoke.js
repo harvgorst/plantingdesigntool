@@ -440,6 +440,33 @@ test('beds: drawn with the Bed tool, the grid centred on them, planting kept ins
   eq((await app.store('gardens/g1')).beds, [], 'bed removed');
 });
 
+test('plant photos from Wikimedia Commons: cultivar first, only usable licences, credited in the booklet', async open => {
+  const app = await open(sample(), { hash: '#presentation' });
+  await app.page.waitForSelector('.bpage');
+  await app.page.click('[data-findphoto=p1]');                        // Salvia nemorosa 'Caradonna'
+  await app.page.waitForSelector('#photoModal [data-pick]');
+  const groups = await app.page.$$eval('#photoModal .pgroup', g => g.map(x => x.textContent));
+  ok(/Caradonna/.test(groups[0]) && /species/.test(groups[1] || ''), 'cultivar first, then the species, got ' + JSON.stringify(groups));
+  const credits = await app.page.$$eval('#photoModal [data-pick] small', s => s.map(x => x.textContent));
+  ok(credits.length === 3 && !credits.some(c => /NC/.test(c)), 'the non-commercial photo is left out, got ' + JSON.stringify(credits));
+  await app.page.click('#photoModal [data-pick="0:0"]');
+  await app.page.waitForFunction(() => document.getElementById('photoModal').hidden);
+  await app.page.waitForTimeout(500);
+  const p1 = await app.store('plants/p1');
+  ok(p1.photoId, 'photo saved with the species');
+  eq([p1.photoCredit.by, p1.photoCredit.licence], ['Fern Gardener', 'CC BY-SA 4.0'], 'with its credit');
+  await app.page.waitForFunction(() => /Fern Gardener/.test(document.getElementById('presPages').textContent));
+  ok(/Photo: Fern Gardener, CC BY-SA 4.0, Wikimedia Commons/.test(await app.page.textContent('#presPages')), 'credit printed in the booklet');
+  // Find missing photos steps through the rest; Skip moves on, Stop closes
+  await app.page.click('#findMissing');
+  await app.page.waitForSelector('#photoModal:not([hidden]) h2');
+  ok(/1 of \d/.test(await app.page.textContent('#photoH')), 'counts through the plants without photos');
+  await app.page.click('#photoModal [data-ph=skip]');
+  ok(/2 of \d/.test(await app.page.textContent('#photoH')), 'skip moves on');
+  await app.page.keyboard.press('Escape');
+  ok(await app.page.evaluate(() => document.getElementById('photoModal').hidden), 'Escape stops');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });
