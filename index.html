@@ -817,10 +817,40 @@ function bedPoly(b) { const k = JSON.stringify(b.pts); let v = BEDPOLY.get(b.id)
 const bedPath = b => pathD(b.pts, true);
 function bedAt(x, y) { for (const b of beds()) if (pointInPoly(x, y, bedPoly(b))) return b; return null; }
 const NOFRAME = { id: '', ox: 0, oy: 0 };
+/* each bed keeps its grid's anchor (set where the bed was first drawn, at its centre), so reshaping the bed never shifts the planting grid;
+   moving the whole bed moves the anchor, and its planting, with it */
+function bedCentre(b) { const P = bedPoly(b), xs = P.map(q => q[0]), ys = P.map(q => q[1]); return [+((Math.min(...xs) + Math.max(...xs)) / 2).toFixed(3), +((Math.min(...ys) + Math.max(...ys)) / 2).toFixed(3)]; }
 function bedFrame(b) {
   if (!b) return NOFRAME;
-  const P = bedPoly(b), xs = P.map(q => q[0]), ys = P.map(q => q[1]);
-  return { id: b.id, ox: +((Math.min(...xs) + Math.max(...xs)) / 2).toFixed(3), oy: +((Math.min(...ys) + Math.max(...ys)) / 2).toFixed(3), poly: P };   // a round-number anchor, so neighbouring cells meet exactly
+  const [cx, cy] = Number.isFinite(b.ox) && Number.isFinite(b.oy) ? [b.ox, b.oy] : bedCentre(b);
+  return { id: b.id, ox: cx, oy: cy, poly: bedPoly(b) };   // a round-number anchor, so neighbouring cells meet exactly
+}
+/* beds drawn before they kept an anchor: take the grid most of their planting already sits on, and snap any strays onto it */
+function settleBeds() {
+  const g = S.g; if (!g || !S.plants.length) return false;
+  let changed = false;
+  for (const b of beds()) {
+    if (Number.isFinite(b.ox) && Number.isFinite(b.oy)) continue;
+    const P = bedPoly(b), s = gridSpace(), dy = s * Math.sqrt(3) / 2;
+    const inBed = g.plantings.filter(pl => (pl.qty || 1) === 1 && onGrid(plantById(pl.plantId)) && pointInPoly(pl.x, pl.y, P));
+    const field = inBed.filter(pl => kindOf(plantById(pl.plantId)) === 'field');
+    let best = bedCentre(b), score = -1;
+    for (const c of field.slice(0, 40)) {
+      const cand = [+(c.x + s / 4).toFixed(3), +c.y.toFixed(3)], f = { id: b.id, ox: cand[0], oy: cand[1] };
+      const n = field.reduce((t, pl) => { const q = latticeSnap(pl.x, pl.y, s, f); return t + (Math.hypot(q.x - pl.x, q.y - pl.y) < 0.01 ? 1 : 0); }, 0);
+      if (n > score) { score = n; best = cand; }
+    }
+    b.ox = best[0]; b.oy = best[1]; changed = true;
+    const f = { id: b.id, ox: b.ox, oy: b.oy }, seen = new Set(), drop = new Set();
+    for (const pl of inBed) {
+      const sp = latticeOf(plantById(pl.plantId)), q = latticeSnap(pl.x, pl.y, sp, f), key = kindOf(plantById(pl.plantId)) + ':' + q.x + ',' + q.y;
+      if (seen.has(key)) { drop.add(pl); continue; }
+      seen.add(key); pl.x = q.x; pl.y = q.y;
+    }
+    if (drop.size) g.plantings = g.plantings.filter(pl => !drop.has(pl));
+  }
+  if (changed) saveGarden();
+  return changed;
 }
 const frameAt = (x, y) => bedFrame(bedAt(x, y));
 function latticeSnap(x, y, s = gridSpace(), f = frameAt(x, y)) {
@@ -852,6 +882,7 @@ function oudolfRegions() {
   const key = s + '|' + JSON.stringify(beds()) + '|' + field.map(pl => pl.id + ':' + pl.plantId + ':' + pl.x + ':' + pl.y + ':' + (pl.qty || 1)).join(';');
   const counted = v => { for (const r of v.regions) r.qty = Math.max(1, Math.round(r.area * densityOf(plantById(r.pid)))); return v; };   // counts follow the current plants per m²
   if (REG.key === key && REG.g === g.id) return counted(REG.val);
+  if (S.drag?.bed && REG.val && REG.g === g.id) return counted(REG.val);   // while a bed is dragged, keep the areas as they were (moved along with it), and redo them on release
   const R = s / Math.sqrt(3), cells = new Map(), ck = (f, i, j) => f.id + ':' + i + ',' + j;
   for (const pl of field) {
     const pts = (pl.qty || 1) > 1 ? HEX.slice(0, pl.qty).map(([hx, hy]) => [pl.x + hx * s, pl.y + hy * s]) : [[pl.x, pl.y]];
@@ -1172,6 +1203,7 @@ function renderMapSoon() { if (rafPending) return; rafPending = true; requestAni
 function renderMap() {
   const g = S.g;
   if (!g) { svg.innerHTML = ''; return; }
+  if (!S.drag && beds().some(b => !Number.isFinite(b.ox))) settleBeds();
   const W = g.width, D = g.depth, M = Math.max(W, D);
   const pr = S.print, pad = pr?.pad ?? M * 0.07, fs = pr?.fs ?? M / 55 / S.zoom, showScale = S.prefs.showScale || !!pr?.sheet;
   /* a label with a halo in the sheet colour; the print version draws the halo as its own layer, which PDFs need */
@@ -1252,8 +1284,8 @@ function renderMap() {
     for (const r of od.regions) {
       const p = plantById(r.pid); if (!isVisible(p)) continue;
       const se = S.season && !pr ? seasonOf(p, S.season) : null, f = se ? { fill: se.col || 'var(--muted)', op: se.op } : spFill(p);
-      const clip = r.bed ? ` clip-path="url(#bedclip-${r.bed})"` : '';
-      L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"${clip}><path d="${r.d}" fill-rule="evenodd" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
+      const clip = r.bed ? ` clip-path="url(#bedclip-${r.bed})"` : '', mv = S.drag?.bed && S.drag.off && r.bed === S.drag.bed.id ? ` transform="translate(${S.drag.off[0]} ${S.drag.off[1]})"` : '';
+      L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"${clip}><path${mv} d="${r.d}" fill-rule="evenodd" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
       if (!pr && r.ids.every(id => isSelected('planting', id))) L.over.push(`<path d="${r.d}" fill="none" style="stroke:var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
       if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(halo(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
     }
@@ -1388,11 +1420,12 @@ function renderMap() {
   if (S.tool === 'bed' && !pr) {
     const B = S.bedDraw?.pts || [];
     if (B.length) {
-      const tip = S.hover ? [...B, [snap(S.hover.x), snap(S.hover.y)]] : B;
+      const tip = S.hover ? [...B, bedSnap(S.hover.x, S.hover.y, null, -1)] : B;
       parts.push(`<path d="${pathD(tip, true, false)}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-dasharray="6 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
       B.forEach((q, i) => parts.push(`<circle cx="${q[0]}" cy="${q[1]}" r="${px * (i ? 4 : 7)}" style="fill:var(--panel);stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`));
     }
     const sb = beds().find(b => b.id === S.bedSel);
+    if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
   svg.innerHTML = parts.join('');
@@ -1475,7 +1508,7 @@ function renderInspector() {
       hint.hidden = true; el.hidden = false;
       el.innerHTML = n ? `<span class="pk">New bed</span><span class="pv">${plural(n, 'corner')}. Click the first corner again, or press Enter, to close the bed. Esc starts again.</span>
         <span class="acts"><button class="btn sm primary" type="button" data-act="bedDone"${n < 3 ? ' disabled' : ''}>Close bed</button></span>`
-        : `<span class="pk">Bed</span><span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it, drag a point on its edge to reshape the curve. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
+        : `<span class="pk">Bed</span><span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, Alt-click a point to remove it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
         <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove bed</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
       return;
     }
@@ -2125,7 +2158,7 @@ function toolClick(tool, p, shift) {
   if (tool === 'bed') {
     const b = S.bedDraw || (S.bedDraw = { pts: [] }), near = a => a && Math.hypot(a[0] - p.x, a[1] - p.y) * pxPerM() < 10;
     if (b.pts.length >= 3 && near(b.pts[0])) { finishBed(); return; }
-    S.bedSel = null; b.pts.push([sp.x, sp.y]); S.hover = null; renderInspector(); renderMap(); return;
+    S.bedSel = null; b.pts.push(bedSnap(p.x, p.y, null, -1)); S.hover = null; renderInspector(); renderMap(); return;
   }
   if (tool === 'block') {
     const b = S.blk || (S.blk = { pts: [], h: 1.8 }), near = a => a && Math.hypot(a[0] - p.x, a[1] - p.y) * pxPerM() < 10;
@@ -2171,11 +2204,22 @@ svg.addEventListener('pointerdown', e => {
   const p = toM(e);
   let hit = e.target.closest('[data-kind]');
   /* the Bed tool picks a bed wherever you click inside it, even through the planting drawn over it */
-  const bedHit = S.tool === 'bed' && !S.bedDraw?.pts.length ? (hit?.dataset.kind === 'bedh' ? beds().find(x => x.id === hit.dataset.id) : (() => { const q = toM(e); return bedAt(q.x, q.y); })()) : null;
+  const bedHit = S.tool === 'bed' && !S.bedDraw?.pts.length ? (hit?.dataset.kind === 'bedh' || hit?.dataset.kind === 'bedm' ? beds().find(x => x.id === hit.dataset.id) : (() => { const q = toM(e); return bedAt(q.x, q.y); })()) : null;
   if (bedHit) {
     const b = bedHit;
     S.bedSel = b.id; renderInspector(); renderMap();
-    S.drag = { bed: b, vert: hit?.dataset.kind === 'bedh' ? +hit.dataset.i : null, start: toM(e), orig: b.pts.map(q => q.slice()), moved: false, before: JSON.stringify(S.g) };
+    const before = JSON.stringify(S.g), P0 = bedPoly(b);
+    if (hit?.dataset.kind === 'bedh' && e.altKey) {   // Alt-click a point to take it out
+      if (b.pts.length > 3) { pushHistory(before); b.pts = b.pts.filter((_, i) => i !== +hit.dataset.i); saveGarden(); refreshDerived(); }
+      renderInspector(); renderMap(); return;
+    }
+    let vert = hit?.dataset.kind === 'bedh' ? +hit.dataset.i : null, moved = false;
+    if (hit?.dataset.kind === 'bedm') {   // drag a halfway handle to add a point there
+      pushHistory(before); vert = +hit.dataset.i + 1; b.pts.splice(vert, 0, [r2(+hit.dataset.x), r2(+hit.dataset.y)]); moved = true;
+    }
+    S.drag = { bed: b, vert, start: toM(e), orig: b.pts.map(q => q.slice()), moved, before,
+      anchor: Number.isFinite(b.ox) ? [b.ox, b.oy] : null,
+      plants: vert == null ? S.g.plantings.filter(pl => onGrid(plantById(pl.plantId)) && pointInPoly(pl.x, pl.y, P0)).map(pl => ({ pl, x: pl.x, y: pl.y })) : [] };
     return;
   }
   if (hit?.dataset.kind === 'over') hit = svg.querySelector(`[data-kind=planting][data-id="${hit.dataset.id}"]`);   // a tree's outline and label, drawn over the planting
@@ -2225,7 +2269,12 @@ svg.addEventListener('pointermove', e => {
     if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
     if (!d.moved) pushHistory(d.before); d.moved = true;
     const b = beds().find(x => x.id === d.bed.id); if (!b) return;
-    b.pts = d.vert != null ? d.orig.map((q, i) => i === d.vert ? [snap(q[0] + dx), snap(q[1] + dy)] : q.slice()) : d.orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
+    if (d.vert != null) { const q = bedSnap(d.orig[d.vert][0] + dx, d.orig[d.vert][1] + dy, b.id, d.vert); b.pts = d.orig.map((o, i) => i === d.vert ? q : o.slice()); }
+    else {
+      const mx = r2(dx), my = r2(dy); b.pts = d.orig.map(([x, y]) => [r2(x + mx), r2(y + my)]); d.off = [mx, my];
+      if (d.anchor) { b.ox = r2(d.anchor[0] + mx); b.oy = r2(d.anchor[1] + my); }
+      for (const m of d.plants) { m.pl.x = +(m.x + mx).toFixed(3); m.pl.y = +(m.y + my).toFixed(3); }
+    }
     renderMapSoon(); return;
   }
   if (d.paint) {
@@ -2287,7 +2336,7 @@ function endDrag() {
   const d = S.drag; if (!d) return;
   S.drag = null;
   if (d.paint) { if (d.changed) saveGarden(); renderInspector(); refreshDerived(); return; }
-  if (d.bed) { if (d.moved) { saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }
+  if (d.bed) { if (d.moved) { saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }   // S.drag is cleared first, so the areas are worked out afresh
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
   if (d.north) { if (d.moved) saveGarden(); renderMap(); return; }
   if (d.pending) {
@@ -3771,10 +3820,16 @@ function finishBlock(closed) {
   S.g.blocks = [...(S.g.blocks || []), rec]; S.blk = null; S.tool = 'select'; S.hover = null; S.sel = null; S.multi = []; S.blockSel = rec.id;
   saveGarden(); renderTools(); renderInspector(); renderMap();
 }
+/* bed points snap to 2 cm, or onto a point of another bed (or another point of this one) within a few pixels, so beds can share an edge */
+function bedSnap(x, y, bedId, skip) {
+  const lim = 9 / pxPerM(); let best = null, bd = lim;
+  for (const b of beds()) b.pts.forEach((q, i) => { if (b.id === bedId && i === skip) return; const d = Math.hypot(q[0] - x, q[1] - y); if (d < bd) { bd = d; best = q; } });
+  return best ? [best[0], best[1]] : [+(Math.round(x / 0.02) * 0.02).toFixed(2), +(Math.round(y / 0.02) * 0.02).toFixed(2)];
+}
 function finishBed() {
   const b = S.bedDraw; if (!b || b.pts.length < 3 || !S.g) return;
   checkpoint();
-  const rec = { id: uid(), pts: b.pts };
+  const rec = { id: uid(), pts: b.pts }; [rec.ox, rec.oy] = bedCentre(rec);
   S.g.beds = [...beds(), rec]; S.bedDraw = { pts: [] }; S.bedSel = rec.id; S.hover = null;
   saveGarden(); renderInspector(); renderMap();
 }
@@ -3876,7 +3931,7 @@ function cleanGarden(d) {
   if (d.colors && typeof d.colors === 'object') { const c = {}; for (const [k, v] of Object.entries(d.colors)) if (safeId(k) && Number.isInteger(v) && v >= 0 && v < 1000) c[k] = v; g.colors = c; }
   if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered, orient: ['landscape', 'portrait'].includes(d.sheet.orient) ? d.sheet.orient : 'auto' };
   if (d.example) g.example = true;
-  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => ({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) })).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
+  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
   return g;
 }
 const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });

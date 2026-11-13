@@ -489,6 +489,48 @@ test('species pop-up saves when you click off it', async open => {
   eq((await app.store('plants/p0')).common, 'English lavender', 'Escape discards');
 });
 
+test('beds: reshaping keeps the grid still, moving takes the planting, points can be added and removed, old beds are repaired', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null; seed['settings/prefs'] = { oudolf: true };
+  // an older bed with no anchor, and planting painted on two different grids (as reshaping used to cause)
+  seed['gardens/g1'].beds = [{ id: 'bedOld', pts: [[1, 1], [6, 1], [6, 4], [1, 4]] }];
+  const dy = 0.3 * Math.sqrt(3) / 2; let n = 0;
+  for (let j = 0; j < 6; j++) for (let i = 0; i < 8; i++) seed['gardens/g1'].plantings.push({ id: 'q' + (n++), plantId: 'p1', x: +(2 + i * 0.3 + (j & 1 ? 0.15 : 0)).toFixed(3), y: +(1.8 + j * dy).toFixed(3), qty: 1 });
+  for (let i = 0; i < 4; i++) seed['gardens/g1'].plantings.push({ id: 'stray' + i, plantId: 'p1', x: +(2.07 + i * 0.3).toFixed(3), y: 3.43, qty: 1 });
+  const app = await open(seed);
+  await app.page.waitForTimeout(1200);
+  let g = await app.store('gardens/g1');
+  ok(Number.isFinite(g.beds[0].ox), 'the old bed now keeps an anchor');
+  const s = 0.3, f = { ox: g.beds[0].ox - s / 4, oy: g.beds[0].oy }, onGrid = q => { const jj = Math.round((q.y - f.oy) / dy), off = (jj & 1) ? s / 2 : 0; return Math.abs((q.x - f.ox - off) / s - Math.round((q.x - f.ox - off) / s)) < 0.02 && Math.abs((q.y - f.oy) / dy - jj) < 0.02; };
+  ok(g.plantings.every(onGrid), 'every plant snapped onto one grid');
+  eq(g.plantings.filter(q => /^q/.test(q.id)).every(q => seed['gardens/g1'].plantings.find(o => o.id === q.id).x === q.x), true, 'the main block was already on it and did not move');
+  // reshape the bed: the grid stays put, and painting next to the block still works
+  const anchor = [g.beds[0].ox, g.beds[0].oy];
+  await app.page.keyboard.press('b'); await app.clickPlan(3.5, 2.5);
+  await app.dragPlan(6, 4, 7.2, 4.6); await app.page.waitForTimeout(900);
+  g = await app.store('gardens/g1');
+  eq([g.beds[0].ox, g.beds[0].oy], anchor, 'reshaping leaves the anchor');
+  ok(g.beds[0].pts[2][0] === 7.2 && g.beds[0].pts[2][1] === 4.6, 'the corner moved, on a 2 cm snap, got ' + JSON.stringify(g.beds[0].pts[2]));
+  const before = g.plantings.length;
+  await app.page.click('#lib [data-pid=p4]'); await app.dragPlan(4.6, 2.3, 5.6, 2.3); await app.page.waitForTimeout(900);
+  g = await app.store('gardens/g1');
+  ok(g.plantings.length >= before + 3 && g.plantings.every(onGrid), 'new planting sits on the same grid, right beside the old');
+  // add a point by dragging a halfway handle, then remove it with Alt-click
+  await app.page.keyboard.press('b'); await app.clickPlan(3.5, 2.5);
+  const mid = await app.page.$eval('#map [data-kind=bedm][data-i="0"]', c => [+c.dataset.x, +c.dataset.y]);
+  await app.dragPlan(mid[0], mid[1], mid[0], mid[1] - 0.4); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).beds[0].pts.length, 5, 'a point added');
+  const p1 = (await app.store('gardens/g1')).beds[0].pts[1], h = await app.planXY(p1[0], p1[1]);
+  await app.page.keyboard.down('Alt'); await app.page.mouse.click(h.x, h.y); await app.page.keyboard.up('Alt'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).beds[0].pts.length, 4, 'and removed again');
+  // move the whole bed: its planting and its grid come too
+  const pl0 = (await app.store('gardens/g1')).plantings.find(q => q.id === 'q0');
+  await app.clickPlan(3.5, 2.5); await app.dragPlan(3.3, 3.9, 3.9, 3.9); await app.page.waitForTimeout(900);
+  g = await app.store('gardens/g1');
+  const pl1 = g.plantings.find(q => q.id === 'q0');
+  eq([+(pl1.x - pl0.x).toFixed(2), +(pl1.y - pl0.y).toFixed(2)], [0.6, 0], 'planting moved with the bed');
+  eq([+(g.beds[0].ox - anchor[0]).toFixed(2), +(g.beds[0].oy - anchor[1]).toFixed(2)], [0.6, 0], 'and so did its grid');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });
