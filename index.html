@@ -680,11 +680,13 @@ const TOOLS = [
   { id: 'plant', label: 'Plant', key: 'P', sw: 'var(--r-shrub)', round: true },
   { id: 'row', label: 'Row', key: 'R', icon: 'row' },
   { id: 'measure', label: 'Measure', key: 'M', icon: 'measure' },
+  { id: 'bed', label: 'Bed', key: 'B', icon: 'bed' },
 ];
 const HINTS = {
   select: 'Click to select. Drag empty space to move the page. Shift-drag draws a selection box. Ctrl+D duplicates, Ctrl+C and Ctrl+V copy and paste, arrow keys nudge. Scroll to pan; + / − to zoom.',
   row: 'Row: click where the row starts, then where it ends. Plants are spaced evenly along the line. Hold Shift to keep it level, upright or at 45°.',
   measure: 'Measure: click two points on the plan to read the distance between them.',
+  bed: 'Bed: click each corner of the bed, then click the first corner again to close it. Click a bed to select it: drag it to move it, drag its corners to reshape it. Beds can only be changed with this tool.',
   block: 'Click each corner of the building, wall or fence. Click the first corner again to close a building. Enter finishes an open fence; Esc cancels.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
@@ -796,10 +798,20 @@ const gridFor = p => onGrid(p);   // trees, shrubs, climbers and existing plants
 const gridOn = () => gridFor(plantById(S.activePlant));
 const gridSpace = () => clamp(num(S.prefs.pgridSpace, 0.3), 0.05, 2);
 const latticeOf = p => kindOf(p) === 'bulb' ? spacingOf(p) : gridSpace();   // bulbs sit on their own, finer grid
-function latticeSnap(x, y, s = gridSpace()) {
-  const dy = s * Math.sqrt(3) / 2, j0 = Math.round(y / dy); let best = null;
-  for (let j = j0 - 1; j <= j0 + 1; j++) { const off = (j & 1) ? s / 2 : 0, i = Math.round((x - off) / s), px = i * s + off, py = j * dy, dd = Math.hypot(px - x, py - y); if (!best || dd < best.d) best = { x: px, y: py, d: dd }; }
-  return { x: +best.x.toFixed(3), y: +best.y.toFixed(3) };
+/* beds: drawn with the Bed tool; inside one, the grid is centred on the bed so the rows sit evenly from edge to edge */
+const beds = () => S.g?.beds || [];
+function bedAt(x, y) { for (const b of beds()) if (pointInPoly(x, y, b.pts)) return b; return null; }
+const NOFRAME = { id: '', ox: 0, oy: 0 };
+function bedFrame(b) {
+  if (!b) return NOFRAME;
+  const xs = b.pts.map(q => q[0]), ys = b.pts.map(q => q[1]);
+  return { id: b.id, ox: (Math.min(...xs) + Math.max(...xs)) / 2, oy: (Math.min(...ys) + Math.max(...ys)) / 2, poly: b.pts };
+}
+const frameAt = (x, y) => bedFrame(bedAt(x, y));
+function latticeSnap(x, y, s = gridSpace(), f = frameAt(x, y)) {
+  const dy = s * Math.sqrt(3) / 2, ox = f.ox - (f.id ? s / 4 : 0), lx = x - ox, ly = y - f.oy, j0 = Math.round(ly / dy); let best = null;
+  for (let j = j0 - 1; j <= j0 + 1; j++) { const off = (j & 1) ? s / 2 : 0, i = Math.round((lx - off) / s), px = i * s + off, py = j * dy, dd = Math.hypot(px - lx, py - ly); if (!best || dd < best.d) best = { x: px + ox, y: py + f.oy, d: dd, i, j }; }
+  return { x: +best.x.toFixed(3), y: +best.y.toFixed(3), i: best.i, j: best.j };
 }
 function spacingDefault(p) { const r = layerOf(p?.role); return r === 'tuber' ? 0.15 : (r === 'herbaceous' || r === 'ground') ? clamp(num(S.prefs.pgridSpace, 0.3), 0.05, 2) : num(p?.spread, 0.5); }
 function spacingOf(p) { return p && num(p.spacing) > 0 ? num(p.spacing) : spacingDefault(p); }
@@ -814,7 +826,7 @@ function defaultDensity(p) { const s = num(p?.spread, 0.5); return Math.round((1
 const oudolf = () => !!S.prefs.oudolf;
 function densityOf(p) { return num(p?.density) > 0 ? clamp(num(p.density), 0.1, 200) : defaultDensity(p); }
 const cellArea = s => s * s * Math.sqrt(3) / 2;
-function latticeIdx(x, y, s) { const dy = s * Math.sqrt(3) / 2, q = latticeSnap(x, y, s), j = Math.round(q.y / dy); return [Math.round((q.x - ((j & 1) ? s / 2 : 0)) / s), j]; }
+function latticeIdx(x, y, s, f) { const q = latticeSnap(x, y, s, f), ox = f.ox - (f.id ? s / 4 : 0); return [q.i, q.j, ox + q.i * s + ((q.j & 1) ? s / 2 : 0), f.oy + q.j * s * Math.sqrt(3) / 2]; }   // exact centres, so neighbouring cells share their corners
 let REG = { key: '', val: null };
 /* Each painted grid point owns one hexagonal cell. Cells of one species that touch make an area; the edges between
    different areas (or open ground) are the borders. Every border vertex is shared, so smoothing the vertices (keeping the
@@ -822,19 +834,29 @@ let REG = { key: '', val: null };
 function oudolfRegions() {
   const g = S.g, s = gridSpace();
   const field = g.plantings.filter(pl => kindOf(plantById(pl.plantId)) === 'field');
-  const key = s + '|' + field.map(pl => pl.id + ':' + pl.plantId + ':' + pl.x + ':' + pl.y + ':' + (pl.qty || 1)).join(';');
+  const key = s + '|' + JSON.stringify(beds()) + '|' + field.map(pl => pl.id + ':' + pl.plantId + ':' + pl.x + ':' + pl.y + ':' + (pl.qty || 1)).join(';');
   const counted = v => { for (const r of v.regions) r.qty = Math.max(1, Math.round(r.area * densityOf(plantById(r.pid)))); return v; };   // counts follow the current plants per m²
   if (REG.key === key && REG.g === g.id) return counted(REG.val);
-  const dy = s * Math.sqrt(3) / 2, R = s / Math.sqrt(3), cells = new Map(), ck = (i, j) => i + ',' + j;
+  const R = s / Math.sqrt(3), cells = new Map(), ck = (f, i, j) => f.id + ':' + i + ',' + j;
   for (const pl of field) {
     const pts = (pl.qty || 1) > 1 ? HEX.slice(0, pl.qty).map(([hx, hy]) => [pl.x + hx * s, pl.y + hy * s]) : [[pl.x, pl.y]];
-    for (const [x, y] of pts) { const [i, j] = latticeIdx(x, y, s); cells.set(ck(i, j), { i, j, x: i * s + ((j & 1) ? s / 2 : 0), y: j * dy, pid: pl.plantId, id: pl.id }); }
+    for (const [x0, y0] of pts) { const f = frameAt(x0, y0), [i, j, x, y] = latticeIdx(x0, y0, s, f); cells.set(ck(f, i, j), { i, j, x, y, f, pid: pl.plantId, id: pl.id }); }
+  }
+  /* in a bed, a plant at the edge also owns the cells just outside it, so its area reaches the bed's edge (and is cut off there) */
+  for (const c of [...cells.values()]) {
+    if (!c.f.id) continue;
+    for (let k = 0; k < 6; k++) {
+      const a = (60 + 60 * k) * Math.PI / 180, nx = c.x + s * Math.cos(a), ny = c.y + s * Math.sin(a);
+      if (pointInPoly(nx, ny, c.f.poly)) continue;
+      const [i, j, x, y] = latticeIdx(nx, ny, s, c.f), kk = ck(c.f, i, j);
+      if (!cells.has(kk)) cells.set(kk, { i, j, x, y, f: c.f, pid: c.pid, id: null, virt: true });
+    }
   }
   const list = [...cells.values()];
   list.forEach((c, n) => { c.n = n; });
   /* areas: cells of one species that touch */
   const up = list.map((_, n) => n), find = n => { while (up[n] !== n) n = up[n] = up[up[n]]; return n; };
-  const nbOf = (c, k) => { const a = (60 + 60 * k) * Math.PI / 180, [i, j] = latticeIdx(c.x + s * Math.cos(a), c.y + s * Math.sin(a), s); return cells.get(ck(i, j)); };
+  const nbOf = (c, k) => { const a = (60 + 60 * k) * Math.PI / 180, [i, j] = latticeIdx(c.x + s * Math.cos(a), c.y + s * Math.sin(a), s, c.f); return cells.get(ck(c.f, i, j)); };
   for (const c of list) for (let k = 0; k < 6; k++) { const b = nbOf(c, k); if (b && b.pid === c.pid) up[find(b.n)] = find(c.n); }
   /* border edges, each halved so the smoothing has points to bend */
   const pos = new Map(), nbrs = new Map(), vk = (x, y) => Math.round(x * 1e4) + ',' + Math.round(y * 1e4);
@@ -879,7 +901,8 @@ function oudolfRegions() {
   const f3 = v => +v.toFixed(3);
   const regions = [];
   for (const [r, nx] of next) {
-    const mine = list.filter(c => find(c.n) === r), used = new Set(), loops = [];
+    const all = list.filter(c => find(c.n) === r), mine = all.filter(c => !c.virt), used = new Set(), loops = [];
+    if (!mine.length) continue;
     for (const st of nx.keys()) {
       if (used.has(st)) continue;
       const loop = []; let k = st, guard = 0;
@@ -889,11 +912,10 @@ function oudolfRegions() {
     const p = plantById(mine[0].pid), area = mine.length * cellArea(s);
     const mx = mine.reduce((t, c) => t + c.x, 0) / mine.length, my = mine.reduce((t, c) => t + c.y, 0) / mine.length;
     let lab = mine[0]; for (const c of mine) if (Math.hypot(c.x - mx, c.y - my) < Math.hypot(lab.x - mx, lab.y - my)) lab = c;
-    regions.push({ pid: mine[0].pid, ids: [...new Set(mine.map(c => c.id))], cells: mine.length, area, qty: Math.max(1, Math.round(area * densityOf(p))),
+    regions.push({ pid: mine[0].pid, bed: mine[0].f.id, ids: [...new Set(mine.map(c => c.id))], cells: mine.length, area, qty: Math.max(1, Math.round(area * densityOf(p))),
       d: loops.map(l => 'M' + l.map(([x, y]) => f3(x) + ' ' + f3(y)).join('L') + 'Z').join(''), lx: lab.x, ly: lab.y });
   }
-  let bd = ''; for (const [k, nb] of nbrs) for (const n of nb) if (k < n) { const [x1, y1] = P.get(k), [x2, y2] = P.get(n); bd += `M${f3(x1)} ${f3(y1)}L${f3(x2)} ${f3(y2)}`; }
-  REG = { key, g: g.id, val: { regions, borders: bd } };
+  REG = { key, g: g.id, val: { regions } };
   return counted(REG.val);
 }
 
@@ -1097,6 +1119,7 @@ function toggleSelect(kind, id) {
   selectMany(cur);
 }
 function removeSel() {
+  if (S.bedSel && S.tool === 'bed') { removeBed(); return; }
   if (S.blockSel) { removeBlock(); return; }
   if (S.multi.length) {
     const items = selectedItems(); if (!items.length) return;
@@ -1150,6 +1173,14 @@ function renderMap() {
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
   const ls = fs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
   if (S.sun.on && !pr) parts.push(sunLayer(W, D, M, pad, fs, px, halo));
+  {
+    const edit = S.tool === 'bed' && !pr;
+    for (const b of beds()) {
+      const d = 'M' + b.pts.map(q => q[0] + ' ' + q[1]).join('L') + 'Z', sel = edit && S.bedSel === b.id;
+      parts.push(`<clipPath id="bedclip-${b.id}"><path d="${d}"/></clipPath>`);
+      parts.push(`<g data-kind="bed" data-id="${b.id}"${edit ? ' style="cursor:move"' : ' pointer-events="none"'}><path d="${d}" style="fill:var(--ground);stroke:${sel ? 'var(--accent)' : 'var(--ink)'}" fill-opacity="0.55" stroke-width="${sel ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
+    }
+  }
   ensureColours();
   const defs = new Map(), patT = +Math.max(0.03, Math.min(0.08, px * 7)).toFixed(4);
   const spFill = p => { const st = speciesStyle(p); if (st.pat === 'solid') return { fill: st.col, op: 0.55, line: st.col }; const id = 'pat-' + String(p.id).replace(/[^\w-]/g, ''); if (!defs.has(id)) defs.set(id, patternDef(id, st.col, st.pat, patT)); return { fill: `url(#${id})`, op: 1, line: st.col }; };
@@ -1191,11 +1222,11 @@ function renderMap() {
     for (const r of od.regions) {
       const p = plantById(r.pid); if (!isVisible(p)) continue;
       const se = S.season && !pr ? seasonOf(p, S.season) : null, f = se ? { fill: se.col || 'var(--muted)', op: se.op } : spFill(p);
-      L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"><path d="${r.d}" fill-rule="evenodd" style="fill:${f.fill}" fill-opacity="${f.op}"/></g>`);
+      const clip = r.bed ? ` clip-path="url(#bedclip-${r.bed})"` : '';
+      L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"${clip}><path d="${r.d}" fill-rule="evenodd" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
       if (!pr && r.ids.every(id => isSelected('planting', id))) L.over.push(`<path d="${r.d}" fill="none" style="stroke:var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
       if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = Math.min(ls * 0.78, Math.max(ls * 0.35, Math.sqrt(r.area) * 0.42)); L.over.push(halo(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
     }
-    L.field.push(`<path d="${od.borders}" fill="none" style="stroke:var(--label)" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
   for (const pl of pls) {
     const p = plantById(pl.plantId);
@@ -1270,7 +1301,8 @@ function renderMap() {
     }
   }
   const fade = on => on ? ' opacity="0.4"' : '';
-  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
+  const bedLines = beds().map(b => `<path d="M${b.pts.map(q => q[0] + ' ' + q[1]).join('L')}Z" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
+  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${bedLines}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
   // handles for the selected curve
   const sa = S.sel?.kind === 'area' ? findSel() : null;
@@ -1282,7 +1314,8 @@ function renderMap() {
     for (const q of [S.cal.a, S.cal.b].filter(Boolean)) parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${px * 5}" style="fill:var(--panel);stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
   if (S.tool === 'plant' && gridOn() && S.hover && !S.hoverShift && !pr && !S.drag) {
-    const p = plantById(S.activePlant), q = latticeSnap(S.hover.x, S.hover.y, latticeOf(p));
+    const p = plantById(S.activePlant), q = latticeSnap(S.hover.x, S.hover.y, latticeOf(p)), outside = beds().length && !bedAt(S.hover.x, S.hover.y);
+    if (outside) {} else
     if (oudolf() && kindOf(p) === 'field') { const R = gridSpace() / Math.sqrt(3); parts.push(`<path d="M${[0, 1, 2, 3, 4, 5].map(k => { const a = (30 + 60 * k) * Math.PI / 180; return +(q.x + R * Math.cos(a)).toFixed(3) + ' ' + +(q.y + R * Math.sin(a)).toFixed(3); }).join('L')}Z" style="fill:${speciesStyle(p).col};stroke:var(--accent)" fill-opacity="0.35" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>`); } else
     parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${spacingOf(p) * (kindOf(p) === 'bulb' ? 0.3 : 0.5)}" fill="none" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
@@ -1314,6 +1347,17 @@ function renderMap() {
       ${isN ? `<text x="${nx}" y="${ny + fs * 2.4}" font-size="${fs * 0.7}" text-anchor="middle" style="fill:var(--muted)">${Math.round(deg)}°</text>` : ''}</g>`);
   }
   if (defs.size) parts.unshift(`<defs>${[...defs.values()].join('')}</defs>`);
+  /* the bed being drawn, and the corners of the selected bed */
+  if (S.tool === 'bed' && !pr) {
+    const B = S.bedDraw?.pts || [];
+    if (B.length) {
+      const tip = S.hover ? [...B, [snap(S.hover.x), snap(S.hover.y)]] : B;
+      parts.push(`<path d="M${tip.map(q => q[0] + ' ' + q[1]).join('L')}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-dasharray="6 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+      B.forEach((q, i) => parts.push(`<circle cx="${q[0]}" cy="${q[1]}" r="${px * (i ? 4 : 7)}" style="fill:var(--panel);stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`));
+    }
+    const sb = beds().find(b => b.id === S.bedSel);
+    if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
+  }
   svg.innerHTML = parts.join('');
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
 }
@@ -1321,6 +1365,7 @@ function renderMap() {
 /* ---------- panels ---------- */
 function toolSwatch(t) {
   if (t.icon === 'row') return '<svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M2 6H14" style="stroke:var(--muted)" stroke-width="1"/><circle cx="2.5" cy="6" r="2" style="fill:var(--r-shrub)"/><circle cx="8" cy="6" r="2" style="fill:var(--r-shrub)"/><circle cx="13.5" cy="6" r="2" style="fill:var(--r-shrub)"/></svg>';
+  if (t.icon === 'bed') return '<svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M2 9 C1 4 5 2 9 2.5 C13 3 15 6 13.5 9 C12 11 4 11.5 2 9 Z" fill="none" style="stroke:currentColor" stroke-width="1.4"/></svg>';
   if (t.icon === 'measure') return '<svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M1.5 6H14.5M1.5 2.5V9.5M14.5 2.5V9.5" fill="none" style="stroke:currentColor" stroke-width="1.3"/></svg>';
   if (!t.sw) return '<span class="sw" style="border:0;background:none;line-height:12px">↖</span>';
   if (t.blob) return `<svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true"><path d="M2 7 C1 3 5 1 8 2 C12 3 13 6 11 9 C9 11 4 11 2 7 Z" style="fill:${t.sw};stroke:var(--muted)" stroke-width="1" ${t.dashed ? 'stroke-dasharray="2 1.5"' : ''}/></svg>`;
@@ -1386,6 +1431,17 @@ function renderInspector() {
       <span class="acts"><button class="btn sm primary" type="button" data-act="calApply">Apply scale</button><button class="btn sm" type="button" data-act="calCancel">Cancel</button></span>`;
     setTimeout(() => { const i = $('cal-m'); if (i) { i.focus(); i.select(); } }, 0);
     return;
+  }
+  if (S.tool === 'bed') {
+    const n = S.bedDraw?.pts.length || 0, sb = beds().find(b => b.id === S.bedSel);
+    if (n || sb) {
+      hint.hidden = true; el.hidden = false;
+      el.innerHTML = n ? `<span class="pk">New bed</span><span class="pv">${plural(n, 'corner')}. Click the first corner again, or press Enter, to close the bed. Esc starts again.</span>
+        <span class="acts"><button class="btn sm primary" type="button" data-act="bedDone"${n < 3 ? ' disabled' : ''}>Close bed</button></span>`
+        : `<span class="pk">Bed</span><span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it, drag a corner to reshape it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
+        <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove bed</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
+      return;
+    }
   }
   if (S.tool === 'block') {
     hint.hidden = true; el.hidden = false; const n = S.blk?.pts.length || 0;
@@ -1993,7 +2049,7 @@ function nudge(dx, dy) {
   for (const m of items) { if (m.kind === 'area') m.it.pts = m.it.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]); else { m.it.x = r2(m.it.x + dx); m.it.y = r2(m.it.y + dy); } }
   saveGarden(); renderMapSoon();
 }
-const wantsHover = () => (S.tool === 'plant' && S.activePlant && gridOn()) || (S.tool === 'block' && S.blk?.pts.length) || (S.cal?.a && !S.cal.b) || (S.tool === 'row' && S.row?.a) || (S.tool === 'measure' && S.meas?.a && !S.meas.b);
+const wantsHover = () => (S.tool === 'plant' && S.activePlant && gridOn()) || (S.tool === 'bed' && S.bedDraw?.pts.length) || (S.tool === 'block' && S.blk?.pts.length) || (S.cal?.a && !S.cal.b) || (S.tool === 'row' && S.row?.a) || (S.tool === 'measure' && S.meas?.a && !S.meas.b);
 function trackHover(e) {
   const p = toM(e); S.ptr = { x: p.x, y: p.y };
   if (!wantsHover()) return;
@@ -2003,6 +2059,7 @@ function trackHover(e) {
 function paintAt(d, p) {
   if (!S.g || !(p.x >= 0 && p.y >= 0 && p.x <= S.g.width && p.y <= S.g.depth)) return;
   const np = plantById(S.activePlant), kind = kindOf(np), s = latticeOf(np), q = latticeSnap(p.x, p.y, s);
+  if (beds().length && !(bedAt(p.x, p.y) && pointInPoly(q.x, q.y, bedAt(p.x, p.y).pts))) return;   // with beds drawn, planting stays inside them
   /* each layer only ever touches its own kind: bulbs go in among the planting, the planting ignores the bulbs and the trees above it */
   if (d.erase) {
     const keep = S.g.plantings.filter(x => !((x.qty || 1) === 1 && kindOf(plantById(x.plantId)) === kind && Math.hypot(x.x - p.x, x.y - p.y) < s * 0.55));
@@ -2028,6 +2085,11 @@ function paintAt(d, p) {
 }
 function toolClick(tool, p, shift) {
   const sp = { x: snap(p.x), y: snap(p.y) };
+  if (tool === 'bed') {
+    const b = S.bedDraw || (S.bedDraw = { pts: [] }), near = a => a && Math.hypot(a[0] - p.x, a[1] - p.y) * pxPerM() < 10;
+    if (b.pts.length >= 3 && near(b.pts[0])) { finishBed(); return; }
+    S.bedSel = null; b.pts.push([sp.x, sp.y]); S.hover = null; renderInspector(); renderMap(); return;
+  }
   if (tool === 'block') {
     const b = S.blk || (S.blk = { pts: [], h: 1.8 }), near = a => a && Math.hypot(a[0] - p.x, a[1] - p.y) * pxPerM() < 10;
     if (b.pts.length >= 3 && near(b.pts[0])) { finishBlock(true); return; }
@@ -2071,6 +2133,14 @@ svg.addEventListener('pointerdown', e => {
   if (e.button > 0) return;
   const p = toM(e);
   let hit = e.target.closest('[data-kind]');
+  /* the Bed tool picks a bed wherever you click inside it, even through the planting drawn over it */
+  const bedHit = S.tool === 'bed' && !S.bedDraw?.pts.length ? (hit?.dataset.kind === 'bedh' ? beds().find(x => x.id === hit.dataset.id) : (() => { const q = toM(e); return bedAt(q.x, q.y); })()) : null;
+  if (bedHit) {
+    const b = bedHit;
+    S.bedSel = b.id; renderInspector(); renderMap();
+    S.drag = { bed: b, vert: hit?.dataset.kind === 'bedh' ? +hit.dataset.i : null, start: toM(e), orig: b.pts.map(q => q.slice()), moved: false, before: JSON.stringify(S.g) };
+    return;
+  }
   if (hit?.dataset.kind === 'over') hit = svg.querySelector(`[data-kind=planting][data-id="${hit.dataset.id}"]`);   // a tree's outline and label, drawn over the planting
   const tool = S.tool;
   if (hit?.dataset.kind === 'north') { S.drag = { north: true, moved: false, before: JSON.stringify(S.g) }; renderMap(); return; }
@@ -2110,6 +2180,14 @@ svg.addEventListener('pointermove', e => {
   if (S.pinch) { if (ptrs.size >= 2) movePinch(); return; }
   const d = S.drag;
   if (!d) { trackHover(e); return; }
+  if (d.bed) {
+    const p = toM(e), dx = p.x - d.start.x, dy = p.y - d.start.y;
+    if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
+    if (!d.moved) pushHistory(d.before); d.moved = true;
+    const b = beds().find(x => x.id === d.bed.id); if (!b) return;
+    b.pts = d.vert != null ? d.orig.map((q, i) => i === d.vert ? [snap(q[0] + dx), snap(q[1] + dy)] : q.slice()) : d.orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
+    renderMapSoon(); return;
+  }
   if (d.paint) {
     const p = toM(e), L = Math.hypot(p.x - d.last.x, p.y - d.last.y), n = Math.max(1, Math.ceil(L / (gridSpace() / 3)));
     for (let k = 1; k <= n; k++) paintAt(d, { x: d.last.x + (p.x - d.last.x) * k / n, y: d.last.y + (p.y - d.last.y) * k / n });
@@ -2169,6 +2247,7 @@ function endDrag() {
   const d = S.drag; if (!d) return;
   S.drag = null;
   if (d.paint) { if (d.changed) saveGarden(); renderInspector(); refreshDerived(); return; }
+  if (d.bed) { if (d.moved) { saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
   if (d.north) { if (d.moved) saveGarden(); renderMap(); return; }
   if (d.pending) {
@@ -2206,6 +2285,7 @@ function setTool(t) {
   if (t !== 'scale') S.cal = null; else S.cal = { a: null, b: null };
   S.row = null; S.rowMade = 0; if (t !== 'measure') S.meas = null;
   S.blk = t === 'block' ? { pts: [], h: S.blk?.h || 1.8 } : null; if (t !== 'select') S.blockSel = null;
+  S.bedDraw = t === 'bed' ? { pts: [] } : null; if (t !== 'bed') S.bedSel = null;
   S.tool = t; S.hover = null; renderTools(); renderInspector(); renderMap();
 }
 $('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
@@ -2761,6 +2841,9 @@ app.addEventListener('click', async e => {
   if (act === 'deselect') select(null);
   if (act === 'duplicate') duplicateSel();
   if (act === 'blkDone') finishBlock(false);
+  if (act === 'bedDone') finishBed();
+  if (act === 'bedDel') removeBed();
+  if (act === 'bedOff') setTool('select');
   if (act === 'blkCancel') setTool('select');
   if (act === 'resetLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lx; delete it.ly; saveGarden(); renderInspector(); renderMap(); } }
   if (act === 'rowCancel') { S.row = null; S.hover = null; renderTools(); renderInspector(); renderMap(); }
@@ -2955,8 +3038,10 @@ document.addEventListener('keydown', e => {
   if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
   if (e.key === '0') { resetView(); renderMap(); return; }
   if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setTool('select'); return; }
-  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel || S.multi.length || S.blockSel) { e.preventDefault(); removeSel(); } return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel || S.multi.length || S.blockSel || (S.bedSel && S.tool === 'bed')) { e.preventDefault(); removeSel(); } return; }
   if (e.key === 'Enter' && S.tool === 'block') { e.preventDefault(); finishBlock(false); return; }
+  if (e.key === 'Enter' && S.tool === 'bed') { e.preventDefault(); finishBed(); return; }
+  if (e.key === 'Escape' && S.tool === 'bed' && S.bedDraw?.pts.length) { S.bedDraw = { pts: [] }; renderInspector(); renderMap(); return; }
   if (e.key === 'Escape') { setTool('select'); select(null); return; }
   const t = TOOLS.find(x => x.key.toLowerCase().split(' or ')[0] === e.key.toLowerCase()); if (t) setTool(t.id);
 });
@@ -2969,7 +3054,8 @@ function normGarden(id, d) {
     plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example,
     booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, colors: d.colors && typeof d.colors === 'object' ? d.colors : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined,
     lat: Number.isFinite(d.lat) ? d.lat : undefined, lon: Number.isFinite(d.lon) ? d.lon : undefined,
-    blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined };
+    blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined,
+    beds: Array.isArray(d.beds) ? d.beds.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 3) : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -3543,6 +3629,15 @@ function finishBlock(closed) {
   S.g.blocks = [...(S.g.blocks || []), rec]; S.blk = null; S.tool = 'select'; S.hover = null; S.sel = null; S.multi = []; S.blockSel = rec.id;
   saveGarden(); renderTools(); renderInspector(); renderMap();
 }
+function finishBed() {
+  const b = S.bedDraw; if (!b || b.pts.length < 3 || !S.g) return;
+  checkpoint();
+  const rec = { id: uid(), pts: b.pts };
+  S.g.beds = [...beds(), rec]; S.bedDraw = { pts: [] }; S.bedSel = rec.id; S.hover = null;
+  saveGarden(); renderInspector(); renderMap();
+}
+function removeBed() { if (!S.g || !S.bedSel) return; checkpoint(); S.g.beds = beds().filter(b => b.id !== S.bedSel); S.bedSel = null; saveGarden(); renderInspector(); renderMap(); }
+function bedAreaOf(b) { let a = 0; b.pts.forEach(([x1, y1], i) => { const [x2, y2] = b.pts[(i + 1) % b.pts.length]; a += x1 * y2 - x2 * y1; }); return Math.abs(a / 2); }
 function removeBlock() { if (!S.g || !S.blockSel) return; checkpoint(); S.g.blocks = (S.g.blocks || []).filter(b => b.id !== S.blockSel); S.blockSel = null; saveGarden(); renderInspector(); renderMap(); }
 function sunToggle(on) {
   S.sun.on = on;
@@ -3638,6 +3733,7 @@ function cleanGarden(d) {
   if (d.colors && typeof d.colors === 'object') { const c = {}; for (const [k, v] of Object.entries(d.colors)) if (safeId(k) && Number.isInteger(v) && v >= 0 && v < 1000) c[k] = v; g.colors = c; }
   if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered };
   if (d.example) g.example = true;
+  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => ({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) })).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
   return g;
 }
 const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });

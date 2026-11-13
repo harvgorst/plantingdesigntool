@@ -385,6 +385,39 @@ test('Oudolf mode: areas that share borders, counted from plants per square metr
   eq(after.map((x, i) => +(x - before[i]).toFixed(3)).every(d => d === 0.6), true, 'every cell moved 0.6 m (two grid steps)');
 });
 
+test('beds: drawn with the Bed tool, the grid centred on them, planting kept inside, locked to other tools', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null; seed['settings/prefs'] = { oudolf: true };
+  const app = await open(seed);
+  await app.page.keyboard.press('b');
+  for (const [x, y] of [[1, 1], [6.2, 1], [6.2, 3.1], [1, 3.1], [1, 1]]) await app.clickPlan(x, y);
+  let g = await app.store('gardens/g1'); await app.page.waitForTimeout(900); g = await app.store('gardens/g1');
+  eq(g.beds?.length, 1, 'one bed saved'); eq(g.beds[0].pts.length, 4, 'with four corners');
+  // paint across the bed and well beyond it
+  await app.page.click('#lib [data-pid=p1]');
+  for (let y = 0.6; y < 3.6; y += 0.13) await app.dragPlan(0.4, y, 7, y);
+  await app.page.waitForTimeout(900);
+  const pl = (await app.store('gardens/g1')).plantings;
+  ok(pl.length > 40, 'bed filled, got ' + pl.length);
+  ok(pl.every(q => q.x > 1 && q.x < 6.2 && q.y > 1 && q.y < 3.1), 'nothing planted outside the bed');
+  const xs = pl.map(q => q.x), ys = pl.map(q => q.y), r3 = v => +v.toFixed(2);
+  eq(r3(Math.min(...xs) - 1), r3(6.2 - Math.max(...xs)), 'even margins left and right');
+  eq(r3(Math.min(...ys) - 1), r3(3.1 - Math.max(...ys)), 'even margins top and bottom');
+  // the Oudolf area reaches the bed's edge and is clipped to it
+  const box = await app.page.evaluate(() => { const g = document.querySelector('#map [data-kind=region]'); const b = g.querySelector('path').getBBox(); return { clip: g.getAttribute('clip-path'), x0: b.x, x1: b.x + b.width }; });
+  ok(/bedclip/.test(box.clip || ''), 'area clipped to the bed');
+  ok(box.x0 <= 1.0 && box.x1 >= 6.2, 'area runs out to the bed edge, got ' + JSON.stringify(box));
+  // with Select, the bed can't be picked up or moved
+  await app.page.keyboard.press('v'); await app.page.keyboard.press('Escape');
+  await app.dragPlan(1.02, 2, 2, 2); await app.page.waitForTimeout(600);
+  eq((await app.store('gardens/g1')).beds[0].pts[0], [1, 1], 'bed unmoved by Select');
+  // with the Bed tool it moves, and Delete removes it
+  await app.page.keyboard.press('b');
+  await app.dragPlan(3, 1.05, 3.5, 1.05); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).beds[0].pts[0], [1.5, 1], 'bed moved with the Bed tool');
+  await app.page.keyboard.press('Delete'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).beds, [], 'bed removed');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });
