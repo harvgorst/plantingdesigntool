@@ -183,7 +183,7 @@ test('season view colours the plan by month', async open => {
   eq((await fill('b'))[1], '0.04', 'salvia, not yet in flower, is faint');
   ok(/^April: 2 of 7 species in flower/.test(await app.page.textContent('#hint')), 'summary line, got: ' + await app.page.textContent('#hint'));
   await app.page.selectOption('#seasonSel', '0');
-  eq((await fill('a'))[1], '0.3', 'back to the usual layer colours');
+  eq((await fill('a'))[1], '0.14', 'back to the usual layer colours, light so the planting shows through');
 });
 
 test('sun study: sun position for a place, date and time', async open => {
@@ -288,15 +288,10 @@ test('booklet PDF: searchable text and a vector plan', async open => {
   else console.log('     (pdftotext not installed, so the text layer was not read back)');
 });
 
-test('perennial mode: interlocked grid, painting, Spacing view and species colours', async open => {
+test('one plan, three layers: structure placed freely, planting on the grid, bulbs over the top', async open => {
   const seed = sample(); seed['gardens/g1'].plantings = [];
   const app = await open(seed);
-  eq(await app.page.getAttribute('#vMature', 'aria-pressed'), 'true', 'a forest garden opens in Design intent');
-  await app.page.click('#lib [data-pid=p1]');
-  ok(!(await app.page.$('#pg-space')), 'no grid in forest garden mode');
-  await app.page.click('#modeSeg [data-mode=perennial]'); await app.page.waitForTimeout(900);
-  eq((await app.store('gardens/g1')).mode, 'perennial', 'mode saved with the garden');
-  eq(await app.page.getAttribute('#vSpacing', 'aria-pressed'), 'true', 'perennial mode switches to the Spacing view');
+  ok(!(await app.page.$('#vSpacing')) && !(await app.page.$('#modeSeg')), 'no separate modes or Spacing view');
   await app.page.click('#lib [data-pid=p1]');                       // salvia, herbaceous: 0.3 m spacing by default
   eq(await app.page.inputValue('#pg-space'), '0.3', 'grid starts at 30 cm');
   const row = n => +(n * 0.3 * Math.sqrt(3) / 2).toFixed(3);         // y of a row of the staggered grid
@@ -309,6 +304,7 @@ test('perennial mode: interlocked grid, painting, Spacing view and species colou
   await app.dragPlan(2, row(15), 4.4, row(15));                      // painting again over the same row adds nothing
   await app.page.waitForTimeout(900);
   eq((await app.store('gardens/g1')).plantings.length, pl.length, 'occupied grid points are skipped');
+  const nSalvia = pl.length;
   // a second species in the next row of the staggered grid
   await app.page.click('#lib [data-pid=p4]');
   await app.dragPlan(2, row(16), 4.4, row(16));
@@ -317,25 +313,39 @@ test('perennial mode: interlocked grid, painting, Spacing view and species colou
   const row2 = pl.filter(q => q.plantId === 'p4');
   ok(row2.length >= 7 && row2.every(q => Math.abs(q.y - 0.3 * Math.sqrt(3) / 2 * Math.round(q.y / (0.3 * Math.sqrt(3) / 2))) < 0.002), 'second row sits on the staggered grid');
   ok(row2.every(q => Math.abs(((q.x / 0.15) % 2) - 1) < 0.02 || Math.abs(((q.x / 0.15) % 2) - 1) > 0.98), 'offset by half a spacing from the first row');
-  // Alt-drag rubs plants out
-  await app.page.keyboard.down('Alt'); await app.dragPlan(2, row(16), 2.8, row(16)); await app.page.keyboard.up('Alt'); await app.page.waitForTimeout(900);
-  ok((await app.store('gardens/g1')).plantings.filter(q => q.plantId === 'p4').length < row2.length, 'Alt-drag removed some');
-  // existing plants, and anything placed with Shift, go exactly where you click
+  // trees, shrubs and existing plants go exactly where you click
   await app.page.click('#lib [data-pid=ex1]'); await app.clickPlan(7.13, 6.21);
-  await app.page.waitForTimeout(900); pl = (await app.store('gardens/g1')).plantings;
-  const tree = pl.find(q => q.plantId === 'ex1'); ok(tree && Math.abs(tree.x - 7.13) < 0.06 && Math.abs(tree.y - 6.21) < 0.06, 'existing tree placed freely, got ' + JSON.stringify(tree));
-  await app.page.click('#lib [data-pid=p2]'); await app.clickPlan(9.07, 6.53, { modifiers: ['Shift'] }); await app.page.waitForTimeout(900);
-  const rose = (await app.store('gardens/g1')).plantings.find(q => q.plantId === 'p2'); ok(rose && Math.abs(rose.y - 6.53) < 0.06, 'Shift places off the grid, got ' + JSON.stringify(rose));
-  await app.page.click('#lib [data-pid=p1]');
-  // Spacing view: 30 cm circles that touch; species colours with patterns; one label per block
-  const sid = (await app.store('gardens/g1')).plantings.find(q => q.plantId === 'p1').id;
+  await app.page.click('#lib [data-pid=p2]'); await app.clickPlan(9.07, 6.53); await app.page.waitForTimeout(900);
+  pl = (await app.store('gardens/g1')).plantings;
+  const tree = pl.find(q => q.plantId === 'ex1'), rose = pl.find(q => q.plantId === 'p2');
+  ok(tree && Math.abs(tree.x - 7.13) < 0.06 && Math.abs(tree.y - 6.21) < 0.06, 'existing tree placed freely, got ' + JSON.stringify(tree));
+  ok(rose && Math.abs(rose.x - 9.07) < 0.06 && Math.abs(rose.y - 6.53) < 0.06, 'shrub placed freely, got ' + JSON.stringify(rose));
+  // bulbs: their own layer, painted in among the salvias on a 15 cm grid
+  await app.page.click('#lib [data-pid=p3]');
+  ok(!(await app.page.$('#pg-space')), 'no planting-grid box for bulbs');
+  await app.dragPlan(2, row(15), 3.2, row(15)); await app.page.waitForTimeout(900);
+  pl = (await app.store('gardens/g1')).plantings;
+  const bulbs = pl.filter(q => q.plantId === 'p3');
+  ok(bulbs.length >= 7, 'bulbs painted among the perennials, got ' + bulbs.length);
+  eq(pl.filter(q => q.plantId === 'p1').length, nSalvia, 'the perennials are untouched');
+  // Alt-drag rubs out only the layer you are working on
+  await app.page.click('#lib [data-pid=p4]');
+  await app.page.keyboard.down('Alt'); await app.dragPlan(2, row(15), 2.8, row(15)); await app.dragPlan(2, row(16), 2.8, row(16)); await app.page.keyboard.up('Alt'); await app.page.waitForTimeout(900);
+  pl = (await app.store('gardens/g1')).plantings;
+  ok(pl.filter(q => q.plantId === 'p4').length < row2.length, 'Alt-drag removed some geraniums');
+  eq(pl.filter(q => q.plantId === 'p3').length, bulbs.length, 'but no bulbs');
+  // drawing: perennials at their spacing with species colours; one label per block; structure under the planting
+  const sid = pl.find(q => q.plantId === 'p1').id;
   const r = await app.page.evaluate(id => +document.querySelector(`#map [data-kind=planting][data-id="${id}"] circle`).getAttribute('r'), sid);
   eq(r, 0.15, 'circle radius is half the spacing');
+  await app.page.click('#vPlanted');
+  eq(await app.page.evaluate(id => +document.querySelector(`#map [data-kind=planting][data-id="${id}"] circle`).getAttribute('r'), sid), 0.15, 'perennials keep their size in As planted');
+  await app.page.click('#vMature');
   const fills = await app.page.evaluate(() => [...new Set([...document.querySelectorAll('#map [data-kind=planting] circle')].map(c => c.style.fill))]);
-  ok(fills.length >= 3, 'each species its own fill, got ' + fills.length);
-  const nlab = await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=planting] text').length);
-  ok(nlab <= 4, 'one label per block (plus the tree and rose), got ' + nlab);
-  const cols = (await app.store('gardens/g1')).colors; eq([cols.p1, cols.p4], [0, 1], 'colours kept with the garden');
+  ok(fills.length >= 4, 'each species its own fill, got ' + fills.length);
+  const order = await app.page.evaluate(ids => { const all = [...document.querySelectorAll('#map [data-kind=planting]')].map(g => g.dataset.id); return ids.map(id => all.indexOf(id)); }, [rose.id, sid, bulbs[0].id]);
+  ok(order[0] < order[1] && order[1] < order[2], 'drawn structure, then planting, then bulbs, got ' + order);
+  const cols = (await app.store('gardens/g1')).colors; ok(cols.p1 === 0 && cols.p4 === 1 && cols.p2 == null && cols.ex1 == null, 'species colours only for the planting, got ' + JSON.stringify(cols));
 });
 
 test('large plans: thousands of plants save and redraw', async open => {
@@ -353,14 +363,13 @@ test('large plans: thousands of plants save and redraw', async open => {
 test('works on its own: saved in the browser, kept after a reload, files downloaded', async open => {
   const app = await open({}, { real: true });
   ok(await app.page.evaluate(() => !window.claude && !window.__mock), 'no outside runtime on the page');
-  await app.page.fill('#ng-name', 'Back border'); await app.page.click('.modepick label:nth-child(2)'); await app.page.click('#newGardenForm button[type=submit]');
+  await app.page.fill('#ng-name', 'Back border'); await app.page.click('#newGardenForm button[type=submit]');
   await app.page.waitForTimeout(300);
   await app.page.click('#addPlantBtn'); await app.page.fill('#sp-common', 'Salvia'); await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(300);
   await app.page.click('#lib li'); await app.clickPlan(2, 2); await app.page.waitForTimeout(1200);
   await app.reload();
   eq(await app.page.$eval('#gardenSel', s => s.selectedOptions[0].textContent), 'Back border', 'garden still there after a reload');
   eq(await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=planting]').length), 1, 'its plant too');
-  eq(await app.page.getAttribute('#vSpacing', 'aria-pressed'), 'true', 'and its mode');
   await app.go('preferences');
   const [dl] = await Promise.all([app.page.waitForEvent('download'), app.page.click('[data-act=bkpAll]')]);
   ok(/^SevenLayers backup - everything - .*\.json$/.test(dl.suggestedFilename()), 'backup downloaded as a file, got ' + dl.suggestedFilename());
