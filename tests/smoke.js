@@ -375,6 +375,11 @@ test('Oudolf mode: areas that share borders, counted from plants per square metr
   const pl = (await app.store('gardens/g1')).plantings;
   ok(pl.filter(q => q.plantId === 'p4').length < cells, 'geranium cells taken over');
   eq((await regions()).length, 2, 'still two areas');
+  // a single plant on its own stays a circle, and the area round it carries on unbroken
+  await app.page.click('#lib [data-pid=p4]'); await app.clickPlan(1.8, row(12)); await app.page.waitForTimeout(900);
+  eq(await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=planting] circle').length >= 1), true, 'the single geranium is a circle');
+  eq((await regions()).length, 2, 'still two areas, the salvia unbroken');
+  await app.page.keyboard.press('Control+z'); await app.page.waitForTimeout(600);
   // Shift-click on an area only selects it; it never drops a plant into it
   const n0 = (await app.store('gardens/g1')).plantings.length;
   await app.page.click('#lib [data-pid=p4]');

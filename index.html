@@ -842,6 +842,17 @@ function oudolfRegions() {
     const pts = (pl.qty || 1) > 1 ? HEX.slice(0, pl.qty).map(([hx, hy]) => [pl.x + hx * s, pl.y + hy * s]) : [[pl.x, pl.y]];
     for (const [x0, y0] of pts) { const f = frameAt(x0, y0), [i, j, x, y] = latticeIdx(x0, y0, s, f); cells.set(ck(f, i, j), { i, j, x, y, f, pid: pl.plantId, id: pl.id }); }
   }
+  /* a plant with none of its own kind next to it stays a circle, drawn over the planting; the area round it carries on underneath */
+  const nb0 = (c, k) => { const a = (60 + 60 * k) * Math.PI / 180, [i, j] = latticeIdx(c.x + s * Math.cos(a), c.y + s * Math.sin(a), s, c.f); return cells.get(ck(c.f, i, j)); };
+  const singles = [], swap = [];
+  for (const [kk, c] of cells) {
+    const around = [0, 1, 2, 3, 4, 5].map(k => nb0(c, k)).filter(Boolean);
+    if (around.some(b => b.pid === c.pid)) continue;
+    singles.push({ id: c.id, pid: c.pid, x: c.x, y: c.y });
+    const tally = new Map(); for (const b of around) tally.set(b.pid, (tally.get(b.pid) || 0) + 1);
+    swap.push([kk, [...tally].sort((a, b) => b[1] - a[1])[0]?.[0]]);
+  }
+  for (const [kk, pid] of swap) { const c = cells.get(kk); if (pid) Object.assign(c, { pid, id: null, virt: true }); else cells.delete(kk); }
   /* in a bed, a plant at the edge also owns the cells just outside it, so its area reaches the bed's edge (and is cut off there) */
   for (const c of [...cells.values()]) {
     if (!c.f.id) continue;
@@ -911,11 +922,12 @@ function oudolfRegions() {
     }
     const p = plantById(mine[0].pid), area = mine.length * cellArea(s);
     const mx = mine.reduce((t, c) => t + c.x, 0) / mine.length, my = mine.reduce((t, c) => t + c.y, 0) / mine.length;
-    let lab = mine[0]; for (const c of mine) if (Math.hypot(c.x - mx, c.y - my) < Math.hypot(lab.x - mx, lab.y - my)) lab = c;
+    const clear = mine.filter(c => !singles.some(q => Math.abs(q.y - c.y) < s * 1.6 && Math.abs(q.x - c.x) < s * 3)), pool = clear.length ? clear : mine;   // keep the label clear of single plants
+    let lab = pool[0]; for (const c of pool) if (Math.hypot(c.x - mx, c.y - my) < Math.hypot(lab.x - mx, lab.y - my)) lab = c;
     regions.push({ pid: mine[0].pid, bed: mine[0].f.id, ids: [...new Set(mine.map(c => c.id))], cells: mine.length, area, qty: Math.max(1, Math.round(area * densityOf(p))),
       d: loops.map(l => 'M' + l.map(([x, y]) => f3(x) + ' ' + f3(y)).join('L') + 'Z').join(''), lx: lab.x, ly: lab.y });
   }
-  REG = { key, g: g.id, val: { regions } };
+  REG = { key, g: g.id, val: { regions, singles } };
   return counted(REG.val);
 }
 
@@ -1217,6 +1229,7 @@ function renderMap() {
   /* single plants and groups, in three layers: structure under the planting (with its outline and label drawn again on top),
      then the planting, then bulbs; largest first within each. While placing bulbs the rest fades back, and the other way round */
   const pls = [...g.plantings].sort((a, b) => radiusOf(b) - radiusOf(a));
+  const f3m = v => +v.toFixed(3);
   const L = { under: [], field: [], bulb: [], over: [] }, act = S.tool === 'plant' && !pr ? kindOf(plantById(S.activePlant)) : null, od = oudolf() ? oudolfRegions() : null;
   if (od) {
     for (const r of od.regions) {
@@ -1226,6 +1239,13 @@ function renderMap() {
       L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"${clip}><path d="${r.d}" fill-rule="evenodd" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
       if (!pr && r.ids.every(id => isSelected('planting', id))) L.over.push(`<path d="${r.d}" fill="none" style="stroke:var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
       if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = Math.min(ls * 0.78, Math.max(ls * 0.35, Math.sqrt(r.area) * 0.42)); L.over.push(halo(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
+    }
+    for (const c of od.singles) {
+      const p = plantById(c.pid); if (!isVisible(p)) continue;
+      const sr = spacingOf(p) / 2;
+      const se = S.season && !pr ? seasonOf(p, S.season) : null, f = se ? { fill: se.col || 'var(--muted)', op: se.op } : spFill(p), sel = !pr && isSelected('planting', c.id);
+      L.field.push(`<g data-kind="planting" data-id="${c.id}" style="cursor:move"><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:var(--ground)"/><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" vector-effect="non-scaling-stroke"/>${sel ? `<circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr + fs * 0.5}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}</g>`);
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = Math.min(ls * 0.6, sr * 1.6 / Math.max(2, t.length * 0.5) * 2.2); L.over.push(halo(c.x, c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
     }
   }
   for (const pl of pls) {
@@ -1602,7 +1622,7 @@ function scheduleRows() {
   const isEx = id => !!plantById(id)?.existing;
   const od = S.g && oudolf();   // in Oudolf mode the planting is counted from the size of its areas
   for (const pl of S.g?.plantings || []) if (!isEx(pl.plantId) && !(od && kindOf(plantById(pl.plantId)) === 'field')) m.set(pl.plantId, (m.get(pl.plantId) || 0) + (pl.qty || 1));
-  if (od) for (const r of oudolfRegions().regions) m.set(r.pid, (m.get(r.pid) || 0) + r.qty);
+  if (od) { const o = oudolfRegions(); for (const r of o.regions) m.set(r.pid, (m.get(r.pid) || 0) + r.qty); for (const c of o.singles) m.set(c.pid, (m.get(c.pid) || 0) + 1); }
   for (const a of S.g?.areas || []) if (a.kind === 'drift' && a.plantId && !isEx(a.plantId)) m.set(a.plantId, (m.get(a.plantId) || 0) + driftQty(a));
   return [...m.entries()].map(([id, qty]) => ({ p: plantById(id), id, qty })).sort((a, b) => (a.p?.common || '').localeCompare(b.p?.common || ''));
 }
