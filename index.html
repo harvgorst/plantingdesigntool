@@ -126,8 +126,8 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
   --label: #000000; --exist: #7B7266; --shade: #1F2A44; }
 #map.panning, #map.panning * { cursor: grabbing !important; }
 #map { flex: 1; width: 100%; min-height: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
-/* one plain sans for every word on the plan, on screen, in the booklet and in the PDF: standard fonts, so all three match */
-#map text { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; letter-spacing: -0.01em; text-rendering: geometricPrecision; }
+/* one serif for every word on the plan, on screen, in the booklet and in the PDF: a standard font, so all three match */
+#map text { font-family: Georgia, "Times New Roman", serif; text-rendering: geometricPrecision; }
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--panel); }
 .overlay .card { max-width: 400px; width: 100%; overflow: visible; }
 
@@ -1160,9 +1160,8 @@ function renderMap() {
   const pr = S.print, pad = pr?.pad ?? M * 0.07, fs = pr?.fs ?? M / 55 / S.zoom, showScale = S.prefs.showScale || !!pr?.sheet;
   /* a label with a halo in the sheet colour; the print version draws the halo as its own layer, which PDFs need */
   const halo = (x, y, size, txt, o = {}) => {
-    const base = `x="${x}" y="${y}" font-size="${size}" text-anchor="${o.anchor || 'middle'}"`, fw = `font-weight:${o.bold ? 600 : 500};letter-spacing:-0.01em`;
-    if (pr?.vector) return `<text ${base} style="fill:none;stroke:var(--ground);stroke-width:${size * 0.16};stroke-linejoin:round;${fw}">${txt}</text><text ${base} style="fill:var(--label);${fw}">${txt}</text>`;
-    return `<text ${base} style="fill:var(--label);${fw};stroke:var(--ground);stroke-width:${size * 0.16};paint-order:stroke;stroke-linejoin:round" pointer-events="${o.live ? 'auto' : 'none'}">${txt}</text>`;
+    const base = `x="${x}" y="${y}" font-size="${size}" text-anchor="${o.anchor || 'middle'}"`, fw = `font-weight:${o.bold ? 700 : 400}`;
+    return `<text ${base} style="fill:var(--label);${fw}" pointer-events="${o.live ? 'auto' : 'none'}">${txt}</text>`;   // plain lettering, no outline
   };
   let px = (M / 900) / S.zoom;
   if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
@@ -2430,7 +2429,7 @@ async function planImage(numbered) {
   }
   const [, , vw, vh] = vb.split(' ').map(Number);
   const W = 2600, H = Math.round(W * vh / vw);
-  const doc = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vb}" width="${W}" height="${H}" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" text-rendering="geometricPrecision">${markup}</svg>`;
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vb}" width="${W}" height="${H}" font-family="Georgia, 'Times New Roman', serif" text-rendering="geometricPrecision">${markup}</svg>`;
   const url = URL.createObjectURL(new Blob([doc], { type: 'image/svg+xml' }));
   try {
     const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
@@ -2582,7 +2581,7 @@ async function planVectorMarkup(o) {
   return { markup, vb };
 }
 async function drawPlanVector(pdf, v, x, y, w, h) {
-  const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${v.vb.join(' ')}" font-family="helvetica">${v.markup}</svg>`, 'image/svg+xml');
+  const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${v.vb.join(' ')}" font-family="times">${v.markup}</svg>`, 'image/svg+xml');
   if (doc.querySelector('parsererror')) throw new Error('the plan could not be drawn');
   await pdf.svg(doc.documentElement, { x, y, width: w, height: h });
 }
