@@ -690,7 +690,7 @@ const HINTS = {
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
-const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'eiderdown', pgridSpace: 0.3 };
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'eiderdown', pgridSpace: 0.3, oudolf: false };
 const THEMES = {
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
   woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
@@ -809,6 +809,93 @@ const hexR = n => HEX[clamp(n, 1, 500) - 1][2];
 function spreadOf(p) { if (!p) return 0.5; if (p.existing) return num(p.spread, 0.5); return S.view !== 'planted' ? num(p.spread, 0.5) : num(p.potSpread, 0.2); }
 function radiusOf(pl) { const p = plantById(pl.plantId); if (onGrid(p)) { const s = spacingOf(p); return hexR(Math.max(1, pl.qty || 1)) * s + s / 2; } const s = p?.existing && num(pl.spread) > 0 ? num(pl.spread) : spreadOf(p); return (s / 2) * Math.sqrt(Math.max(1, pl.qty || 1)); }
 function defaultDensity(p) { const s = num(p?.spread, 0.5); return Math.round((1 / (s * s)) * 10) / 10; }
+
+/* ---------- Oudolf mode: the planting drawn as areas that share their borders ---------- */
+const oudolf = () => !!S.prefs.oudolf;
+function densityOf(p) { return num(p?.density) > 0 ? clamp(num(p.density), 0.1, 200) : defaultDensity(p); }
+const cellArea = s => s * s * Math.sqrt(3) / 2;
+function latticeIdx(x, y, s) { const dy = s * Math.sqrt(3) / 2, q = latticeSnap(x, y, s), j = Math.round(q.y / dy); return [Math.round((q.x - ((j & 1) ? s / 2 : 0)) / s), j]; }
+let REG = { key: '', val: null };
+/* Each painted grid point owns one hexagonal cell. Cells of one species that touch make an area; the edges between
+   different areas (or open ground) are the borders. Every border vertex is shared, so smoothing the vertices (keeping the
+   points where three areas meet fixed) bends neighbouring areas together and they never gap or overlap. */
+function oudolfRegions() {
+  const g = S.g, s = gridSpace();
+  const field = g.plantings.filter(pl => kindOf(plantById(pl.plantId)) === 'field');
+  const key = s + '|' + field.map(pl => pl.id + ':' + pl.plantId + ':' + pl.x + ':' + pl.y + ':' + (pl.qty || 1)).join(';');
+  const counted = v => { for (const r of v.regions) r.qty = Math.max(1, Math.round(r.area * densityOf(plantById(r.pid)))); return v; };   // counts follow the current plants per m²
+  if (REG.key === key && REG.g === g.id) return counted(REG.val);
+  const dy = s * Math.sqrt(3) / 2, R = s / Math.sqrt(3), cells = new Map(), ck = (i, j) => i + ',' + j;
+  for (const pl of field) {
+    const pts = (pl.qty || 1) > 1 ? HEX.slice(0, pl.qty).map(([hx, hy]) => [pl.x + hx * s, pl.y + hy * s]) : [[pl.x, pl.y]];
+    for (const [x, y] of pts) { const [i, j] = latticeIdx(x, y, s); cells.set(ck(i, j), { i, j, x: i * s + ((j & 1) ? s / 2 : 0), y: j * dy, pid: pl.plantId, id: pl.id }); }
+  }
+  const list = [...cells.values()];
+  list.forEach((c, n) => { c.n = n; });
+  /* areas: cells of one species that touch */
+  const up = list.map((_, n) => n), find = n => { while (up[n] !== n) n = up[n] = up[up[n]]; return n; };
+  const nbOf = (c, k) => { const a = (60 + 60 * k) * Math.PI / 180, [i, j] = latticeIdx(c.x + s * Math.cos(a), c.y + s * Math.sin(a), s); return cells.get(ck(i, j)); };
+  for (const c of list) for (let k = 0; k < 6; k++) { const b = nbOf(c, k); if (b && b.pid === c.pid) up[find(b.n)] = find(c.n); }
+  /* border edges, each halved so the smoothing has points to bend */
+  const pos = new Map(), nbrs = new Map(), vk = (x, y) => Math.round(x * 1e4) + ',' + Math.round(y * 1e4);
+  const vert = (x, y) => { const k = vk(x, y); if (!pos.has(k)) { pos.set(k, [x, y]); nbrs.set(k, new Set()); } return k; };
+  const link = (a, b) => { nbrs.get(a).add(b); nbrs.get(b).add(a); };
+  const corners = new Set(), corner = (c, k) => { const a = (30 + 60 * k) * Math.PI / 180, v = vert(c.x + R * Math.cos(a), c.y + R * Math.sin(a)); corners.add(v); return v; };
+  const next = new Map(), seen = new Set();
+  for (const c of list) for (let k = 0; k < 6; k++) {
+    const b = nbOf(c, k); if (b && b.pid === c.pid) continue;
+    const a0 = corner(c, k), a1 = corner(c, (k + 1) % 6), ek = a0 < a1 ? a0 + '|' + a1 : a1 + '|' + a0;
+    const m = vert((pos.get(a0)[0] + pos.get(a1)[0]) / 2, (pos.get(a0)[1] + pos.get(a1)[1]) / 2);
+    if (!seen.has(ek)) { seen.add(ek); link(a0, m); link(m, a1); }
+    const r = find(c.n); if (!next.has(r)) next.set(r, new Map());
+    next.get(r).set(a0, m); next.get(r).set(m, a1);
+  }
+  /* cut the hexagon corners off, except where three areas meet, so the border runs edge-middle to edge-middle */
+  for (const k of corners) {
+    const nb = nbrs.get(k); if (!nb || nb.size !== 2) continue;
+    const [a, b] = [...nb]; nbrs.get(a).delete(k); nbrs.get(b).delete(k); link(a, b); nbrs.delete(k); pos.delete(k);
+    for (const nx of next.values()) for (const [x, y] of nx) if (y === k) nx.set(x, nx.get(k));
+    for (const nx of next.values()) nx.delete(k);
+  }
+  /* smooth without shrinking (Taubin): pull each border point towards its neighbours, then push back a little */
+  const P = new Map([...pos].map(([k, v]) => [k, v.slice()]));
+  for (let it = 0; it < 30; it++) for (const f of [0.5, -0.53]) {
+    const upd = [];
+    for (const [k, nb] of nbrs) { if (nb.size !== 2) continue; const [a, b] = [...nb], pa = P.get(a), pb = P.get(b), q = P.get(k); upd.push([k, q[0] + f * ((pa[0] + pb[0]) / 2 - q[0]), q[1] + f * ((pa[1] + pb[1]) / 2 - q[1])]); }
+    for (const [k, x, y] of upd) P.set(k, [x, y]);
+  }
+  /* a free-standing area (one with no point shared by three areas) is scaled back to its true size */
+  const done = new Set(), ringArea = (ks, Q) => { let a = 0; ks.forEach((k, i) => { const [x1, y1] = Q.get(k), [x2, y2] = Q.get(ks[(i + 1) % ks.length]); a += x1 * y2 - x2 * y1; }); return Math.abs(a / 2); };
+  for (const st of nbrs.keys()) {
+    if (done.has(st)) continue;
+    const ring = [], todo = [st]; let free = true; done.add(st);
+    while (todo.length) { const k = todo.pop(); ring.push(k); if (nbrs.get(k).size !== 2) free = false; for (const n of nbrs.get(k)) if (!done.has(n)) { done.add(n); todo.push(n); } }
+    if (!free || ring.length < 3) continue;
+    const ord = []; for (let prev = null, k = ring[0], n = 0; n < ring.length; n++) { ord.push(k); const nx = [...nbrs.get(k)].find(v => v !== prev); prev = k; k = nx; if (k === ring[0]) break; }
+    const a0 = ringArea(ord, pos), a1 = ringArea(ord, P); if (!(a1 > 0)) continue;
+    const k = Math.sqrt(a0 / a1), cx = ord.reduce((t, v) => t + P.get(v)[0], 0) / ord.length, cy = ord.reduce((t, v) => t + P.get(v)[1], 0) / ord.length;
+    for (const v of ord) { const [x, y] = P.get(v); P.set(v, [cx + (x - cx) * k, cy + (y - cy) * k]); }
+  }
+  const f3 = v => +v.toFixed(3);
+  const regions = [];
+  for (const [r, nx] of next) {
+    const mine = list.filter(c => find(c.n) === r), used = new Set(), loops = [];
+    for (const st of nx.keys()) {
+      if (used.has(st)) continue;
+      const loop = []; let k = st, guard = 0;
+      while (k != null && !used.has(k) && guard++ < 1e6) { used.add(k); loop.push(P.get(k)); k = nx.get(k); }
+      if (loop.length > 2) loops.push(loop);
+    }
+    const p = plantById(mine[0].pid), area = mine.length * cellArea(s);
+    const mx = mine.reduce((t, c) => t + c.x, 0) / mine.length, my = mine.reduce((t, c) => t + c.y, 0) / mine.length;
+    let lab = mine[0]; for (const c of mine) if (Math.hypot(c.x - mx, c.y - my) < Math.hypot(lab.x - mx, lab.y - my)) lab = c;
+    regions.push({ pid: mine[0].pid, ids: [...new Set(mine.map(c => c.id))], cells: mine.length, area, qty: Math.max(1, Math.round(area * densityOf(p))),
+      d: loops.map(l => 'M' + l.map(([x, y]) => f3(x) + ' ' + f3(y)).join('L') + 'Z').join(''), lx: lab.x, ly: lab.y });
+  }
+  let bd = ''; for (const [k, nb] of nbrs) for (const n of nb) if (k < n) { const [x1, y1] = P.get(k), [x2, y2] = P.get(n); bd += `M${f3(x1)} ${f3(y1)}L${f3(x2)} ${f3(y2)}`; }
+  REG = { key, g: g.id, val: { regions, borders: bd } };
+  return counted(REG.val);
+}
 
 /* ---------- curve geometry (closed Catmull-Rom splines) ---------- */
 function segs(pts, closed) {
@@ -1099,11 +1186,22 @@ function renderMap() {
   /* single plants and groups, in three layers: structure under the planting (with its outline and label drawn again on top),
      then the planting, then bulbs; largest first within each. While placing bulbs the rest fades back, and the other way round */
   const pls = [...g.plantings].sort((a, b) => radiusOf(b) - radiusOf(a));
-  const L = { under: [], field: [], bulb: [], over: [] }, act = S.tool === 'plant' && !pr ? kindOf(plantById(S.activePlant)) : null;
+  const L = { under: [], field: [], bulb: [], over: [] }, act = S.tool === 'plant' && !pr ? kindOf(plantById(S.activePlant)) : null, od = oudolf() ? oudolfRegions() : null;
+  if (od) {
+    for (const r of od.regions) {
+      const p = plantById(r.pid); if (!isVisible(p)) continue;
+      const se = S.season && !pr ? seasonOf(p, S.season) : null, f = se ? { fill: se.col || 'var(--muted)', op: se.op } : spFill(p);
+      L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"><path d="${r.d}" fill-rule="evenodd" style="fill:${f.fill}" fill-opacity="${f.op}"/></g>`);
+      if (!pr && r.ids.every(id => isSelected('planting', id))) L.over.push(`<path d="${r.d}" fill="none" style="stroke:var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = Math.min(ls * 0.78, Math.max(ls * 0.35, Math.sqrt(r.area) * 0.42)); L.over.push(halo(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
+    }
+    L.field.push(`<path d="${od.borders}" fill="none" style="stroke:var(--label)" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+  }
   for (const pl of pls) {
     const p = plantById(pl.plantId);
     if (!isVisible(p)) continue;
     const kind = kindOf(p), grid = kind === 'field' || kind === 'bulb';
+    if (od && kind === 'field') continue;
     const ex = !!p?.existing, st = pl.status || 'retain', qty = Math.max(1, pl.qty || 1);
     const se = S.season && !pr ? seasonOf(p, S.season) : null;
     const spf = grid && !se && kind === 'field' ? spFill(p) : null;
@@ -1185,6 +1283,7 @@ function renderMap() {
   }
   if (S.tool === 'plant' && gridOn() && S.hover && !S.hoverShift && !pr && !S.drag) {
     const p = plantById(S.activePlant), q = latticeSnap(S.hover.x, S.hover.y, latticeOf(p));
+    if (oudolf() && kindOf(p) === 'field') { const R = gridSpace() / Math.sqrt(3); parts.push(`<path d="M${[0, 1, 2, 3, 4, 5].map(k => { const a = (30 + 60 * k) * Math.PI / 180; return +(q.x + R * Math.cos(a)).toFixed(3) + ' ' + +(q.y + R * Math.sin(a)).toFixed(3); }).join('L')}Z" style="fill:${speciesStyle(p).col};stroke:var(--accent)" fill-opacity="0.35" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>`); } else
     parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${spacingOf(p) * (kindOf(p) === 'bulb' ? 0.3 : 0.5)}" fill="none" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
   if (S.tool === 'row' && S.row?.a && !pr) {
@@ -1256,6 +1355,7 @@ function renderTools() {
   if (u && document.activeElement !== $('ulOpacity')) $('ulOpacity').value = Math.round(num(u.opacity, 0.6) * 100);
 }
 function renderLibrary() {
+  ensureColours();   // so the swatches match the plan from the start
   $('libPane').hidden = !!S.editPlant; $('editPane').hidden = !S.editPlant; $('addPlantBtn').hidden = !!S.editPlant;
   const inDb = getPage() === 'database';
   $('plantModal').hidden = !(S.editPlant && inDb);
@@ -1308,8 +1408,9 @@ function renderInspector() {
     const p = plantById(S.activePlant);
     hint.hidden = true; el.hidden = false;
     el.innerHTML = `<span class="pk">${plantSwatch(p, 14)}${esc(p?.common || 'Plant')}</span>
+      ${kindOf(p) === 'field' && oudolf() ? `<label class="pf"><span>Plants per m²</span><input id="pt-dens" class="n" type="number" min="0.1" max="200" step="0.5" value="${+densityOf(p).toFixed(1)}"></label>` : ''}
       ${kindOf(p) === 'field' ? `<label class="pf"><span>Grid</span><input id="pg-space" class="n" type="number" min="0.05" max="2" step="0.05" value="${gridSpace()}"><span class="pv">m</span></label>` : ''}
-      <span class="pv">${{ field: `Click or drag to paint onto the planting grid; Alt-drag rubs out. Hold Shift to place one off the grid.`,
+      <span class="pv">${{ field: oudolf() ? 'Paint this plant’s area; painting over a neighbour moves the border between them. Alt-drag rubs out.' : `Click or drag to paint onto the planting grid; Alt-drag rubs out. Hold Shift to place one off the grid.`,
         bulb: `Bulbs are their own layer, planned over the planting: paint them on a ${Math.round(spacingOf(p) * 100)} cm grid among the perennials. Alt-drag rubs out bulbs only.`,
         structure: 'Trees, shrubs and climbers go exactly where you click, drawn at their own size under the planting.',
         existing: 'Existing plants go exactly where you click, drawn at their measured size.' }[kindOf(p)]}</span>`;
@@ -1333,6 +1434,16 @@ function renderInspector() {
   }
   if (S.multi.length) {
     const items = selectedItems();
+    const rp = oudolf() && items.length > 1 && items.every(m => m.kind === 'planting' && m.it.plantId === items[0].it.plantId && kindOf(plantById(m.it.plantId)) === 'field') ? plantById(items[0].it.plantId) : null;
+    if (rp) {
+      hint.hidden = true; el.hidden = false;
+      const set = new Set(items.map(m => m.id)), regs = oudolfRegions().regions.filter(r => r.ids.some(id => set.has(id))), area = regs.reduce((t, r) => t + r.area, 0), qty = regs.reduce((t, r) => t + r.qty, 0);
+      el.innerHTML = `<span class="pk">${plantSwatch(rp, 14)}${esc(rp.common || rp.botanical || 'Plant')}</span>
+        <label class="pf"><span>Plants per m²</span><input id="rg-dens" class="n" type="number" min="0.1" max="200" step="0.5" value="${+densityOf(rp).toFixed(1)}"></label>
+        <span class="pv">${area.toFixed(2)} m² · ${plural(qty, 'plant')} · drag to move the area, Delete removes it</span>
+        <span class="acts"><button class="btn sm" type="button" data-act="editSpecies">Edit species</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
+      return;
+    }
     if (items.length > 1) {
       hint.hidden = true; el.hidden = false;
       const plants = items.filter(m => m.kind === 'planting').reduce((t, m) => t + (m.it.qty || 1), 0), drifts = items.filter(m => m.it.kind === 'drift').length, beds = items.filter(m => m.it.kind === 'bed').length;
@@ -1433,7 +1544,9 @@ function renderPlantEditor(el) {
 function scheduleRows() {
   const m = new Map();
   const isEx = id => !!plantById(id)?.existing;
-  for (const pl of S.g?.plantings || []) if (!isEx(pl.plantId)) m.set(pl.plantId, (m.get(pl.plantId) || 0) + (pl.qty || 1));
+  const od = S.g && oudolf();   // in Oudolf mode the planting is counted from the size of its areas
+  for (const pl of S.g?.plantings || []) if (!isEx(pl.plantId) && !(od && kindOf(plantById(pl.plantId)) === 'field')) m.set(pl.plantId, (m.get(pl.plantId) || 0) + (pl.qty || 1));
+  if (od) for (const r of oudolfRegions().regions) m.set(r.pid, (m.get(r.pid) || 0) + r.qty);
   for (const a of S.g?.areas || []) if (a.kind === 'drift' && a.plantId && !isEx(a.plantId)) m.set(a.plantId, (m.get(a.plantId) || 0) + driftQty(a));
   return [...m.entries()].map(([id, qty]) => ({ p: plantById(id), id, qty })).sort((a, b) => (a.p?.common || '').localeCompare(b.p?.common || ''));
 }
@@ -1592,6 +1705,10 @@ function renderPrefs() {
         ${chk('pf-rulers', 'showRulers', 'Show measurements along the edges')}
         ${chk('pf-scale', 'showScale', 'Show scale bar and north arrow')}
       </fieldset>
+      <fieldset class="pref"><legend>Planting style</legend>
+        ${chk('pf-oudolf', 'oudolf', 'Oudolf mode')}
+        <p class="note" style="margin:0">Draws the perennials and ground cover as areas that share their borders, in the manner of Piet Oudolf’s and Henk Gerritsen’s plans, keeping each plant’s colour and pattern. You still paint them onto the grid; each area is labelled with its count, worked out from its size and the plant’s number per square metre, which you set in the bar under the toolbar.</p>
+      </fieldset>
       <fieldset class="pref"><legend>Placing plants</legend>
         <label class="field"><span>Snap to</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-snap" data-pref="snap" min="0.05" max="1" step="0.05" value="${clamp(num(P.snap, 0.1), 0.05, 1)}" style="flex:1;accent-color:var(--accent)"><output id="pf-snap-v" style="min-width:3.5em;text-align:right">${snapText(P.snap)}</output></span></label>
         <p class="note" style="margin:0">Plants jump to this spacing when you place or drag them.</p>
@@ -1622,7 +1739,7 @@ function savePrefs() {
 function setPref(k, v) {
   S.prefs[k] = v; savePrefs();
   if (k === 'theme') { applyTheme(v); return; }
-  if (k === 'pgridSpace') { if (S.loaded) { renderLibrary(); renderLayers(); renderMap(); } return; }
+  if (k === 'pgridSpace' || k === 'oudolf') { if (S.loaded) { renderLibrary(); renderLayers(); renderMap(); } return; }
   if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
   if (k === 'snap') { const o = $('pf-snap-v'); if (o) o.textContent = snapText(v); }
   const smp = $('pf-sample');
@@ -1893,6 +2010,13 @@ function paintAt(d, p) {
     if (!d.changed) { pushHistory(d.before); d.changed = true; }
     S.g.plantings = keep; renderMapSoon(); return;
   }
+  if (oudolf() && kind === 'field') {
+    const here = S.g.plantings.filter(x => (x.qty || 1) === 1 && kindOf(plantById(x.plantId)) === 'field' && Math.hypot(x.x - q.x, x.y - q.y) < s * 0.55);
+    if (here.some(x => x.plantId === S.activePlant)) return;
+    if (!d.changed) { pushHistory(d.before); d.changed = true; }
+    if (here.length) S.g.plantings = S.g.plantings.filter(x => !here.includes(x));
+    S.g.plantings.push({ id: uid(), plantId: S.activePlant, x: q.x, y: q.y, qty: 1 }); renderMapSoon(); return;
+  }
   const sp = spacingOf(np);
   for (const x of S.g.plantings) {
     const xp = plantById(x.plantId); if (!xp || kindOf(xp) !== kind) continue;
@@ -1957,6 +2081,14 @@ svg.addEventListener('pointerdown', e => {
     const d = { paint: true, erase: e.altKey, last: p, before: JSON.stringify(S.g), changed: false };
     S.drag = d; paintAt(d, p); renderInspector(); return;
   }
+  if (hit?.dataset.kind === 'region' && (tool === 'select' || !S.activePlant)) {
+    const ids = hit.dataset.ids.split(',');
+    if (e.shiftKey) { for (const id of ids) toggleSelect('planting', id); return; }
+    if (!ids.every(id => isSelected('planting', id))) selectMany(ids.map(id => ({ kind: 'planting', id })));
+    const items = selectedItems(); if (!items.length) return;
+    S.drag = { move: true, lattice: true, start: p, moved: false, before: JSON.stringify(S.g), items: items.map(m => ({ m, orig: m.kind === 'area' ? m.it.pts.map(q => q.slice()) : { x: m.it.x, y: m.it.y } })) };
+    return;
+  }
   /* with the Plant tool, a click selects only a plant of the species being placed, so a shrub can go in under a tree */
   const selecting = tool === 'select' || (tool === 'plant' && hit && ((hit.dataset.kind === 'planting' && S.g.plantings.find(x => x.id === hit.dataset.id)?.plantId === S.activePlant) || hit.dataset.kind === 'handle' || !S.activePlant));
   if (selecting && hit) {
@@ -2019,6 +2151,11 @@ svg.addEventListener('pointermove', e => {
     if (!d.moved && d.before) pushHistory(d.before);
     d.moved = true;
     const one = d.items.length === 1;
+    if (d.lattice) {   // an area moves a whole number of grid steps, so it stays on the grid
+      const s = gridSpace(), ry = s * Math.sqrt(3) / 2, j = Math.round(dy / ry), i = Math.round((dx - j * s / 2) / s), qx = i * s + j * s / 2, qy = j * ry;
+      for (const { m, orig } of d.items) if (m.kind === 'planting') { m.it.x = +(orig.x + qx).toFixed(3); m.it.y = +(orig.y + qy).toFixed(3); }
+      renderMapSoon(); return;
+    }
     for (const { m, orig } of d.items) {
       if (m.kind === 'area') m.it.pts = orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
       else if (one && !e.shiftKey && gridFor(plantById(m.it.plantId)) && m.kind === 'planting' && (m.it.qty || 1) === 1) { const q = latticeSnap(orig.x + dx, orig.y + dy, latticeOf(plantById(m.it.plantId))); m.it.x = q.x; m.it.y = q.y; }
@@ -2133,6 +2270,16 @@ async function setPlantPhoto(plantId, file) {
   if (S.online) await S.db.doc('plants/' + plantId).set(body);
   upsertPlant(rec); renderPresentation();
 }
+/* plants per square metre, set from the bar under the toolbar; kept with the species and undoable */
+function setDensity(id, v) {
+  const p = plantById(id); if (!p || !(v > 0)) return;
+  const before = { ...p }, after = { ...p, density: +clamp(v, 0.1, 200).toFixed(2) }, entry = { plants: [{ id, before, after }] };
+  pushHistory(entry); applyPlantChange(entry, 'after').then(() => { renderMap(); renderInspector(); refreshDerived(); });
+}
+document.body.addEventListener('change', e => {
+  if (e.target.id === 'pt-dens') setDensity(S.activePlant, num(e.target.value));
+  if (e.target.id === 'rg-dens') { const it = selectedItems()[0]?.it; if (it) setDensity(it.plantId, num(e.target.value)); }
+});
 document.body.addEventListener('change', async e => {
   const t = e.target;
   if (t.dataset.photoEdit !== undefined && S.editPlant && t.files?.[0]) {
@@ -2162,7 +2309,7 @@ function bookletInput(t) {
   clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 350);
 }
 async function planImage(numbered) {
-  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.plants.map(p => [p.planColor, p.planPattern, p.spacing].join()).join()]);
+  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
   S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = {};
@@ -2626,7 +2773,7 @@ app.addEventListener('click', async e => {
   if (act === 'addInterest' && S.editPlant) { const used = new Set((S.editPlant.interest || []).map(x => x.kind)), k = Object.keys(INTEREST).find(x => !used.has(x)) || 'berries', v = INTEREST[k]; S.editPlant.interest = [...(S.editPlant.interest || []), { kind: k, from: v[1], to: v[2], color: v[3] }].slice(0, 8); renderLibrary(); }
   if (act === 'autoPlanColour' && S.editPlant) { S.editPlant.planColor = null; S.editPlant.planPattern = null; renderLibrary(); }
   if (act === 'clearColour') { S.editPlant.flowerColor = null; S.editPlant.flowerColorName = null; renderLibrary(); }
-  if (act === 'editSpecies') { const it = findSel(); if (it?.plantId) openPlantEditor(it.plantId); }
+  if (act === 'editSpecies') { const it = findSel() || selectedItems()[0]?.it; if (it?.plantId) openPlantEditor(it.plantId); }
   if (act === 'calApply') applyScale(num($('cal-m')?.value));
   if (act === 'calCancel') setTool('select');
   if (act === 'ulRemoveNo') { S.confirm = null; renderInspector(); }
@@ -3450,6 +3597,7 @@ function cleanPlant(d) {
   if (d.source && typeof d.source === 'object') p.source = { list: str(d.source.list, 64), listName: str(d.source.listName, 200), code: str(d.source.code, 80), stock: str(d.source.stock, 40), checkedAt: numOrNull(d.source.checkedAt) ?? 0 };
   if (FOLIAGE[d.foliage]) p.foliage = d.foliage;
   if (numOrNull(d.spacing) > 0) p.spacing = clamp(+d.spacing, 0.05, 20);
+  if (numOrNull(d.density) > 0) p.density = clamp(+d.density, 0.1, 200);
   if (hexOrNull(d.planColor)) p.planColor = d.planColor;
   if (PATTERNS[d.planPattern]) p.planPattern = d.planPattern;
   const interest = cleanInterest(d.interest); if (interest.length) p.interest = interest;
@@ -3570,7 +3718,7 @@ async function restoreBackup(file) {
       S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false,
         showGrid: p.showGrid !== false, gridStep: ['auto', '0.5', '1', '2', '5'].includes(String(p.gridStep)) ? String(p.gridStep) : 'auto', showRulers: p.showRulers !== false, showScale: p.showScale !== false, snap: clamp(numOrNull(p.snap) ?? 0.1, 0.05, 1),
         currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown',
-        pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2) };
+        pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2), oudolf: p.oudolf === true };
       const logo = await asset(p.logoId); if (logo) S.prefs.logoId = logo;
       applyRoleColours(); applyTheme(S.prefs.theme); savePrefs();
     }

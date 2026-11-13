@@ -348,6 +348,43 @@ test('one plan, three layers: structure placed freely, planting on the grid, bul
   const cols = (await app.store('gardens/g1')).colors; ok(cols.p1 === 0 && cols.p4 === 1 && cols.p2 == null && cols.ex1 == null, 'species colours only for the planting, got ' + JSON.stringify(cols));
 });
 
+test('Oudolf mode: areas that share borders, counted from plants per square metre', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = []; seed['settings/prefs'] = { oudolf: true };
+  const app = await open(seed);
+  const row = n => +(n * 0.3 * Math.sqrt(3) / 2).toFixed(3);
+  await app.page.click('#lib [data-pid=p1]');
+  for (let n = 10; n < 16; n++) await app.dragPlan(1, row(n), 3, row(n));
+  await app.page.click('#lib [data-pid=p4]');
+  for (let n = 10; n < 16; n++) await app.dragPlan(3.3, row(n), 5, row(n));
+  await app.page.waitForTimeout(900);
+  const regions = () => app.page.evaluate(() => [...document.querySelectorAll('#map [data-kind=region]')].map(g => g.dataset.ids.split(',').length));
+  eq((await regions()).length, 2, 'one area per species');
+  eq(await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=planting] circle').length), 0, 'no circles for the planting');
+  // counted from area × plants per m²
+  await app.page.fill('#pt-dens', '9'); await app.page.press('#pt-dens', 'Enter'); await app.page.waitForTimeout(400);
+  eq((await app.store('plants/p4')).density, 9, 'plants per m² kept with the species');
+  const cells = (await app.store('gardens/g1')).plantings.filter(q => q.plantId === 'p4').length;
+  const want = Math.round(cells * 0.09 * Math.sqrt(3) / 2 * 9);
+  await app.go('schedule');
+  const srow = await app.page.evaluate(() => [...document.querySelectorAll('#sched tr')].map(r => [...r.cells].map(c => c.textContent.trim())).find(t => t.some(c => /Geranium/.test(c))) || []);
+  ok(srow.includes(String(want)), `geranium count is area × 9 = ${want}, row: ${srow.join(' | ')}`);
+  await app.go('plan');
+  // painting over a neighbour moves the border; the areas stay two
+  await app.page.click('#lib [data-pid=p1]');
+  await app.dragPlan(3.2, row(12), 3.9, row(12)); await app.page.waitForTimeout(900);
+  const pl = (await app.store('gardens/g1')).plantings;
+  ok(pl.filter(q => q.plantId === 'p4').length < cells, 'geranium cells taken over');
+  eq((await regions()).length, 2, 'still two areas');
+  // clicking an area selects all of it, and it moves as one, staying on the grid
+  await app.page.keyboard.press('v');
+  await app.clickPlan(4.6, row(14));
+  ok(/m² ·/.test(await app.page.textContent('#inspector')), 'area shown with its size');
+  const before = (await app.store('gardens/g1')).plantings.filter(q => q.plantId === 'p4').map(q => q.x).sort((a, b) => a - b);
+  await app.dragPlan(4.6, row(14), 5.2, row(14)); await app.page.waitForTimeout(900);
+  const after = (await app.store('gardens/g1')).plantings.filter(q => q.plantId === 'p4').map(q => q.x).sort((a, b) => a - b);
+  eq(after.map((x, i) => +(x - before[i]).toFixed(3)).every(d => d === 0.6), true, 'every cell moved 0.6 m (two grid steps)');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });
