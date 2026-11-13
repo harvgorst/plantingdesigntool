@@ -687,7 +687,7 @@ const HINTS = {
   select: 'Click to select. Drag empty space to move the page. Shift-drag draws a selection box. Ctrl+D duplicates, Ctrl+C and Ctrl+V copy and paste, arrow keys nudge. Scroll to pan; + / − to zoom.',
   row: 'Row: click where the row starts, then where it ends. Plants are spaced evenly along the line. Hold Shift to keep it level, upright or at 45°.',
   measure: 'Measure: click two points on the plan to read the distance between them.',
-  bed: 'Bed: click each corner of the bed, then click the first corner again to close it. Click a bed to select it: drag it to move it, drag its corners to reshape it. Beds can only be changed with this tool.',
+  bed: 'Bed: click round the edge of the bed, then click the first point again to close it; the edge is drawn as a smooth curve through your points. Click a bed to select it: drag it to move it, drag its corners to reshape it. Beds can only be changed with this tool.',
   block: 'Click each corner of the building, wall or fence. Click the first corner again to close a building. Enter finishes an open fence; Esc cancels.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
@@ -801,12 +801,16 @@ const gridSpace = () => clamp(num(S.prefs.pgridSpace, 0.3), 0.05, 2);
 const latticeOf = p => kindOf(p) === 'bulb' ? spacingOf(p) : gridSpace();   // bulbs sit on their own, finer grid
 /* beds: drawn with the Bed tool; inside one, the grid is centred on the bed so the rows sit evenly from edge to edge */
 const beds = () => S.g?.beds || [];
-function bedAt(x, y) { for (const b of beds()) if (pointInPoly(x, y, b.pts)) return b; return null; }
+/* a bed's edge is a smooth curve through the corners you click; this is that curve as many short straight pieces, for working out what is inside it */
+const BEDPOLY = new Map();
+function bedPoly(b) { const k = JSON.stringify(b.pts); let v = BEDPOLY.get(b.id); if (!v || v.k !== k) { v = { k, P: sampled({ pts: b.pts, smooth: true }) }; BEDPOLY.set(b.id, v); } return v.P; }
+const bedPath = b => pathD(b.pts, true);
+function bedAt(x, y) { for (const b of beds()) if (pointInPoly(x, y, bedPoly(b))) return b; return null; }
 const NOFRAME = { id: '', ox: 0, oy: 0 };
 function bedFrame(b) {
   if (!b) return NOFRAME;
-  const xs = b.pts.map(q => q[0]), ys = b.pts.map(q => q[1]);
-  return { id: b.id, ox: (Math.min(...xs) + Math.max(...xs)) / 2, oy: (Math.min(...ys) + Math.max(...ys)) / 2, poly: b.pts };
+  const P = bedPoly(b), xs = P.map(q => q[0]), ys = P.map(q => q[1]);
+  return { id: b.id, ox: +((Math.min(...xs) + Math.max(...xs)) / 2).toFixed(3), oy: +((Math.min(...ys) + Math.max(...ys)) / 2).toFixed(3), poly: P };   // a round-number anchor, so neighbouring cells meet exactly
 }
 const frameAt = (x, y) => bedFrame(bedAt(x, y));
 function latticeSnap(x, y, s = gridSpace(), f = frameAt(x, y)) {
@@ -871,15 +875,17 @@ function oudolfRegions() {
   const nbOf = (c, k) => { const a = (60 + 60 * k) * Math.PI / 180, [i, j] = latticeIdx(c.x + s * Math.cos(a), c.y + s * Math.sin(a), s, c.f); return cells.get(ck(c.f, i, j)); };
   for (const c of list) for (let k = 0; k < 6; k++) { const b = nbOf(c, k); if (b && b.pid === c.pid) up[find(b.n)] = find(c.n); }
   /* border edges, each halved so the smoothing has points to bend */
-  const pos = new Map(), nbrs = new Map(), vk = (x, y) => Math.round(x * 1e4) + ',' + Math.round(y * 1e4);
-  const vert = (x, y) => { const k = vk(x, y); if (!pos.has(k)) { pos.set(k, [x, y]); nbrs.set(k, new Set()); } return k; };
+  /* points are named by whole-number grid positions (half a spacing across, a quarter of a cell's height down), never by rounded coordinates, so neighbouring cells always agree on their shared corners */
+  const pos = new Map(), nbrs = new Map();
+  const vert = (k, x, y) => { if (!pos.has(k)) { pos.set(k, [x, y]); nbrs.set(k, new Set()); } return k; };
+  const CX = [1, 0, -1, -1, 0, 1], CY = [1, 2, 1, -1, -2, -1];
   const link = (a, b) => { nbrs.get(a).add(b); nbrs.get(b).add(a); };
-  const corners = new Set(), corner = (c, k) => { const a = (30 + 60 * k) * Math.PI / 180, v = vert(c.x + R * Math.cos(a), c.y + R * Math.sin(a)); corners.add(v); return v; };
+  const corners = new Set(), corner = (c, k) => { const a = (30 + 60 * k) * Math.PI / 180, v = vert(c.f.id + ':' + (2 * c.i + (c.j & 1) + CX[k]) + ',' + (3 * c.j + CY[k]), c.x + R * Math.cos(a), c.y + R * Math.sin(a)); corners.add(v); return v; };
   const next = new Map(), seen = new Set();
   for (const c of list) for (let k = 0; k < 6; k++) {
     const b = nbOf(c, k); if (b && b.pid === c.pid) continue;
     const a0 = corner(c, k), a1 = corner(c, (k + 1) % 6), ek = a0 < a1 ? a0 + '|' + a1 : a1 + '|' + a0;
-    const m = vert((pos.get(a0)[0] + pos.get(a1)[0]) / 2, (pos.get(a0)[1] + pos.get(a1)[1]) / 2);
+    const m = vert('m' + ek, (pos.get(a0)[0] + pos.get(a1)[0]) / 2, (pos.get(a0)[1] + pos.get(a1)[1]) / 2);
     if (!seen.has(ek)) { seen.add(ek); link(a0, m); link(m, a1); }
     const r = find(c.n); if (!next.has(r)) next.set(r, new Map());
     next.get(r).set(a0, m); next.get(r).set(m, a1);
@@ -1189,7 +1195,7 @@ function renderMap() {
   {
     const edit = S.tool === 'bed' && !pr;
     for (const b of beds()) {
-      const d = 'M' + b.pts.map(q => q[0] + ' ' + q[1]).join('L') + 'Z', sel = edit && S.bedSel === b.id;
+      const d = bedPath(b), sel = edit && S.bedSel === b.id;
       parts.push(`<clipPath id="bedclip-${b.id}"><path d="${d}"/></clipPath>`);
       parts.push(`<g data-kind="bed" data-id="${b.id}"${edit ? ' style="cursor:move"' : ' pointer-events="none"'}><path d="${d}" style="fill:var(--ground);stroke:${sel ? 'var(--accent)' : 'var(--ink)'}" fill-opacity="0.55" stroke-width="${sel ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
     }
@@ -1322,7 +1328,7 @@ function renderMap() {
     }
   }
   const fade = on => on ? ' opacity="0.4"' : '';
-  const bedLines = beds().map(b => `<path d="M${b.pts.map(q => q[0] + ' ' + q[1]).join('L')}Z" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
+  const bedLines = beds().map(b => `<path d="${bedPath(b)}" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
   parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${bedLines}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
   // handles for the selected curve
@@ -1373,7 +1379,7 @@ function renderMap() {
     const B = S.bedDraw?.pts || [];
     if (B.length) {
       const tip = S.hover ? [...B, [snap(S.hover.x), snap(S.hover.y)]] : B;
-      parts.push(`<path d="M${tip.map(q => q[0] + ' ' + q[1]).join('L')}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-dasharray="6 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+      parts.push(`<path d="${pathD(tip, true, false)}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-dasharray="6 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
       B.forEach((q, i) => parts.push(`<circle cx="${q[0]}" cy="${q[1]}" r="${px * (i ? 4 : 7)}" style="fill:var(--panel);stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`));
     }
     const sb = beds().find(b => b.id === S.bedSel);
@@ -1459,7 +1465,7 @@ function renderInspector() {
       hint.hidden = true; el.hidden = false;
       el.innerHTML = n ? `<span class="pk">New bed</span><span class="pv">${plural(n, 'corner')}. Click the first corner again, or press Enter, to close the bed. Esc starts again.</span>
         <span class="acts"><button class="btn sm primary" type="button" data-act="bedDone"${n < 3 ? ' disabled' : ''}>Close bed</button></span>`
-        : `<span class="pk">Bed</span><span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it, drag a corner to reshape it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
+        : `<span class="pk">Bed</span><span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it, drag a point on its edge to reshape the curve. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
         <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove bed</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
       return;
     }
@@ -2080,7 +2086,7 @@ function trackHover(e) {
 function paintAt(d, p) {
   if (!S.g || !(p.x >= 0 && p.y >= 0 && p.x <= S.g.width && p.y <= S.g.depth)) return;
   const np = plantById(S.activePlant), kind = kindOf(np), s = latticeOf(np), q = latticeSnap(p.x, p.y, s);
-  if (beds().length && !(bedAt(p.x, p.y) && pointInPoly(q.x, q.y, bedAt(p.x, p.y).pts))) return;   // with beds drawn, planting stays inside them
+  if (beds().length && !(bedAt(p.x, p.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(p.x, p.y))))) return;   // with beds drawn, planting stays inside them
   /* each layer only ever touches its own kind: bulbs go in among the planting, the planting ignores the bulbs and the trees above it */
   if (d.erase) {
     const keep = S.g.plantings.filter(x => !((x.qty || 1) === 1 && kindOf(plantById(x.plantId)) === kind && Math.hypot(x.x - p.x, x.y - p.y) < s * 0.55));
@@ -3673,7 +3679,7 @@ function finishBed() {
   saveGarden(); renderInspector(); renderMap();
 }
 function removeBed() { if (!S.g || !S.bedSel) return; checkpoint(); S.g.beds = beds().filter(b => b.id !== S.bedSel); S.bedSel = null; saveGarden(); renderInspector(); renderMap(); }
-function bedAreaOf(b) { let a = 0; b.pts.forEach(([x1, y1], i) => { const [x2, y2] = b.pts[(i + 1) % b.pts.length]; a += x1 * y2 - x2 * y1; }); return Math.abs(a / 2); }
+function bedAreaOf(b) { const P = bedPoly(b); let a = 0; P.forEach(([x1, y1], i) => { const [x2, y2] = P[(i + 1) % P.length]; a += x1 * y2 - x2 * y1; }); return Math.abs(a / 2); }
 function removeBlock() { if (!S.g || !S.blockSel) return; checkpoint(); S.g.blocks = (S.g.blocks || []).filter(b => b.id !== S.blockSel); S.blockSel = null; saveGarden(); renderInspector(); renderMap(); }
 function sunToggle(on) {
   S.sun.on = on;

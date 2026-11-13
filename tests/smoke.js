@@ -417,10 +417,13 @@ test('beds: drawn with the Bed tool, the grid centred on them, planting kept ins
   await app.page.waitForTimeout(900);
   const pl = (await app.store('gardens/g1')).plantings;
   ok(pl.length > 40, 'bed filled, got ' + pl.length);
-  ok(pl.every(q => q.x > 1 && q.x < 6.2 && q.y > 1 && q.y < 3.1), 'nothing planted outside the bed');
+  ok(await app.page.evaluate(pts => { const path = document.querySelector('#map [data-kind=bed] path'); return pts.every(([x, y]) => path.isPointInFill(new DOMPoint(x, y))); }, pl.map(q => [q.x, q.y])), 'nothing planted outside the bed’s curved edge');
+  ok(/C/.test(await app.page.getAttribute('#map [data-kind=bed] path', 'd')), 'the bed edge is a curve');
   const xs = pl.map(q => q.x), ys = pl.map(q => q.y), r3 = v => +v.toFixed(2);
-  eq(r3(Math.min(...xs) - 1), r3(6.2 - Math.max(...xs)), 'even margins left and right');
-  eq(r3(Math.min(...ys) - 1), r3(3.1 - Math.max(...ys)), 'even margins top and bottom');
+  // the grid is anchored on the bed's centre (3.6, 2.05), so it sits evenly within it
+  const onLattice = (v, o, step) => Math.abs((v - o) / step - Math.round((v - o) / step)) < 0.02;
+  ok(xs.every(x => onLattice(x, 3.6 - 0.075, 0.15)) && ys.every(y => onLattice(y, 2.05, 0.3 * Math.sqrt(3) / 2)), 'grid centred on the bed');
+  ok(Math.abs((Math.min(...xs) + Math.max(...xs)) / 2 - 3.6) < 0.16, 'planting balanced left to right');
   // the Oudolf area reaches the bed's edge and is clipped to it
   const box = await app.page.evaluate(() => { const g = document.querySelector('#map [data-kind=region]'); const b = g.querySelector('path').getBBox(); return { clip: g.getAttribute('clip-path'), x0: b.x, x1: b.x + b.width }; });
   ok(/bedclip/.test(box.clip || ''), 'area clipped to the bed');
