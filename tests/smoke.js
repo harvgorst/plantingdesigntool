@@ -467,6 +467,28 @@ test('plant photos from Wikimedia Commons: cultivar first, only usable licences,
   ok(await app.page.evaluate(() => document.getElementById('photoModal').hidden), 'Escape stops');
 });
 
+test('species pop-up saves when you click off it', async open => {
+  const app = await open(sample(), { hash: '#database' });
+  const off = () => app.page.mouse.click(8, 450);                     // the dimmed backdrop beside the pop-up
+  // opened and closed with nothing changed: no save, nothing to undo
+  await app.page.click('#dbMine [data-edit=p0]'); await app.page.waitForSelector('#plantModal:not([hidden])');
+  await off(); await app.page.waitForTimeout(300);
+  ok(await app.page.evaluate(() => document.getElementById('plantModal').hidden), 'closes');
+  ok(await app.page.isDisabled('#undoBtn'), 'nothing to undo');
+  // a change is kept
+  await app.page.click('#dbMine [data-edit=p0]'); await app.page.waitForSelector('#plantModal:not([hidden])');
+  await app.page.fill('#sp-common', 'English lavender'); await off(); await app.page.waitForTimeout(500);
+  ok(await app.page.evaluate(() => document.getElementById('plantModal').hidden), 'closes after saving');
+  eq((await app.store('plants/p0')).common, 'English lavender', 'change saved');
+  // a change that can't be saved keeps the pop-up open and says why
+  await app.page.click('#dbMine [data-edit=p0]'); await app.page.waitForSelector('#plantModal:not([hidden])');
+  await app.page.fill('#sp-common', ''); await off(); await app.page.waitForTimeout(300);
+  ok(!(await app.page.evaluate(() => document.getElementById('plantModal').hidden)), 'stays open');
+  ok(/common name/.test(await app.page.textContent('#plantErr')), 'and says what is missing');
+  await app.page.keyboard.press('Escape');
+  eq((await app.store('plants/p0')).common, 'English lavender', 'Escape discards');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });

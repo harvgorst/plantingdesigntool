@@ -3577,7 +3577,15 @@ $('dbTable').addEventListener('click', e => {
   const sb = e.target.closest('[data-sort]'); if (sb) { const k = sb.dataset.sort; DB.dir = DB.sort === k ? -DB.dir : 1; DB.sort = k; renderDatabase(); return; }
   const ed = e.target.closest('[data-edit]'); if (ed) openPlantEditor(ed.dataset.edit);
 });
-$('plantModal').addEventListener('click', e => { if (e.target.id === 'plantModal') { S.editPlant = null; S.confirm = null; renderLibrary(); } });
+/* clicking off the species pop-up saves it, through the same checks as Save species; with nothing changed it just closes */
+function autoSavePlant() {
+  const p = S.editPlant; if (!p) return;
+  const norm = o => JSON.stringify(Object.entries(o || {}).filter(([k, v]) => !['_new', 'example', 'id'].includes(k) && v != null && v !== '' && !(Array.isArray(v) && !v.length)).sort(([a], [b]) => a.localeCompare(b)));
+  const was = plantById(p.id), untouched = was ? norm(was) === norm(p) : !(p.common || '').trim() && !(p.botanical || '').trim();
+  if (untouched) { S.editPlant = null; S.confirm = null; renderLibrary(); return; }
+  $('plantModalBody').querySelector('[data-act=savePlant]')?.click();
+}
+$('plantModal').addEventListener('click', e => { if (e.target.id === 'plantModal') autoSavePlant(); });
 $('dbCopy').addEventListener('click', async () => {
   const head = ['Common name', 'Botanical name', 'Cultivar / rootstock', 'Layer', 'Existing', 'Flowers from', 'Flowers to', 'Flower colour', 'Height (m)', 'Spread (m)', 'Spread as planted (m)', 'Supply', 'Unit cost', 'Supplier', 'Gardens used in'];
   const lines = [head.join('\t')].concat(S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(p => [p.common, p.botanical, p.cultivar, ROLES[p.role], p.existing ? 'Yes' : 'No', p.flowerFrom ? MONTHS[p.flowerFrom - 1] : '', p.flowerTo ? MONTHS[p.flowerTo - 1] : '', p.flowerColorName || '', p.height ?? '', p.spread ?? '', p.potSpread ?? '', p.supply, p.existing ? '' : num(p.cost).toFixed(2), p.supplier, gardensUsing(p.id).length].map(v => String(v ?? '').replace(/[\t\n]/g, ' ')).join('\t')));
