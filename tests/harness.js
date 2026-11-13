@@ -12,23 +12,20 @@ async function open(seed = {}, opts = {}) {
   const page = await browser.newPage({ viewport: opts.viewport || { width: 1400, height: 900 }, timezoneId: 'Europe/London', locale: 'en-GB' });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.addInitScript({ path: path.join(__dirname, 'mock-runtime.js') });
-  await page.addInitScript(seed => { for (const [k, v] of Object.entries(seed)) window.__mock.store.set(k, v); }, seed);
+  if (!opts.real) {
+    await page.addInitScript({ path: path.join(__dirname, 'mock-runtime.js') });
+    const svg = fs.readFileSync(path.join(ROOT, 'example', 'example-site-plan.svg'), 'utf8');
+    await page.addInitScript(([seed, svg, pixel]) => {
+      for (const [k, v] of Object.entries(seed)) window.__mock.store.set(k, JSON.parse(JSON.stringify(v)));
+      if (Object.values(seed).some(v => v?.underlay?.assetId === 'siteplan')) window.__mock.blobs.set('siteplan', new Blob([svg], { type: 'image/svg+xml' }));
+      const bin = atob(pixel), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      for (const id of seed.__fixtures || []) window.__mock.blobs.set(id, new Blob([u8], { type: 'image/png' }));
+      window.__mock.store.delete('__fixtures');
+    }, [seed, svg, PIXEL.toString('base64')]);
+  }
   if (opts.theme) await page.addInitScript(t => { try { localStorage.setItem('gpm.theme', t); } catch {} }, opts.theme);
-  const html = '<!doctype html><html><head><meta charset="utf8"></head><body>' + fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8') + '</body></html>';
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   await page.route('http://app.test/', r => r.fulfill({ contentType: 'text/html', body: html }));
-  await page.route('http://app.test/_blob/**', async r => {
-    const id = r.request().url().split('/').pop();
-    const hit = await page.evaluate(async id => {
-      const b = window.__mock.blobs.get(id); if (!b) return null;
-      const u8 = new Uint8Array(await b.arrayBuffer()); let s = ''; for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode(...u8.subarray(i, i + 8192));
-      return { type: b.type, b64: btoa(s) };
-    }, id).catch(() => null);
-    if (hit) return r.fulfill({ contentType: hit.type || 'image/png', body: Buffer.from(hit.b64, 'base64') });
-    if (id === 'siteplan') return r.fulfill({ contentType: 'image/svg+xml', body: fs.readFileSync(path.join(ROOT, 'example', 'example-site-plan.svg')) });
-    if (/^fixture/.test(id)) return r.fulfill({ contentType: 'image/png', body: PIXEL });
-    return r.fulfill({ status: 404, body: '' });
-  });
   await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
   if (LIBS) await page.route(/https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/.*/, r => {
     const key = Object.keys(LIB_FILES).find(k => r.request().url().includes(k));
@@ -41,6 +38,7 @@ async function open(seed = {}, opts = {}) {
   const api = {
     page, browser, errors,
     store: key => page.evaluate(k => window.__mock.store.get(k), key),
+    reload: async () => { await page.reload(); await page.waitForFunction(() => /Saved|Not saved/.test(document.getElementById('status').textContent), null, { timeout: 5000 }).catch(() => {}); await page.waitForTimeout(150); },
     keys: prefix => page.evaluate(p => [...window.__mock.store.keys()].filter(k => k.startsWith(p)), prefix),
     status: () => page.textContent('#status'),
     go: async hash => { await page.evaluate(h => { location.hash = h; }, hash); await page.waitForTimeout(150); },

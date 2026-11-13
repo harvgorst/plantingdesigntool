@@ -256,7 +256,7 @@ test('scaled plan sheet: A3 at a true 1:50, with a logo', async open => {
   ok((await app.page.textContent('#sheetNote')).startsWith('Prints at 1:50 on A3 landscape'), 'fit note');
   await app.page.click('#sheetPdf');
   await app.page.waitForFunction(() => /Plan sheet saved|Couldn/.test(document.getElementById('presMsg').textContent), null, { timeout: 30000 });
-  eq((await app.saved()).map(s => s.filename), ['Elm Road – planting plan 1-50 A3.pdf'], 'file name');
+  eq((await app.saved()).map(s => s.filename), ['Elm Road - planting plan 1-50 A3.pdf'], 'file name');
   const pdf = await app.savedBytes(0), text = pdf.toString('latin1');
   ok(/\/MediaBox \[0 0 1190\.5\d* 841\.8\d*\]/.test(text), 'A3 landscape page, got ' + (text.match(/\/MediaBox[^\]]*\]/) || [''])[0]);
   // if poppler is installed, measure the printed rulers: 12 m at 1:50 must be 240 mm
@@ -338,24 +338,32 @@ test('perennial mode: interlocked grid, painting, Spacing view and species colou
   const cols = (await app.store('gardens/g1')).colors; eq([cols.p1, cols.p4], [0, 1], 'colours kept with the garden');
 });
 
-test('large plans: a warning near the limit, a clear message over it', async open => {
-  // fill a garden with single plants until its saved record reaches a share of the 256 KiB cap
-  const fill = share => { const seed = sample(), g = seed['gardens/g1']; let i = 0;
-    while (Buffer.byteLength(JSON.stringify(g)) < share * 256 * 1024) { for (let k = 0; k < 50; k++, i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 }); }
-    return { seed, n: g.plantings.length }; };
-  const a = fill(0.85), near = await open(a.seed);
-  const t0 = Date.now(); await near.page.evaluate(() => document.getElementById('zIn').click()); const ms = Date.now() - t0;
-  await near.page.click('#zFit');
-  await near.page.click('#lib [data-pid=p1]'); await near.clickPlan(11.7, 8.4); await near.page.waitForTimeout(1200);
-  ok(/Saved · this plan is \d+% of the size/.test(await near.status()), 'a warning near the limit, got: ' + (await near.status()));
-  console.log(`     (${a.n} placements: "${await near.status()}"; one redraw took about ${ms} ms)`);
-  await near.close();
-  const b = fill(0.995), app = await open(b.seed);
-  for (let i = 0; i < 40; i++) { await app.page.click('#lib [data-pid=p1]'); await app.clickPlan(9.6 + (i % 8) * 0.3, 0.4 + Math.floor(i / 8) * 0.5); }
-  await app.page.waitForTimeout(1200);
-  ok(/too large for one garden/.test(await app.status()), 'a clear "too large" message, got: ' + (await app.status()));
-  console.log(`     (${b.n + 40} placements: "${(await app.status()).slice(0, 70)}…")`);
-  app.errors.push(...near.errors);
+test('large plans: thousands of plants save and redraw', async open => {
+  const seed = sample(), g = seed['gardens/g1'];
+  for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });
+  const app = await open(seed);
+  const t0 = Date.now(); await app.page.evaluate(() => document.getElementById('zIn').click()); const ms = Date.now() - t0;
+  await app.page.click('#zFit');
+  await app.page.click('#lib [data-pid=p1]'); await app.clickPlan(11.7, 8.4); await app.page.waitForTimeout(1200);
+  eq(await app.status(), 'Saved', 'saved');
+  eq((await app.store('gardens/g1')).plantings.length, 4008, 'every plant stored');
+  console.log(`     (4,008 placements; one redraw took about ${ms} ms)`);
+});
+
+test('works on its own: saved in the browser, kept after a reload, files downloaded', async open => {
+  const app = await open({}, { real: true });
+  ok(await app.page.evaluate(() => !window.claude && !window.__mock), 'no outside runtime on the page');
+  await app.page.fill('#ng-name', 'Back border'); await app.page.click('.modepick label:nth-child(2)'); await app.page.click('#newGardenForm button[type=submit]');
+  await app.page.waitForTimeout(300);
+  await app.page.click('#addPlantBtn'); await app.page.fill('#sp-common', 'Salvia'); await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(300);
+  await app.page.click('#lib li'); await app.clickPlan(2, 2); await app.page.waitForTimeout(1200);
+  await app.reload();
+  eq(await app.page.$eval('#gardenSel', s => s.selectedOptions[0].textContent), 'Back border', 'garden still there after a reload');
+  eq(await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=planting]').length), 1, 'its plant too');
+  eq(await app.page.getAttribute('#vSpacing', 'aria-pressed'), 'true', 'and its mode');
+  await app.go('preferences');
+  const [dl] = await Promise.all([app.page.waitForEvent('download'), app.page.click('[data-act=bkpAll]')]);
+  ok(/^SevenLayers backup - everything - .*\.json$/.test(dl.suggestedFilename()), 'backup downloaded as a file, got ' + dl.suggestedFilename());
 });
 
 run();

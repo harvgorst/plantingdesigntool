@@ -1,5 +1,9 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SevenLayers</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
@@ -518,7 +522,8 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
-
+</head>
+<body>
 <div class="app">
   <header class="top">
     <h1><span class="jp" aria-hidden="true">庭</span>SevenLayers</h1>
@@ -901,9 +906,70 @@ function redo() {
   else { S.history.push(next); applyPlantChange(next, 'after'); }
   updateUndo();
 }
+/* ---------- storage: everything is kept in this browser (IndexedDB), nothing is sent anywhere ---------- */
+const BLOB_URLS = new Map();
+function blobUrl(id) { return id ? BLOB_URLS.get(id) || '' : ''; }
+function idbOpen() {
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error('this browser has no local storage'));
+    const r = indexedDB.open('sevenlayers', 1);
+    r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('docs')) d.createObjectStore('docs'); if (!d.objectStoreNames.contains('files')) d.createObjectStore('files'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error || new Error('storage is blocked in this browser'));
+    r.onblocked = () => rej(new Error('SevenLayers is open in another tab that needs reloading'));
+  });
+}
+/* two kinds of backend: IndexedDB, or plain maps (used by the tests, or when the browser blocks storage) */
+async function idbBackend() {
+  const d = await idbOpen();
+  const tx = (st, mode, fn) => new Promise((res, rej) => { const t = d.transaction(st, mode), o = t.objectStore(st); const r = fn(o); t.oncomplete = () => res(r?.result); t.onerror = t.onabort = () => rej(t.error || new Error('couldn’t write to storage')); });
+  const all = st => new Promise((res, rej) => { const out = new Map(), r = d.transaction(st).objectStore(st).openCursor(); r.onsuccess = () => { const c = r.result; if (!c) return res(out); out.set(c.key, c.value); c.continue(); }; r.onerror = () => rej(r.error); });
+  return { all, get: (st, k) => tx(st, 'readonly', o => o.get(k)), put: (st, k, v) => tx(st, 'readwrite', o => { o.put(v, k); }), del: (st, k) => tx(st, 'readwrite', o => { o.delete(k); }) };
+}
+function mapBackend(docs, files) {
+  const M = { docs, files };
+  return { all: async st => new Map(M[st]), get: async (st, k) => M[st].get(k), put: async (st, k, v) => { M[st].set(k, v); }, del: async (st, k) => { M[st].delete(k); } };
+}
+async function openStorage() {
+  let be, persistent = true;
+  if (window.__mock) be = mapBackend(window.__mock.store, window.__mock.blobs);
+  else { try { be = await idbBackend(); } catch (e) { persistent = false; be = mapBackend(new Map(), new Map()); S.storageError = e?.message || ''; } }
+  const docs = await be.all('docs'), files = await be.all('files');
+  for (const [id, b] of files) BLOB_URLS.set(id, URL.createObjectURL(b));
+  const subs = new Set(), chan = window.BroadcastChannel ? new BroadcastChannel('sevenlayers') : null;
+  const parent = k => k.split('/').slice(0, -1).join('/');
+  const freeze = o => { if (o && typeof o === 'object' && !Object.isFrozen(o)) { Object.freeze(o); for (const v of Object.values(o)) freeze(v); } return o; };
+  const meta = { fromCache: false, hasPendingWrites: false };
+  const snapDoc = k => ({ id: k.split('/').pop(), exists: docs.has(k), data: () => (docs.has(k) ? freeze(JSON.parse(JSON.stringify(docs.get(k)))) : undefined), metadata: meta });
+  const snapCol = c => { const list = [...docs.keys()].filter(k => parent(k) === c).sort().map(snapDoc); return { docs: list, size: list.length, empty: !list.length, metadata: meta }; };
+  let queued = false;
+  const notify = () => { if (queued) return; queued = true; setTimeout(() => { queued = false; for (const f of subs) f(); }, 0); };
+  const watch = f => { subs.add(f); setTimeout(f, 0); return () => subs.delete(f); };
+  /* another tab changed something: pick it up */
+  if (chan) chan.onmessage = async e => { const { st, k } = e.data || {}; if (!k) return; try { const v = await be.get(st, k); if (st === 'docs') { if (v === undefined) docs.delete(k); else docs.set(k, v); notify(); } else if (v && !BLOB_URLS.has(k)) BLOB_URLS.set(k, URL.createObjectURL(v)); } catch {} };
+  const tell = (st, k) => { try { chan?.postMessage({ st, k }); } catch {} };
+  const doc = k => ({ id: k.split('/').pop(),
+    get: async () => snapDoc(k),
+    set: async data => { const v = JSON.parse(JSON.stringify(data)); await be.put('docs', k, v); docs.set(k, v); notify(); tell('docs', k); },
+    delete: async () => { await be.del('docs', k); docs.delete(k); notify(); tell('docs', k); },
+    onSnapshot: next => watch(() => next(snapDoc(k))) });
+  const col = c => ({ get: async () => snapCol(c), onSnapshot: next => watch(() => next(snapCol(c))) });
+  const db = { doc, collection: col };
+  const assets = {
+    upload: async (blob, o) => { const id = uid() + uid(); const b = new Blob([blob], { type: o?.type || blob.type }); await be.put('files', id, b); BLOB_URLS.set(id, URL.createObjectURL(b)); tell('files', id); return { id }; },
+    get: async id => be.get('files', id),
+    delete: async id => { await be.del('files', id); const u = BLOB_URLS.get(id); if (u) URL.revokeObjectURL(u); BLOB_URLS.delete(id); return { deleted: true }; },
+    list: async () => ({ assets: [...(await be.all('files')).keys()].map(id => ({ id })) }) };
+  if (persistent && navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  return { db, assets, persistent };
+}
+/* hand the browser a file to save */
+async function saveFile(name, blob) {
+  if (window.__mock) { window.__mock.saved.push({ filename: name, blob }); return; }
+  const u = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = u; a.download = name; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(u), 60000);
+}
 let saveTimer = null, saving = false, saveAgain = false;
-const GARDEN_LIMIT = 256 * 1024;   // one garden is one saved record, capped at 256 KiB
-function gardenBytes(body) { return new Blob([JSON.stringify(body)]).size; }
 function saveGarden() {
   if (!S.g) return;
   S.g.updatedAt = Date.now();
@@ -918,13 +984,8 @@ async function flushSave() {
   if (!S.g || !S.online) return;
   saving = true; setStatus('Saving…');
   const body = JSON.parse(JSON.stringify(S.g)); delete body.id;
-  const size = gardenBytes(body), pct = Math.round(size / GARDEN_LIMIT * 100), places = body.plantings.length + body.areas.length;
-  try { await S.db.doc('gardens/' + S.g.id).set(body); setStatus(pct >= 80 ? `Saved · this plan is ${pct}% of the size one garden can hold` : 'Saved', pct >= 95); }
-  catch (e) {
-    const big = size > GARDEN_LIMIT || (e?.code === 'invalid_argument' && pct >= 90);
-    setStatus(big ? `Not saved: this plan is too large for one garden (${places.toLocaleString('en-GB')} placements). Merge single plants into groups, or split the garden in two.`
-      : e?.code === 'quota_exceeded' ? 'Storage full: delete an old garden' : 'Couldn’t save: ' + (e?.message || 'try again'), true);
-  }
+  try { await S.db.doc('gardens/' + S.g.id).set(body); setStatus('Saved'); }
+  catch (e) { setStatus(e?.name === 'QuotaExceededError' ? 'Not saved: this browser’s storage is full. Delete an old garden or free up disk space.' : 'Couldn’t save: ' + (e?.message || 'try again'), true); }
   saving = false;
   if (saveAgain) { saveAgain = false; flushSave(); }
 }
@@ -975,7 +1036,7 @@ function removeSel() {
 
 /* ---------- map ---------- */
 const svg = $('map');
-function ulUrl(u) { return u?.assetId ? '/_blob/' + u.assetId : (S.localUl || ''); }
+function ulUrl(u) { return u?.assetId ? blobUrl(u.assetId) : (S.localUl || ''); }
 let rafPending = false;
 function renderMapSoon() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMap(); }); }
 function renderMap() {
@@ -2022,7 +2083,7 @@ function paletteRows() {
     .map((r, i) => ({ ...r, n: i + 1 }));
 }
 function paletteNumber(id) { const r = paletteRows().find(x => x.id === id); return r ? r.n : 0; }
-function photoUrl(p) { if (!p) return null; if (p.photoId) return '/_blob/' + p.photoId; return BK.localPhotos[p.id] || null; }
+function photoUrl(p) { if (!p) return null; if (p.photoId) return blobUrl(p.photoId) || null; return BK.localPhotos[p.id] || null; }
 async function shrinkImage(file, max = 1400) {
   const url = URL.createObjectURL(file);
   try {
@@ -2034,7 +2095,7 @@ async function shrinkImage(file, max = 1400) {
   } finally { URL.revokeObjectURL(url); }
 }
 /* the designer's logo: shared by every garden, kept as a PNG so html2canvas and the PDF can always draw it */
-function logoUrl() { return S.prefs.logoId ? '/_blob/' + S.prefs.logoId : (BK.localLogo || null); }
+function logoUrl() { return S.prefs.logoId ? blobUrl(S.prefs.logoId) || null : (BK.localLogo || null); }
 async function setLogo(file) {
   const url = URL.createObjectURL(file);
   let blob;
@@ -2290,7 +2351,6 @@ async function imageData(url) {
 async function exportSheet() {
   if (BK.busy || !S.g) return;
   const msg = $('presMsg'), btn = $('sheetPdf'), g = S.g, b = bk();
-  const dl = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
   BK.busy = true; btn.disabled = true; msg.textContent = 'Drawing the plan sheet…';
   try {
     if (!(await loadPdfLibs(false))) throw new Error('the drawing library could not be loaded. Check your connection and try again.');
@@ -2329,12 +2389,10 @@ async function exportSheet() {
     if (ex.length) { y += 1.5; pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(90); pdf.text(`Dashed outlines: ${plural(ex.reduce((t, r) => t + r.retain + r.prune, 0), 'existing plant')} kept`, x0, y); }
     pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(110);
     pdf.text(pdf.splitTextToSize(`Print at 100% (actual size) on ${lay.o.paper} for the scale to be true. Check all dimensions on site.`, tw), x0, bottom - noteH + 5);
-    const blob = pdf.output('blob'), name = `${(g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} – planting plan 1-${f.scale} ${lay.o.paper}.pdf`;
-    if (!dl) { msg.textContent = 'The plan sheet is ready, but saving files isn’t available in this view. Open the page in claude.ai to download it.'; return; }
-    msg.textContent = 'Confirm the download to save your plan sheet.';
-    await dl.save({ filename: name, data: blob });
+    const blob = pdf.output('blob'), name = `${(g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} - planting plan 1-${f.scale} ${lay.o.paper}.pdf`;
+    await saveFile(name, blob);
     msg.textContent = `Plan sheet saved at 1:${f.scale} on ${lay.o.paper}.`;
-  } catch (e) { msg.textContent = e?.code === 'declined' ? 'Download cancelled.' : e?.code === 'rate_limited' ? 'A download is already waiting for your confirmation.' : 'Couldn’t make the plan sheet: ' + (e?.message || 'try again'); }
+  } catch (e) { msg.textContent = 'Couldn’t make the plan sheet: ' + (e?.message || 'try again'); }
   finally { BK.busy = false; btn.disabled = false; }
 }
 /* ----- booklet ----- */
@@ -2365,7 +2423,6 @@ function pdfTextLayer(pdf, pageEl) {
 async function exportPdf() {
   if (BK.busy || !S.g) return;
   const msg = $('presMsg'), btn = $('presPdf');
-  const dl = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
   BK.busy = true; btn.disabled = true; msg.textContent = 'Preparing the PDF…';
   const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-20000px;top:0;width:1123px;';
   try {
@@ -2394,13 +2451,11 @@ async function exportPdf() {
       if (spot) { pdf.setFillColor('#FFFDF8'); pdf.rect(spot.x, spot.y, spot.w, spot.h, 'F'); await drawPlanVector(pdf, vec, spot.x, spot.y, spot.w, spot.h); }
       pdfTextLayer(pdf, els[i]);
     }
-    const blob = pdf.output('blob'), name = `${(S.g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} – planting proposal.pdf`;
-    if (!dl) { msg.textContent = 'The PDF is ready, but saving files isn’t available in this view. Open the page in claude.ai to download it.'; return; }
-    msg.textContent = 'Confirm the download to save your PDF.';
-    await dl.save({ filename: name, data: blob });
+    const blob = pdf.output('blob'), name = `${(S.g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} - planting proposal.pdf`;
+    await saveFile(name, blob);
     msg.textContent = 'PDF saved.';
   } catch (e) {
-    msg.textContent = e?.code === 'declined' ? 'Download cancelled.' : e?.code === 'rate_limited' ? 'A download is already waiting for your confirmation.' : 'Couldn’t make the PDF: ' + (e?.message || 'try again');
+    msg.textContent = 'Couldn’t make the PDF: ' + (e?.message || 'try again');
   } finally { host.remove(); BK.busy = false; btn.disabled = false; }
 }
 
@@ -2771,13 +2826,10 @@ function openGarden(id) {
 }
 async function init() {
   renderAll();
-  const use = n => (window.claude?.use ? window.claude.use(n).catch(() => null) : Promise.resolve(null));
-  const [db, assets] = await Promise.all([use('db'), use('assets')]);
-  S.assets = assets;
-  if (!db) { S.loaded = true; S.online = false; setStatus('Not saved in this view'); renderAll(); return; }
-  S.db = db; S.online = true; setStatus('Loading…');
+  const { db, assets, persistent } = await openStorage();
+  S.assets = assets; S.db = db; S.online = true; setStatus('Loading…');
   let gotPlants = false, gotGardens = false;
-  const ready = () => { if (gotPlants && gotGardens && !S.loaded) { S.loaded = true; setStatus(S.assets ? 'Saved' : 'Saved · plan import needs edit access'); renderAll(); } };
+  const ready = () => { if (gotPlants && gotGardens && !S.loaded) { S.loaded = true; setStatus(persistent ? 'Saved' : 'Not saved: this browser is blocking storage' + (S.storageError ? ' (' + S.storageError + ')' : ''), !persistent); renderAll(); } };
   db.doc('settings/prefs').onSnapshot(snap => {
     if (prefTimer) return;
     const first = !S.prefsLoaded; S.prefsLoaded = true; S.prefsExist = !!snap.exists;
@@ -3448,7 +3500,7 @@ async function buildBackup(kind) {
   const files = {}; let missing = 0, n = 0;
   for (const id of ids) {
     setBackupMsg(`Collecting pictures and plans (${++n} of ${ids.size})…`);
-    try { const r = await fetch('/_blob/' + id); if (!r.ok) throw new Error('missing'); const blob = await r.blob(); files[id] = { type: blob.type || 'image/jpeg', data: await blobToB64(blob) }; } catch { missing++; }
+    try { const blob = await S.assets.get(id); if (!blob) throw new Error('missing'); files[id] = { type: blob.type || 'image/jpeg', data: await blobToB64(blob) }; } catch { missing++; }
   }
   const out = { app: 'SevenLayers', format: BACKUP_FORMAT, kind, exportedAt: new Date().toISOString(), gardens: JSON.parse(JSON.stringify(gardens)), plants: JSON.parse(JSON.stringify(plants)), files };
   if (kind === 'all') out.prefs = JSON.parse(JSON.stringify(S.prefs));
@@ -3459,16 +3511,13 @@ async function downloadBackup(kind) {
   if (kind === 'garden' && !S.g) return;
   BKP.busy = true;
   try {
-    const dl = window.claude?.use ? await window.claude.use('downloads').catch(() => null) : null;
-    if (!dl) { setBackupMsg('Saving files isn’t available in this view. Open the page in claude.ai to download a backup.', true); return; }
     const { out, missing } = await buildBackup(kind);
     const label = kind === 'garden' ? S.g.name || 'garden' : kind === 'library' ? 'plant library' : 'everything';
-    const name = `SevenLayers backup – ${label.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80)} – ${new Date().toISOString().slice(0, 10)}.json`;
-    setBackupMsg('Confirm the download to save your backup.');
-    await dl.save({ filename: name, data: new Blob([JSON.stringify(out)], { type: 'application/json' }) });
+    const name = `SevenLayers backup - ${label.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80)} - ${new Date().toISOString().slice(0, 10)}.json`;
+    await saveFile(name, new Blob([JSON.stringify(out)], { type: 'application/json' }));
     const what = [out.gardens.length && plural(out.gardens.length, 'garden'), out.plants.length && out.plants.length + ' species'].filter(Boolean).join(' and ') || 'nothing yet';
     setBackupMsg(`Backup saved (${what}).${missing ? ` ${plural(missing, 'picture')} couldn’t be included.` : ''}`);
-  } catch (e) { setBackupMsg(e?.code === 'declined' ? 'Download cancelled.' : e?.code === 'rate_limited' ? 'A download is already waiting for your confirmation.' : 'Couldn’t make the backup: ' + (e?.message || 'try again'), e?.code !== 'declined'); }
+  } catch (e) { setBackupMsg('Couldn’t make the backup: ' + (e?.message || 'try again'), true); }
   finally { BKP.busy = false; }
 }
 async function restoreBackup(file) {
@@ -3507,7 +3556,6 @@ async function restoreBackup(file) {
       if (S.gardens.some(x => x.id === g.id)) { g.id = uid(); g.name += ' (restored)'; }
       if (g.underlay) { g.underlay.assetId = await asset(g.underlay.assetId); if (!g.underlay.assetId) g.underlay = null; }
       const body = { ...g }; delete body.id;
-      if (gardenBytes(body) > GARDEN_LIMIT) throw new Error(`“${g.name}” is too large to store as one garden.`);
       await S.db.doc('gardens/' + g.id).set(body);
       S.gardens = [...S.gardens.filter(x => x.id !== g.id), normGarden(g.id, body)].sort((a, b) => a.name.localeCompare(b.name)); addedG++; first = first || g.id;
     }
@@ -3533,3 +3581,5 @@ applyPage();
 init();
 })();
 </script>
+</body>
+</html>

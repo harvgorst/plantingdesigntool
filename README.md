@@ -2,8 +2,7 @@
 
 SevenLayers is a planting-only design tool for garden designers. Import an existing site plan, place plants over it at true scale, study sun and shade, and get a costed plant schedule, supplier order lists, an interest calendar, a client booklet and a scaled plan sheet.
 
-The live version runs as a claude.ai artifact:
-https://claude.ai/artifact/2aTBjBBXxP2rNoepiPnhLe
+SevenLayers is a single HTML file. Download `index.html` and open it in a browser (Chrome, Edge, Firefox or Safari); there is nothing to install and no account. It can also be served from any static web host.
 
 ## What it does
 
@@ -27,14 +26,16 @@ Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbace
 ## Files
 
 - `index.html`: the whole app (HTML, CSS and JavaScript in one file).
-- `example/example-site-plan.svg`: the example site plan used by the example garden.
+- `example/example-site-plan.svg`: a made-up site plan used by the tests.
 - `tests/`: automated checks that open the app in a headless browser.
 
 ## Storage
 
-The app is written for the claude.ai artifact runtime. Gardens, the plant database, supplier availability lists and preferences are saved through its `db` capability, imported plans, plant photos and the logo through its `assets` capability, and PDFs and backups are saved through its `downloads` capability. Opened as a plain local file, the app still works but nothing is saved.
+Everything is saved in the browser you use, in its IndexedDB storage: gardens, the plant database, supplier availability lists, preferences, imported plans, plant photos and the logo. Nothing is sent to a server. PDFs and backups are ordinary file downloads. Two tabs open on the same copy stay in step.
 
-Each garden is stored as one record of at most 256 KiB, which is roughly 3,000 to 4,000 separate placements. The app warns as a plan nears that size. Groups count as one placement however many plants they hold.
+Because the data lives in that browser, it stays on that computer and in that browser only; clearing the browser's site data deletes it. Use **Preferences → Backup → Download everything** regularly, and to move your work to another computer or browser, then **Restore from a backup** there. Opened from disk (`file://`), the data belongs to that file's location, so keep `index.html` in one place.
+
+Fonts load from Google Fonts and the PDF, spreadsheet and drawing libraries from cdnjs and jsDelivr, so making PDFs and importing spreadsheets need an internet connection. Everything else works offline.
 
 ## Tests
 
@@ -58,8 +59,8 @@ To run only some tests, give part of a test's name:
 node tests/smoke.js sun
 ```
 
-The tests run the app against a stand-in for the claude.ai runtime (`tests/mock-runtime.js`), so they never touch saved gardens. The PDF tests load html2canvas, jsPDF and svg2pdf.js from their CDNs; to run offline, set `SL_LIBS` to a folder holding `html2canvas.min.js`, `jspdf.umd.min.js`, `svg2pdf.umd.min.js` and `xlsx.full.min.js`. Two checks read the PDFs back with `pdftotext` (from poppler) and are skipped when it isn't installed.
+Most tests keep their data in memory (`tests/mock-runtime.js`), so they never touch saved gardens; one runs against the browser's real storage and checks a garden survives a reload. The PDF tests load html2canvas, jsPDF and svg2pdf.js from their CDNs; to run offline, set `SL_LIBS` to a folder holding `html2canvas.min.js`, `jspdf.umd.min.js`, `svg2pdf.umd.min.js` and `xlsx.full.min.js`. Two checks read the PDFs back with `pdftotext` (from poppler) and are skipped when it isn't installed.
 
 ## Later
 
-- Standalone desktop app for Windows and macOS (for example with Electron), saving everything locally and bundling the PDF libraries so it works fully offline. The backup files are the way to move gardens across.
+- Standalone desktop app for Windows and macOS (for example with Electron), bundling the fonts and PDF libraries so it works fully offline.
