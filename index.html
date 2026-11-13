@@ -2146,7 +2146,10 @@ svg.addEventListener('pointerdown', e => {
   if (hit?.dataset.kind === 'north') { S.drag = { north: true, moved: false, before: JSON.stringify(S.g) }; renderMap(); return; }
   if (hit?.dataset.kind === 'block' && tool === 'select') { S.sel = null; S.multi = []; S.blockSel = hit.dataset.id; renderInspector(); renderMap(); return; }
   if (hit?.dataset.kind === 'lblh') { const pl = S.g.plantings.find(x => x.id === hit.dataset.id); if (pl) S.drag = { label: true, pl, start: p, moved: false, before: JSON.stringify(S.g), orig: { x: num(hit.dataset.lx), y: num(hit.dataset.ly) } }; return; }
-  if (tool === 'plant' && S.activePlant && gridOn() && !e.shiftKey && hit?.dataset.kind !== 'handle') {
+  /* in Oudolf mode Shift never drops a plant off the grid (it would cut a hole in an area); Shift-click on an area adds it to the selection or takes it out */
+  if (e.shiftKey && hit?.dataset.kind === 'region') { for (const id of hit.dataset.ids.split(',')) toggleSelect('planting', id); return; }
+  const offGrid = e.shiftKey && !(oudolf() && kindOf(plantById(S.activePlant)) === 'field');
+  if (tool === 'plant' && S.activePlant && gridOn() && !offGrid && hit?.dataset.kind !== 'handle') {
     S.sel = null; S.multi = [];
     const d = { paint: true, erase: e.altKey, last: p, before: JSON.stringify(S.g), changed: false };
     S.drag = d; paintAt(d, p); renderInspector(); return;

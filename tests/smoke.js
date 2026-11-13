@@ -375,6 +375,12 @@ test('Oudolf mode: areas that share borders, counted from plants per square metr
   const pl = (await app.store('gardens/g1')).plantings;
   ok(pl.filter(q => q.plantId === 'p4').length < cells, 'geranium cells taken over');
   eq((await regions()).length, 2, 'still two areas');
+  // Shift-click on an area only selects it; it never drops a plant into it
+  const n0 = (await app.store('gardens/g1')).plantings.length;
+  await app.page.click('#lib [data-pid=p4]');
+  await app.page.keyboard.down('Shift'); await app.clickPlan(1.5, row(13)); await app.page.keyboard.up('Shift'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).plantings.length, n0, 'Shift-click leaves the planting alone');
+  ok(/m² ·/.test(await app.page.textContent('#inspector')), 'and selects the area');
   // clicking an area selects all of it, and it moves as one, staying on the grid
   await app.page.keyboard.press('v');
   await app.clickPlan(4.6, row(14));
