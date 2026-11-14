@@ -18,7 +18,7 @@ SevenLayers is a single HTML file. Download `index.html` and open it in a browse
 - **Interest calendar**: months across, species down. Wide bars are flowers in each plant's flower colour; narrow bars are berries, autumn colour, stems, seed heads or foliage; a green line marks evergreens. A month-by-month strip shows interest and gaps.
 - **Plant database**: every species entered, shared across all gardens. Searchable, filterable by layer, sortable.
 - **Supplier availability**: import a nursery's availability list (Excel, CSV or pasted rows), kept separate from your plants. Tick lines to add them to your plant database with price, supplier, pot size and code; matching plants have their price and supplier updated.
-- **Presentation**: a client booklet (A4 landscape PDF) with a cover and your logo, the planting plan numbered to the palette, a numbered plant palette of close-up photos, the plant schedule, the interest calendar and a pricing page with your own lines and optional VAT. The plan is drawn as vector lines and the text can be searched and copied.
+- **Presentation**: a client booklet (A4 landscape PDF) with a cover and your logo, the planting plan numbered to the palette, a numbered plant palette of close-up photos, the plant schedule, the interest calendar and a pricing page with your own lines and optional VAT. The plan is drawn as vector lines and the text can be searched and copied. The booklet PDF is drawn directly: real, selectable text (in Times, which every PDF reader has), coloured blocks and rules as shapes, the plan as vector lines, and photos cropped to fill their frame; it takes well under a second for a few pages.
 - **Scaled plan sheet**: the plan on its own at a true scale (1:20 to 1:500) on A4 to A1, with a title block and plant key.
 - **Plant photos from Wikimedia Commons**: Find photo on a palette card (or Find a photo online in the species form) searches Wikimedia Commons by botanical name, cultivar first and then the species, clearly labelled, and offers only photos whose licence allows use in client work (public domain, CC0, CC BY, CC BY-SA). The one you click is copied into your own storage with its photographer and licence, and the booklet prints the credit on the photo. Find missing photos online steps through every plant still without one. Needs an internet connection.
 - **Backup**: download a garden, the plant library or everything as one file, and restore from it.
@@ -62,7 +62,7 @@ To run only some tests, give part of a test's name:
 node tests/smoke.js sun
 ```
 
-Most tests keep their data in memory (`tests/mock-runtime.js`), so they never touch saved gardens; one runs against the browser's real storage and checks a garden survives a reload. The PDF tests load html2canvas, jsPDF and svg2pdf.js from their CDNs; to run offline, set `SL_LIBS` to a folder holding `html2canvas.min.js`, `jspdf.umd.min.js`, `svg2pdf.umd.min.js` and `xlsx.full.min.js`. Two checks read the PDFs back with `pdftotext` (from poppler) and are skipped when it isn't installed.
+Most tests keep their data in memory (`tests/mock-runtime.js`), so they never touch saved gardens; one runs against the browser's real storage and checks a garden survives a reload. The PDF tests load jsPDF and svg2pdf.js from their CDNs; to run offline, set `SL_LIBS` to a folder holding `jspdf.umd.min.js`, `svg2pdf.umd.min.js` and `xlsx.full.min.js`. A few checks read the PDFs back with `pdftotext` and `pdfimages` (from poppler) and are skipped when they aren't installed.
 
 ## Later
 

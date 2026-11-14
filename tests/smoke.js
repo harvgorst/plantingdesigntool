@@ -591,6 +591,35 @@ test('Oudolf mode from the toolbar: flicking back and forth moves nothing', asyn
   await app.page.waitForTimeout(900); eq((await app.store('settings/prefs')).oudolf, false, 'remembered');
 });
 
+test('booklet PDF: drawn as real text and shapes, photos cropped to their frame, never stretched', async open => {
+  const fs = require('fs'), os = require('os'), path = require('path'), { execFileSync } = require('child_process'), zlib = require('zlib');
+  const app = await open(sample(), { hash: '#presentation' });
+  await app.page.waitForSelector('.bpage');
+  // a wide photo, 3 : 1, on a card that is nearly square
+  const png = (w, h) => { const raw = Buffer.alloc((w * 3 + 1) * h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = y * (w * 3 + 1) + 1 + x * 3; raw[o] = x < w / 2 ? 200 : 60; raw[o + 1] = 120; raw[o + 2] = 90; }
+    const crc = b => { let c = ~0; for (const v of b) { c ^= v; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1)); } return ~c >>> 0; };
+    const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
+    const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 2;
+    return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]); };
+  await app.page.setInputFiles('[data-photo-for=p1]', { name: 'wide.png', mimeType: 'image/png', buffer: png(600, 200) });
+  await app.page.waitForFunction(() => /Photo added/.test(document.getElementById('presMsg').textContent));
+  const card = await app.page.$eval('.bcard .ph img', im => { const r = im.parentElement.getBoundingClientRect(); return r.width / r.height; });
+  const t0 = Date.now(); await app.page.click('#presPdf');
+  await app.page.waitForFunction(() => /PDF saved|Couldn/.test(document.getElementById('presMsg').textContent), null, { timeout: 60000 });
+  ok(/PDF saved/.test(await app.page.textContent('#presMsg')), 'saved');
+  console.log(`     (booklet made in ${Date.now() - t0} ms)`);
+  const pdf = await app.savedBytes(0);
+  ok(!/\/Width 3369/.test(pdf.toString('latin1')), 'no whole-page pictures');
+  let list = null; const f = path.join(os.tmpdir(), 'sl-crop-' + process.pid + '.pdf'); fs.writeFileSync(f, pdf);
+  try { list = execFileSync('pdfimages', ['-list', f]).toString(); } catch { list = null; } finally { fs.unlinkSync(f); }
+  if (list) {
+    const sizes = list.split('\n').slice(2).map(l => l.trim().split(/\s+/)).filter(c => c.length > 4).map(c => [+c[3], +c[4]]);
+    const photo = sizes.find(([w, h]) => Math.abs(w / h - card) < 0.06);
+    ok(photo, `the photo is cropped to its frame's shape (${card.toFixed(2)} : 1), got ${JSON.stringify(sizes)}`);
+    ok(!sizes.some(([w, h]) => Math.abs(w / h - 3) < 0.05), 'and is not the stretched 3 : 1 original');
+  } else console.log('     (pdfimages not installed: crop not measured)');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });

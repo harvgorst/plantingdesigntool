@@ -231,6 +231,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .pwrap > .bpage { transform-origin: 0 0; }
 /* booklet page: A4 landscape at 96 dpi */
 .bpage { --f-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --f-body: "Source Serif 4", "Iowan Old Style", Georgia, serif; width: 1123px; height: 794px; background: #F8F4EC; color: #2F2B25; font-family: var(--f-body); position: relative; overflow: hidden; box-sizing: border-box; padding: 54px 64px 60px; display: flex; flex-direction: column; }
+.pdfhost .bpage { --f-display: "Times New Roman", Tinos, "Liberation Serif", Times, serif; --f-body: "Times New Roman", Tinos, "Liberation Serif", Times, serif; }
 .bpage .bh { display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8A8073; border-bottom: 1px solid #DDD3C2; padding-bottom: 10px; margin-bottom: 26px; }
 .bpage .bf { position: absolute; left: 64px; right: 64px; bottom: 26px; display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #A39888; }
 .bpage h3 { font-family: var(--f-display); font-weight: 500; font-size: 40px; line-height: 1; margin: 0 0 6px; letter-spacing: -0.01em; color: #2F2B25; }
@@ -2415,7 +2416,7 @@ async function shrinkImage(file, max = 1400) {
     return await new Promise(res => c.toBlob(res, 'image/jpeg', 0.86));
   } finally { URL.revokeObjectURL(url); }
 }
-/* the designer's logo: shared by every garden, kept as a PNG so html2canvas and the PDF can always draw it */
+/* the designer's logo: shared by every garden, kept as a PNG so the PDF can always draw it */
 function logoUrl() { return S.prefs.logoId ? blobUrl(S.prefs.logoId) || null : (BK.localLogo || null); }
 async function setLogo(file) {
   const url = URL.createObjectURL(file);
@@ -2694,9 +2695,8 @@ async function renderPages() {
 window.addEventListener('resize', () => { clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 200); });
 /* ---------- PDFs: the plan as true vector lines, a scaled plan sheet, and the booklet ---------- */
 const pdfText = s => String(s ?? '').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-').replace(/×/g, 'x').replace(/€/g, 'EUR ').replace(/[^\x00-\xFF]/g, '');
-async function loadPdfLibs(canvasToo) {
+async function loadPdfLibs() {
   const base = 'https://cdnjs.cloudflare.com/ajax/libs/';
-  if (canvasToo && !window.html2canvas) await loadScript(base + 'html2canvas/1.4.1/html2canvas.min.js');
   if (!window.jspdf) await loadScript(base + 'jspdf/2.5.1/jspdf.umd.min.js');
   if (!window.jspdf.jsPDF.API.svg) { try { await loadScript('https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.4/dist/svg2pdf.umd.min.js'); } catch {} }
   return !!window.jspdf.jsPDF.API.svg;
@@ -2819,37 +2819,96 @@ async function exportSheet() {
   finally { BK.busy = false; btn.disabled = false; }
 }
 /* ----- booklet ----- */
-/* real text, drawn invisibly over each page picture, so the PDF can be searched and its text selected and copied */
-function pdfTextLayer(pdf, pageEl) {
-  const box = pageEl.getBoundingClientRect(), k = 297 / box.width, range = document.createRange(), walker = document.createTreeWalker(pageEl, NodeFilter.SHOW_TEXT);
-  pdf.setFont('helvetica', 'normal');
-  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    if (!n.nodeValue.trim() || !n.parentElement) continue;
-    const cs = getComputedStyle(n.parentElement); if (cs.visibility === 'hidden' || cs.display === 'none') continue;
-    const size = parseFloat(cs.fontSize) || 12, up = cs.textTransform === 'uppercase';
-    let line = null;
+/* ----- booklet pages drawn straight into the PDF ----------
+   The page is laid out by the browser exactly as on screen (in Times, which the PDF has built in), then each piece is
+   drawn into the PDF in its place: coloured blocks and rules as shapes, words as real text, photos cropped to fill
+   their frame, swatches as vector shapes. Nothing is turned into a picture, so it's quick, sharp, and searchable. */
+async function paintPage(pdf, page) {
+  const box = page.getBoundingClientRect(), k = 297 / box.width, X = v => (v - box.left) * k, Y = v => (v - box.top) * k;
+  const rgba = c => { const m = /rgba?\(([^)]+)\)/.exec(c || ''); if (!m) return null; const v = m[1].split(/[\s,/]+/).filter(Boolean).map(Number); const a = v.length > 3 ? v[3] : 1; return a > 0.02 ? { r: v[0], g: v[1], b: v[2], a } : null; };
+  const opacity = a => { try { pdf.setGState(new pdf.GState({ opacity: a })); } catch {} };
+  const range = document.createRange();
+  /* the nearest box that hides what overflows it, for clipped and "…" text */
+  const clipOf = el => { for (let a = el; a && a !== page; a = a.parentElement) { const cs = getComputedStyle(a); if (cs.overflow !== 'visible') return { r: a.getBoundingClientRect(), dots: cs.textOverflow === 'ellipsis' }; } return null; };
+  const fontOf = cs => { const ff = cs.fontFamily.replace(/sans-serif/gi, ''); return /serif|times|georgia|garamond/i.test(ff) ? 'times' : 'helvetica'; };
+  const styleOf = cs => ((parseInt(cs.fontWeight, 10) || 400) >= 600 ? 'bold' : '') + (cs.fontStyle === 'italic' ? 'italic' : '') || 'normal';
+  function words(node, cs) {
+    const size = parseFloat(cs.fontSize) || 12, col = rgba(cs.color); if (!col) return;
+    const up = cs.textTransform === 'uppercase', clip = clipOf(node.parentElement);
+    pdf.setFont(fontOf(cs), styleOf(cs)); pdf.setFontSize(size * k / 0.352778); pdf.setTextColor(col.r, col.g, col.b);
+    let line = null, cut = false;
     const flush = () => {
-      if (!line) return; const s = pdfText(up ? line.words.join(' ').toUpperCase() : line.words.join(' ')); line = line.box && s.trim() ? line : null; if (!line) return;
-      pdf.setFontSize(size * k / 0.352778); const nat = pdf.getTextWidth(s), want = (line.right - line.left) * k;
-      try { pdf.text(s, (line.left - box.left) * k, (line.bottom - box.top - size * 0.24) * k, { renderingMode: 'invisible', horizontalScale: nat > 0 ? clamp(want / nat, 0.5, 2) : 1 }); } catch {}
-      line = null;
+      if (!line) return; let s = line.words.join(' '); if (up) s = s.toUpperCase(); if (line.dots) s += '...'; s = pdfText(s);
+      const nat = pdf.getTextWidth(s), want = (line.right - line.left) * k;
+      if (col.a < 1) opacity(col.a);
+      try { pdf.text(s, X(line.left), Y(line.bottom - size * 0.24), { horizontalScale: nat > 0 && !line.dots ? clamp(want / nat, 0.7, 1.4) : 1 }); } catch {}
+      if (col.a < 1) opacity(1); line = null;
     };
-    for (const m of n.nodeValue.matchAll(/\S+/g)) {
-      range.setStart(n, m.index); range.setEnd(n, m.index + m[0].length);
-      const r = range.getBoundingClientRect(); if (!r.width) continue;
+    /* a word broken across two lines (at a hyphen) is split where the line breaks */
+    const pieces = [];
+    for (const m of node.nodeValue.matchAll(/\S+/g)) {
+      range.setStart(node, m.index); range.setEnd(node, m.index + m[0].length);
+      if (range.getClientRects().length < 2) { pieces.push([m[0], range.getBoundingClientRect()]); continue; }
+      let st = 0, top = null;
+      for (let i = 0; i <= m[0].length; i++) {
+        let t = null; if (i < m[0].length) { range.setStart(node, m.index + i); range.setEnd(node, m.index + i + 1); t = range.getBoundingClientRect().top; }
+        if (i === m[0].length || (top != null && Math.abs(t - top) > 2)) { range.setStart(node, m.index + st); range.setEnd(node, m.index + i); pieces.push([m[0].slice(st, i), range.getBoundingClientRect()]); st = i; }
+        if (t != null) top = t;
+      }
+    }
+    for (const m of pieces.map(([w, r]) => Object.assign([w], { r }))) {
+      if (cut) break;
+      const r = m.r; if (!r.width) continue;
+      if (clip && (r.right > clip.r.right + 0.5 || r.bottom > clip.r.bottom + 2)) { if (line && clip.dots) line.dots = true; cut = true; continue; }
       if (line && Math.abs(r.top - line.top) < size * 0.5) { line.words.push(m[0]); line.right = r.right; }
-      else { flush(); line = { words: [m[0]], left: r.left, right: r.right, top: r.top, bottom: r.bottom, box: true }; }
+      else { flush(); line = { words: [m[0]], left: r.left, right: r.right, top: r.top, bottom: r.bottom }; }
     }
     flush();
   }
+  async function picture(el, r) {
+    const nw = el.naturalWidth, nh = el.naturalHeight; if (!nw || !nh || !r.width || !r.height) return;
+    const fit = getComputedStyle(el).objectFit; let sx = 0, sy = 0, sw = nw, sh = nh, dx = r.left, dy = r.top, dw = r.width, dh = r.height;
+    if (fit === 'cover') { const sc = Math.max(r.width / nw, r.height / nh); sw = r.width / sc; sh = r.height / sc; sx = (nw - sw) / 2; sy = (nh - sh) / 2; }
+    else if (fit === 'contain' || fit === 'scale-down') { const sc = Math.min(r.width / nw, r.height / nh, fit === 'scale-down' ? 1 : Infinity); dw = nw * sc; dh = nh * sc; dx = r.left + (r.width - dw) / 2; dy = r.top + (r.height - dh) / 2; }
+    const png = /^data:image\/png|\.png($|\?)/i.test(el.currentSrc || el.src) || el.classList.contains('blogo');
+    const out = Math.min(1, (dw * 3) / sw), c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * out)); c.height = Math.max(1, Math.round(sh * out));
+    const cx = c.getContext('2d'); if (!png) { cx.fillStyle = '#FFFFFF'; cx.fillRect(0, 0, c.width, c.height); }
+    try { cx.drawImage(el, sx, sy, sw, sh, 0, 0, c.width, c.height); pdf.addImage(c.toDataURL(png ? 'image/png' : 'image/jpeg', 0.88), png ? 'PNG' : 'JPEG', X(dx), Y(dy), dw * k, dh * k, undefined, 'FAST'); } catch {}
+  }
+  async function walk(el) {
+    const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden') return;
+    const r = el.getBoundingClientRect(), w = r.width * k, h = r.height * k;
+    const bg = rgba(cs.backgroundColor), rad = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, r.width / 2, r.height / 2) * k;
+    if (bg && w > 0 && h > 0) { if (bg.a < 1) opacity(bg.a); pdf.setFillColor(bg.r, bg.g, bg.b); if (rad > 0.15) pdf.roundedRect(X(r.left), Y(r.top), w, h, rad, rad, 'F'); else pdf.rect(X(r.left), Y(r.top), w, h, 'F'); if (bg.a < 1) opacity(1); }
+    if (el.classList.contains('tr') && el.parentElement?.classList.contains('bcal')) {   // the month lines of the interest calendar
+      pdf.setDrawColor(234, 226, 212); pdf.setLineWidth(1 * k); for (let i = 0; i < 12; i++) { const x = X(r.left + r.width * i / 12); pdf.line(x, Y(r.top), x, Y(r.bottom)); }
+    }
+    const sides = ['Top', 'Right', 'Bottom', 'Left'].map(sd => ({ sd, w: cs[`border${sd}Style`] === 'none' ? 0 : parseFloat(cs[`border${sd}Width`]) || 0, c: rgba(cs[`border${sd}Color`]) }));
+    if (sides.every(b => b.w > 0 && b.c) && rad > 0.15) { const b = sides[0]; if (b.c.a < 1) opacity(b.c.a); pdf.setDrawColor(b.c.r, b.c.g, b.c.b); pdf.setLineWidth(b.w * k); pdf.roundedRect(X(r.left) + b.w * k / 2, Y(r.top) + b.w * k / 2, w - b.w * k, h - b.w * k, rad, rad, 'S'); if (b.c.a < 1) opacity(1); }
+    else for (const b of sides) {
+      if (!(b.w > 0 && b.c)) continue; const t = b.w * k; pdf.setDrawColor(b.c.r, b.c.g, b.c.b); pdf.setLineWidth(t); if (b.c.a < 1) opacity(b.c.a);
+      if (b.sd === 'Top') pdf.line(X(r.left), Y(r.top) + t / 2, X(r.right), Y(r.top) + t / 2);
+      if (b.sd === 'Bottom') pdf.line(X(r.left), Y(r.bottom) - t / 2, X(r.right), Y(r.bottom) - t / 2);
+      if (b.sd === 'Left') pdf.line(X(r.left) + t / 2, Y(r.top), X(r.left) + t / 2, Y(r.bottom));
+      if (b.sd === 'Right') pdf.line(X(r.right) - t / 2, Y(r.top), X(r.right) - t / 2, Y(r.bottom));
+      if (b.c.a < 1) opacity(1);
+    }
+    if (el.tagName === 'IMG') { await picture(el, r); return; }
+    if (el.tagName.toLowerCase() === 'svg') {
+      if (pdf.svg && w > 0 && h > 0) { const c = el.cloneNode(true); c.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); try { await pdf.svg(c, { x: X(r.left), y: Y(r.top), width: w, height: h }); } catch {} }
+      return;
+    }
+    for (const ch of el.childNodes) { if (ch.nodeType === 3) { if (ch.nodeValue.trim()) words(ch, cs); } else if (ch.nodeType === 1) await walk(ch); }
+  }
+  await walk(page);
 }
 async function exportPdf() {
   if (BK.busy || !S.g) return;
   const msg = $('presMsg'), btn = $('presPdf');
   BK.busy = true; btn.disabled = true; msg.textContent = 'Preparing the PDF…';
-  const host = document.createElement('div'); host.style.cssText = 'position:fixed;left:-20000px;top:0;width:1123px;';
+  const host = document.createElement('div'); host.className = 'pdfhost'; host.style.cssText = 'position:fixed;left:-20000px;top:0;width:1123px;';
   try {
-    const canVector = await loadPdfLibs(true);
+    const canVector = await loadPdfLibs(false);
     const img = await planImage(bk().numberPlan);
     host.innerHTML = bookletPages(img, true).join(''); document.body.appendChild(host);
     await Promise.all([...host.querySelectorAll('img')].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
@@ -2868,11 +2927,9 @@ async function exportPdf() {
           spot = { x: (r.left - pb.left) * k + (r.width * k - w) / 2, y: (r.top - pb.top) * k + (r.height * k - h) / 2, w, h }; pim.style.visibility = 'hidden';
         } catch { spot = null; pim.style.visibility = ''; }
       }
-      const c = await window.html2canvas(els[i], { scale: 3, backgroundColor: '#F8F4EC', useCORS: true, logging: false, width: 1123, height: 794, windowWidth: 1123 });
       if (i) pdf.addPage('a4', 'landscape');
-      pdf.addImage(c.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+      await paintPage(pdf, els[i]);
       if (spot) { pdf.setFillColor('#FFFDF8'); pdf.rect(spot.x, spot.y, spot.w, spot.h, 'F'); await drawPlanVector(pdf, vec, spot.x, spot.y, spot.w, spot.h); }
-      pdfTextLayer(pdf, els[i]);
     }
     const blob = pdf.output('blob'), name = `${(S.g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} - planting proposal.pdf`;
     await saveFile(name, blob);
