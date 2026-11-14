@@ -559,10 +559,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
         <div id="layerList" style="display:flex;flex-direction:column;gap:1px"></div>
       </div>
     </div>
-    <div class="seg" role="group" aria-label="Plant size shown">
-      <button type="button" id="vMature" aria-pressed="true" title="Plants drawn at mature spread (5–10 years)">Design intent</button>
-      <button type="button" id="vPlanted" aria-pressed="false" title="Plants drawn at supplied pot size">As planted</button>
-    </div>
+    <button class="btn sm" id="vPlanted" type="button" aria-pressed="false" title="Show trees and shrubs at their supplied pot size instead of their mature spread">As planted</button>
     <button class="btn sm" id="oudolfBtn" type="button" aria-pressed="false" title="Oudolf mode: draw the perennials as areas that share their borders (O)">Oudolf</button>
     <button class="btn sm" id="sunBtn" type="button" aria-pressed="false" title="Sun study: shadows through the day and year">Sun</button>
     <select id="seasonSel" aria-label="Colour the plan by month" title="Colour the plan by what is in flower or of interest in a month"></select>
@@ -1662,7 +1659,7 @@ function renderPlantEditor(el) {
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
     <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label><button class="btn sm" type="button" data-act="findPhotoEdit">Find a photo online</button>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div>${p.photoCredit && p.photoId ? `<span class="note">${esc(photoCreditText(p.photoCredit))}</span>` : ''}</div>
-    <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing trees and shrubs are drawn dashed at that size; existing perennials, ground cover and bulbs are painted on the grid like new ones. Existing plants are left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets plant size in Design intent and the starting spacing for a row.'}</p>
+    <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing trees and shrubs are drawn dashed at that size; existing perennials, ground cover and bulbs are painted on the grid like new ones. Existing plants are left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets the plant’s size on the plan and the starting spacing for a row.'}</p>
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
     ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants from the plan first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
     <p class="note" id="plantErr" style="margin:0;color:var(--crit)"></p>`;
@@ -1925,7 +1922,7 @@ function applyPage() {
 }
 /* Oudolf mode, from the toolbar, the O key or Preferences: one shared setting, never switched in the middle of a drag */
 function setOudolf(on) { if (S.drag) return; setPref('oudolf', !!on); }
-function renderAll() { const ob = $('oudolfBtn'); if (ob) { ob.setAttribute('aria-pressed', String(oudolf())); ob.classList.toggle('on', oudolf()); ob.disabled = !S.g; } renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
+function renderAll() { const ob = $('oudolfBtn'); if (ob) { ob.setAttribute('aria-pressed', String(oudolf())); ob.classList.toggle('on', oudolf()); ob.disabled = !S.g; } renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); $('vPlanted').classList.toggle('on', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
 function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
 
@@ -3081,8 +3078,7 @@ app.addEventListener('click', async e => {
     S.editPlant = null; S.activePlant = p.id; S.tool = 'plant'; renderAll();
   }
 });
-$('vMature').addEventListener('click', () => { S.view = 'mature'; renderAll(); });
-$('vPlanted').addEventListener('click', () => { S.view = 'planted'; renderAll(); });
+$('vPlanted').addEventListener('click', () => { S.view = S.view === 'planted' ? 'mature' : 'planted'; renderAll(); });   // mature spread is the usual view; As planted switches to pot size and back
 $('undoBtn').addEventListener('click', undo);
 $('redoBtn').addEventListener('click', redo);
 $('zIn').addEventListener('click', () => zoomBy(1.4));

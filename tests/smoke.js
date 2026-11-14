@@ -348,7 +348,7 @@ test('one plan, three layers: structure placed freely, planting on the grid, bul
   eq(r, 0.15, 'circle radius is half the spacing');
   await app.page.click('#vPlanted');
   eq(await app.page.evaluate(id => +document.querySelector(`#map [data-kind=planting][data-id="${id}"] circle`).getAttribute('r'), sid), 0.15, 'perennials keep their size in As planted');
-  await app.page.click('#vMature');
+  await app.page.click('#vPlanted');
   const fills = await app.page.evaluate(() => [...new Set([...document.querySelectorAll('#map [data-kind=planting] circle')].map(c => c.style.fill))]);
   ok(fills.length >= 4, 'each species its own fill, got ' + fills.length);
   const order = await app.page.evaluate(ids => { const all = [...document.querySelectorAll('#map [data-kind=planting]')].map(g => g.dataset.id); return ids.map(id => all.indexOf(id)); }, [rose.id, sid, bulbs[0].id]);
