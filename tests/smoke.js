@@ -556,6 +556,41 @@ test('existing perennials behave like new ones, but are not bought', async open 
   ok(/Old geranium/.test(await app.page.textContent('#existingT')), 'listed with the existing plants');
 });
 
+test('Oudolf mode from the toolbar: flicking back and forth moves nothing', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null;
+  const app = await open(seed);
+  const row = n => +(n * 0.3 * Math.sqrt(3) / 2).toFixed(3);
+  await app.page.click('#lib [data-pid=p1]'); for (let n = 10; n < 14; n++) await app.dragPlan(1, row(n), 3, row(n));
+  await app.page.click('#lib [data-pid=p4]'); for (let n = 10; n < 14; n++) await app.dragPlan(3.3, row(n), 5, row(n));
+  await app.page.waitForTimeout(900);
+  const before = JSON.stringify((await app.store('gardens/g1')).plantings);
+  const regions = () => app.page.evaluate(() => document.querySelectorAll('#map [data-kind=region]').length);
+  eq(await app.page.getAttribute('#oudolfBtn', 'aria-pressed'), 'false', 'off to start');
+  eq(await regions(), 0, 'circles');
+  // with a plant being placed
+  await app.page.click('#oudolfBtn');
+  eq(await app.page.getAttribute('#oudolfBtn', 'aria-pressed'), 'true', 'on');
+  eq(await regions(), 2, 'areas');
+  ok(await app.page.isVisible('#pt-dens'), 'plants per m² offered for the plant being placed');
+  await app.page.keyboard.press('o');
+  eq(await regions(), 0, 'O key flicks back');
+  ok(!(await app.page.isVisible('#pt-dens')), 'and the box goes');
+  // with an area selected
+  await app.page.keyboard.press('o'); await app.page.keyboard.press('v'); await app.clickPlan(2, row(12));
+  ok(/m² ·/.test(await app.page.textContent('#inspector')), 'area selected');
+  await app.page.click('#oudolfBtn');
+  ok(/selected/.test(await app.page.textContent('#inspector')), 'still selected, now as plants');
+  await app.page.click('#oudolfBtn');
+  await app.page.waitForTimeout(900);
+  eq(JSON.stringify((await app.store('gardens/g1')).plantings), before, 'no plant moved, added or lost');
+  // Preferences follows the toolbar, and the other way round
+  await app.go('preferences');
+  eq(await app.page.isChecked('#pf-oudolf'), true, 'Preferences shows it on');
+  await app.page.uncheck('#pf-oudolf'); await app.go('plan');
+  eq(await app.page.getAttribute('#oudolfBtn', 'aria-pressed'), 'false', 'toolbar shows it off');
+  await app.page.waitForTimeout(900); eq((await app.store('settings/prefs')).oudolf, false, 'remembered');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });

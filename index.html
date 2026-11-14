@@ -563,6 +563,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       <button type="button" id="vMature" aria-pressed="true" title="Plants drawn at mature spread (5–10 years)">Design intent</button>
       <button type="button" id="vPlanted" aria-pressed="false" title="Plants drawn at supplied pot size">As planted</button>
     </div>
+    <button class="btn sm" id="oudolfBtn" type="button" aria-pressed="false" title="Oudolf mode: draw the perennials as areas that share their borders (O)">Oudolf</button>
     <button class="btn sm" id="sunBtn" type="button" aria-pressed="false" title="Sun study: shadows through the day and year">Sun</button>
     <select id="seasonSel" aria-label="Colour the plan by month" title="Colour the plan by what is in flower or of interest in a month"></select>
     <div class="spacer"></div>
@@ -1865,7 +1866,8 @@ function savePrefs() {
 function setPref(k, v) {
   S.prefs[k] = v; savePrefs();
   if (k === 'theme') { applyTheme(v); return; }
-  if (k === 'pgridSpace' || k === 'oudolf') { if (S.loaded) { renderLibrary(); renderLayers(); renderMap(); } return; }
+  if (k === 'pgridSpace') { if (S.loaded) { renderLibrary(); renderLayers(); renderMap(); } return; }
+  if (k === 'oudolf') { if (S.loaded) renderAll(); const c = $('pf-oudolf'); if (c) c.checked = !!v; return; }   // only the drawing and counts change; no plant is moved
   if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
   if (k === 'snap') { const o = $('pf-snap-v'); if (o) o.textContent = snapText(v); }
   const smp = $('pf-sample');
@@ -1921,7 +1923,9 @@ function applyPage() {
   $('navPlan').setAttribute('aria-pressed', plan); $('navSched').setAttribute('aria-pressed', pg === 'schedule'); $('navCal').setAttribute('aria-pressed', pg === 'flowering'); $('navPrefs').setAttribute('aria-pressed', pg === 'preferences');
   if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'presentation') renderPresentation(true); else if (pg === 'database') { showDbView(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
 }
-function renderAll() { renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
+/* Oudolf mode, from the toolbar, the O key or Preferences: one shared setting, never switched in the middle of a drag */
+function setOudolf(on) { if (S.drag) return; setPref('oudolf', !!on); }
+function renderAll() { const ob = $('oudolfBtn'); if (ob) { ob.setAttribute('aria-pressed', String(oudolf())); ob.classList.toggle('on', oudolf()); ob.disabled = !S.g; } renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vMature').setAttribute('aria-pressed', S.view === 'mature'); $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
 function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
 
@@ -3230,6 +3234,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && S.tool === 'bed') { e.preventDefault(); finishBed(); return; }
   if (e.key === 'Escape' && S.tool === 'bed' && S.bedDraw?.pts.length) { S.bedDraw = { pts: [] }; renderInspector(); renderMap(); return; }
   if (e.key === 'Escape') { setTool('select'); select(null); return; }
+  if (e.key.toLowerCase() === 'o' && getPage() === 'plan') { setOudolf(!oudolf()); return; }
   const t = TOOLS.find(x => x.key.toLowerCase().split(' or ')[0] === e.key.toLowerCase()); if (t) setTool(t.id);
 });
 
@@ -3849,6 +3854,7 @@ function sunToggle(on) {
 $('seasonSel').innerHTML = '<option value="0">Season: all year</option>' + MONTH_NAMES.map((m, i) => `<option value="${i + 1}">Plan in ${m}</option>`).join('');
 $('seasonSel').addEventListener('change', e => { S.season = clamp(Math.round(num(e.target.value, 0)), 0, 12); e.target.classList.toggle('on', !!S.season); renderTools(); renderMap(); });
 $('sunBtn').addEventListener('click', () => sunToggle(!S.sun.on));
+$('oudolfBtn').addEventListener('click', () => setOudolf(!oudolf()));
 $('sunBar').addEventListener('input', e => {
   const t = e.target, s = S.sun;
   if (t.id === 'sunDoy') s.doy = clamp(Math.round(num(t.value, 172)), 1, 365);
