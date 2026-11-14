@@ -465,6 +465,9 @@ test('plant photos from Wikimedia Commons: cultivar first, only usable licences,
   ok(/2 of \d/.test(await app.page.textContent('#photoH')), 'skip moves on');
   await app.page.keyboard.press('Escape');
   ok(await app.page.evaluate(() => document.getElementById('photoModal').hidden), 'Escape stops');
+  // existing plants can have one too, from the species form
+  await app.go('plan'); await app.page.click('#lib [data-edit=ex1]');
+  ok(await app.page.isVisible('[data-act=findPhotoEdit]'), 'Find a photo online offered for an existing plant');
 });
 
 test('species pop-up saves when you click off it', async open => {
