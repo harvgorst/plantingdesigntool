@@ -489,7 +489,7 @@ test('species pop-up saves when you click off it', async open => {
   eq((await app.store('plants/p0')).common, 'English lavender', 'Escape discards');
 });
 
-test('beds: reshaping keeps the grid still, moving takes the planting, points can be added and removed, old beds are repaired', async open => {
+test('beds: reshaping keeps the grid still, moving takes the planting, points can be added and double-clicked away, old beds are repaired', async open => {
   const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null; seed['settings/prefs'] = { oudolf: true };
   // an older bed with no anchor, and planting painted on two different grids (as reshaping used to cause)
   seed['gardens/g1'].beds = [{ id: 'bedOld', pts: [[1, 1], [6, 1], [6, 4], [1, 4]] }];
@@ -520,8 +520,8 @@ test('beds: reshaping keeps the grid still, moving takes the planting, points ca
   await app.dragPlan(mid[0], mid[1], mid[0], mid[1] - 0.4); await app.page.waitForTimeout(900);
   eq((await app.store('gardens/g1')).beds[0].pts.length, 5, 'a point added');
   const p1 = (await app.store('gardens/g1')).beds[0].pts[1], h = await app.planXY(p1[0], p1[1]);
-  await app.page.keyboard.down('Alt'); await app.page.mouse.click(h.x, h.y); await app.page.keyboard.up('Alt'); await app.page.waitForTimeout(900);
-  eq((await app.store('gardens/g1')).beds[0].pts.length, 4, 'and removed again');
+  await app.page.mouse.dblclick(h.x, h.y); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).beds[0].pts.length, 4, 'and removed again with a double-click');
   // move the whole bed: its planting and its grid come too
   const pl0 = (await app.store('gardens/g1')).plantings.find(q => q.id === 'q0');
   await app.clickPlan(3.5, 2.5); await app.dragPlan(3.3, 3.9, 3.9, 3.9); await app.page.waitForTimeout(900);

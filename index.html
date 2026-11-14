@@ -1508,7 +1508,7 @@ function renderInspector() {
       hint.hidden = true; el.hidden = false;
       el.innerHTML = n ? `<span class="pk">New bed</span><span class="pv">${plural(n, 'corner')}. Click the first corner again, or press Enter, to close the bed. Esc starts again.</span>
         <span class="acts"><button class="btn sm primary" type="button" data-act="bedDone"${n < 3 ? ' disabled' : ''}>Close bed</button></span>`
-        : `<span class="pk">Bed</span><span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, Alt-click a point to remove it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
+        : `<span class="pk">Bed</span><span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-click a point to remove it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
         <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove bed</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
       return;
     }
@@ -2209,7 +2209,11 @@ svg.addEventListener('pointerdown', e => {
     const b = bedHit;
     S.bedSel = b.id; renderInspector(); renderMap();
     const before = JSON.stringify(S.g), P0 = bedPoly(b);
-    if (hit?.dataset.kind === 'bedh' && e.altKey) {   // Alt-click a point to take it out
+    /* double-click (or Alt-click) a point to take it out */
+    const now = Date.now(), again = hit?.dataset.kind === 'bedh' && S.bedTap && S.bedTap.id === b.id && S.bedTap.i === +hit.dataset.i && now - S.bedTap.t < 400;
+    S.bedTap = hit?.dataset.kind === 'bedh' ? { id: b.id, i: +hit.dataset.i, t: now } : null;
+    if (hit?.dataset.kind === 'bedh' && (e.altKey || again)) {
+      S.bedTap = null;
       if (b.pts.length > 3) { pushHistory(before); b.pts = b.pts.filter((_, i) => i !== +hit.dataset.i); saveGarden(); refreshDerived(); }
       renderInspector(); renderMap(); return;
     }
