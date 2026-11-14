@@ -534,6 +534,28 @@ test('beds: reshaping keeps the grid still, moving takes the planting, points ca
   eq([+(g.beds[0].ox - anchor[0]).toFixed(2), +(g.beds[0].oy - anchor[1]).toFixed(2)], [0.6, 0], 'and so did its grid');
 });
 
+test('existing perennials behave like new ones, but are not bought', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null;
+  seed['plants/ex2'] = { common: 'Old geranium', botanical: 'Geranium macrorrhizum', role: 'ground', existing: true, spread: 0.5, height: 0.3 };
+  const app = await open(seed);
+  const row = n => +(n * 0.3 * Math.sqrt(3) / 2).toFixed(3);
+  await app.page.click('#lib [data-pid=ex2]');
+  ok(await app.page.isVisible('#pg-space'), 'painted on the planting grid');
+  await app.dragPlan(2, row(10), 3.5, row(10)); await app.page.waitForTimeout(900);
+  const pl = (await app.store('gardens/g1')).plantings.filter(q => q.plantId === 'ex2');
+  ok(pl.length >= 5, 'a row of existing geraniums, got ' + pl.length);
+  ok(pl.every(q => Math.abs(q.y - row(10)) < 0.002), 'on the grid');
+  const look = await app.page.evaluate(id => { const c = document.querySelector(`#map [data-kind=planting][data-id="${id}"] circle`); return [c.getAttribute('r'), c.getAttribute('stroke-dasharray'), c.style.fill]; }, pl[0].id);
+  eq(look[0], '0.15', 'drawn at its spacing'); eq(look[1], null, 'not dashed'); ok(/url\(#pat-ex2\)|rgb/.test(look[2]), 'in its species colour, got ' + look[2]);
+  // Oudolf mode: an area, but not counted as plants to buy
+  await app.go('preferences'); await app.page.check('#pf-oudolf'); await app.go('plan'); await app.page.waitForTimeout(300);
+  eq(await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=region]').length), 1, 'drawn as an area');
+  await app.go('schedule');
+  const sched = await app.page.textContent('#sched');
+  ok(!/Old geranium/.test(sched), 'not in the plant schedule');
+  ok(/Old geranium/.test(await app.page.textContent('#existingT')), 'listed with the existing plants');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });

@@ -772,7 +772,7 @@ const PAT_KEYS = Object.keys(PATTERNS);
    structure (trees, shrubs, climbers and existing plants) goes exactly where it is put, at its own size, in its layer colour;
    planting (perennials and ground cover) is painted onto the interlocked grid, drawn at its spacing, each species in its own colour and pattern;
    bulbs are their own layer over the top, on their own finer grid, free to sit among the planting */
-const kindOf = p => !p ? 'field' : p.existing ? 'existing' : layerOf(p.role) === 'tuber' ? 'bulb' : ['herbaceous', 'ground'].includes(layerOf(p.role)) ? 'field' : 'structure';
+const kindOf = p => { if (!p) return 'field'; const l = layerOf(p.role); return l === 'tuber' ? 'bulb' : ['herbaceous', 'ground'].includes(l) ? 'field' : p.existing ? 'existing' : 'structure'; };   // existing perennials, ground cover and bulbs behave just like new ones
 const onGrid = p => !!p && (kindOf(p) === 'field' || kindOf(p) === 'bulb');
 function ensureColours() {
   const g = S.g; if (!g) return;
@@ -799,13 +799,13 @@ function patternDef(id, col, pat, t) {
 }
 /* a small key swatch for a species, in whichever colour scheme is on */
 function plantSwatch(p, size = 12, force = false) {
-  if (p?.existing) return `<span class="sw round" style="background:none;border:1.5px dashed var(--exist)"></span>`;
+  if (p?.existing && !onGrid(p)) return `<span class="sw round" style="background:none;border:1.5px dashed var(--exist)"></span>`;
   if (!onGrid(p) && !force) return `<span class="sw round" style="background:var(--r-${p?.role || 'herbaceous'});border-color:var(--r-${p?.role || 'herbaceous'})"></span>`;
   const st = speciesStyle(p), id = 'sws-' + String(p?.id).replace(/[^\w-]/g, '') + '-' + size, r = size / 2 - 0.75;
   return `<svg class="swv" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${st.pat === 'solid' ? '' : `<defs>${patternDef(id, st.col, st.pat, size / 3.2)}</defs>`}<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${st.pat === 'solid' ? st.col : `url(#${id})`}"${st.pat === 'solid' ? ' fill-opacity="0.7"' : ''} stroke="${st.col}" stroke-width="1.2"/></svg>`;
 }
 /* the interlocked (staggered) planting grid */
-const gridFor = p => onGrid(p);   // trees, shrubs, climbers and existing plants always go exactly where they are put
+const gridFor = p => onGrid(p);   // trees, shrubs, climbers and existing ones of those always go exactly where they are put
 const gridOn = () => gridFor(plantById(S.activePlant));
 const gridSpace = () => clamp(num(S.prefs.pgridSpace, 0.3), 0.05, 2);
 const latticeOf = p => kindOf(p) === 'bulb' ? spacingOf(p) : gridSpace();   // bulbs sit on their own, finer grid
@@ -1271,7 +1271,7 @@ function renderMap() {
     const p = plantById(a.plantId);
     if (!isVisible(p)) continue;
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
-    const ex = !!p?.existing, sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : ex ? 'var(--exist)' : onGrid(p) ? speciesStyle(p).col : `var(--r-${p?.role || 'herbaceous'})`;
+    const ex = !!p?.existing && !onGrid(p), sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : ex ? 'var(--exist)' : onGrid(p) ? speciesStyle(p).col : `var(--r-${p?.role || 'herbaceous'})`;
     const dots = planted && !ex ? driftDots(a) : null, potr = potR(p);
     parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? halo(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }) : ''}</g>`);
   }
@@ -1305,7 +1305,7 @@ function renderMap() {
     const ex = !!p?.existing, st = pl.status || 'retain', qty = Math.max(1, pl.qty || 1);
     const se = S.season && !pr ? seasonOf(p, S.season) : null;
     const spf = grid && !se && kind === 'field' ? spFill(p) : null;
-    const c = se ? (se.col || 'var(--muted)') : ex ? 'var(--exist)' : spf ? spf.line : `var(--r-${p?.role || 'herbaceous'})`, sc = se ? 'var(--muted)' : c, fo = se ? se.op : ex ? 0.13 : 0.14;
+    const c = se ? (se.col || 'var(--muted)') : ex && !grid ? 'var(--exist)' : spf ? spf.line : `var(--r-${p?.role || 'herbaceous'})`, sc = se ? 'var(--muted)' : c, fo = se ? se.op : ex ? 0.13 : 0.14;
     const fillOf = () => (spf ? spf.fill : c), opOf = () => (spf ? spf.op : fo);
     const isSel = isSelected('planting', pl.id);
     let lbl = (S.prefs.labelQty && qty > 1 ? qty + ' ' : '') + plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '');
@@ -1654,14 +1654,14 @@ function renderPlantEditor(el) {
       <button class="btn sm" type="button" data-act="addInterest" style="align-self:flex-start">Add berries, autumn colour, stems…</button>
     </div></div>
     <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
-    ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>
-    <label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>
+    ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>`}
+    ${p.existing && !onGrid(p) ? '' : `<label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>
     <div class="field"><span>Plan colour</span><div class="row pcrow">${plantSwatch({ ...p, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
     ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
     <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label><button class="btn sm" type="button" data-act="findPhotoEdit">Find a photo online</button>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div>${p.photoCredit && p.photoId ? `<span class="note">${esc(photoCreditText(p.photoCredit))}</span>` : ''}</div>
-    <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing plants are drawn dashed at that size and left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets plant size in Design intent and the starting spacing for a row.'}</p>
+    <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing trees and shrubs are drawn dashed at that size; existing perennials, ground cover and bulbs are painted on the grid like new ones. Existing plants are left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets plant size in Design intent and the starting spacing for a row.'}</p>
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
     ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants from the plan first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
     <p class="note" id="plantErr" style="margin:0;color:var(--crit)"></p>`;
@@ -1672,7 +1672,7 @@ function scheduleRows() {
   const isEx = id => !!plantById(id)?.existing;
   const od = S.g && oudolf();   // in Oudolf mode the planting is counted from the size of its areas
   for (const pl of S.g?.plantings || []) if (!isEx(pl.plantId) && !(od && kindOf(plantById(pl.plantId)) === 'field')) m.set(pl.plantId, (m.get(pl.plantId) || 0) + (pl.qty || 1));
-  if (od) { const o = oudolfRegions(); for (const r of o.regions) m.set(r.pid, (m.get(r.pid) || 0) + r.qty); for (const c of o.singles) m.set(c.pid, (m.get(c.pid) || 0) + 1); }
+  if (od) { const o = oudolfRegions(); for (const r of o.regions) if (!isEx(r.pid)) m.set(r.pid, (m.get(r.pid) || 0) + r.qty); for (const c of o.singles) if (!isEx(c.pid)) m.set(c.pid, (m.get(c.pid) || 0) + 1); }
   for (const a of S.g?.areas || []) if (a.kind === 'drift' && a.plantId && !isEx(a.plantId)) m.set(a.plantId, (m.get(a.plantId) || 0) + driftQty(a));
   return [...m.entries()].map(([id, qty]) => ({ p: plantById(id), id, qty })).sort((a, b) => (a.p?.common || '').localeCompare(b.p?.common || ''));
 }
