@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 const ROOT = path.join(__dirname, '..');
 // Offline? Point SL_LIBS at a folder holding html2canvas.min.js, jspdf.umd.min.js, svg2pdf.umd.min.js and xlsx.full.min.js.
 const LIBS = process.env.SL_LIBS || '';
-const LIB_FILES = { html2canvas: 'html2canvas.min.js', jspdf: 'jspdf.umd.min.js', 'svg2pdf': 'svg2pdf.umd.min.js', xlsx: 'xlsx.full.min.js' };
+const LIB_FILES = { jspdf: 'jspdf.umd.min.js', 'svg2pdf': 'svg2pdf.umd.min.js', xlsx: 'xlsx.full.min.js', 'leaflet.min.css': 'leaflet.css', 'leaflet.min.js': 'leaflet.js' };
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFklEQVR4nGP8z8Dwn4EIwESMolGF1FMIAD2cAg8tPRTDAAAAAElFTkSuQmCC', 'base64');
 
 async function open(seed = {}, opts = {}) {
@@ -36,11 +36,14 @@ async function open(seed = {}, opts = {}) {
       : /Salvia nemorosa/.test(q) ? { 3: page(3, 'Salvia nemorosa.jpg', 'Kew Visitor', 'CC BY 3.0'), 4: page(4, 'Salvia nemorosa 2.jpg', 'Anon', 'Public domain') } : {};
     return r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ batchcomplete: '', query: { pages } }) });
   });
+  // Esri tiles and OpenStreetMap address search stand-ins
+  await page.route('https://ibasemaps-api.arcgis.com/**', r => r.fulfill({ contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PIXEL }));
+  await page.route('https://nominatim.openstreetmap.org/**', r => r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(/Bath/i.test(r.request().url()) ? [{ lat: '51.3811', lon: '-2.3590', display_name: 'Bath, Bath and North East Somerset, England' }] : []) }));
   await page.route('https://upload.wikimedia.org/**', r => r.fulfill({ contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PIXEL }));
   if (LIBS) await page.route(/https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/.*/, r => {
     const key = Object.keys(LIB_FILES).find(k => r.request().url().includes(k));
     const f = key && path.join(LIBS, LIB_FILES[key]);
-    return f && fs.existsSync(f) ? r.fulfill({ path: f, contentType: 'text/javascript' }) : r.abort();
+    return f && fs.existsSync(f) ? r.fulfill({ path: f, contentType: f.endsWith('.css') ? 'text/css' : 'text/javascript' }) : r.abort();
   });
   await page.goto('http://app.test/' + (opts.hash || ''));
   await page.waitForFunction(() => /Saved|Not saved/.test(document.getElementById('status').textContent), null, { timeout: 5000 }).catch(() => {});

@@ -620,6 +620,46 @@ test('booklet PDF: drawn as real text and shapes, photos cropped to their frame,
   } else console.log('     (pdfimages not installed: crop not measured)');
 });
 
+test('aerial photo: find the garden on the map, frame it, draw over it; the key stays private', async open => {
+  const seed = sample(); seed['gardens/g1'].underlay = null; seed['gardens/g1'].north = 0; delete seed['gardens/g1'].lat;
+  const app = await open(seed);
+  const menu = async () => { if (await app.page.isHidden('#ulMenu')) await app.page.click('#ulMenuBtn'); };
+  await menu(); await app.page.click('#aerPick');
+  ok(await app.page.isVisible('#mp-key'), 'asks for an Esri key first');
+  await app.page.fill('#mp-key', 'TEST-KEY-123'); await app.page.click('[data-mp-key] button');
+  await app.page.waitForFunction(() => window.L && document.querySelector('#mp-map .leaflet-tile'), null, { timeout: 10000 });
+  await app.page.fill('#mp-q', 'Bath'); await app.page.click('[data-mp-search] button'); await app.page.waitForTimeout(500);
+  ok(/12 × 8.6 m/.test(await app.page.textContent('#mp-size')), 'the frame is the garden at its size');
+  await app.page.click('[data-mp=use]'); await app.page.waitForTimeout(900);
+  const g = await app.store('gardens/g1');
+  ok(g.aerial && Math.abs(g.aerial.lat - 51.3811) < 0.001 && Math.abs(g.aerial.lon + 2.359) < 0.001, 'position kept with the garden, got ' + JSON.stringify(g.aerial));
+  ok(Math.abs(g.lat - 51.38) < 0.01, 'the sun study location filled in');
+  ok(!JSON.stringify(g).includes('data:image') && !JSON.stringify(g).includes('TEST-KEY'), 'no photo and no key stored with the garden');
+  const tiles = await app.page.$$eval('#map .aer image', im => im.map(i => i.getAttribute('href')));
+  ok(tiles.length >= 1 && tiles.every(h => /World_Imagery\/MapServer\/tile\/\d+\/\d+\/\d+\?token=TEST-KEY-123/.test(h)), 'Esri tiles under the plan, got ' + tiles.length);
+  ok((await app.page.textContent('#map')).includes('Powered by Esri'), 'Esri credited on the plan');
+  // planting still works on top
+  await app.page.click('#lib [data-pid=p0]'); await app.clickPlan(3, 3); await app.page.waitForTimeout(1200);
+  { const n = (await app.store('gardens/g1')).plantings.length; ok(n === 8, 'plants go on as usual, got ' + n + ' · ' + await app.status() + ' · hit ' + await app.page.evaluate(() => { const p = document.querySelector('#map').createSVGPoint(); return 'tool:' + document.querySelector('[data-tool][aria-pressed=true]')?.dataset.tool; })); }
+  // hide, show and remove
+  await menu(); await app.page.click('#aerToggle');
+  eq(await app.page.$$eval('#map .aer', x => x.length), 0, 'hidden'); await menu(); await app.page.click('#aerToggle');
+  eq(await app.page.$$eval('#map .aer', x => x.length), 1, 'shown');
+  // the plan sheet carries the photo but never the key
+  await app.go('presentation'); await app.page.waitForSelector('.bpage'); await app.page.click('#sheetPdf');
+  await app.page.waitForFunction(() => window.__mock.saved.length === 1 || /Couldn/.test(document.getElementById('presMsg').textContent), null, { timeout: 30000 });
+  const raw = await app.savedBytes(0), zlib = require('zlib');
+  let pdf = raw.toString('latin1');   // with every compressed stream opened up
+  for (const m of pdf.matchAll(/stream\r?\n/g)) { const st = m.index + m[0].length, en = pdf.indexOf('endstream', st); try { pdf += zlib.inflateSync(raw.subarray(st, en)).toString('latin1'); } catch {} }
+  ok(!pdf.includes('TEST-KEY'), 'the key is not in the PDF');
+  ok(/Powered by Esri/.test(pdf) || /\(Powered by Esri/.test(pdf), 'the credit is');
+  // backups leave the key out
+  await app.go('preferences'); await app.page.click('[data-act=bkpAll]'); await app.page.waitForFunction(() => window.__mock.saved.length === 2);
+  ok(!(await app.savedBytes(1)).toString('utf8').includes('TEST-KEY'), 'the key is not in a backup');
+  await app.go('plan'); await menu(); await app.page.click('#aerRemove'); await app.page.waitForTimeout(900);
+  ok(!(await app.store('gardens/g1')).aerial, 'removed');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });

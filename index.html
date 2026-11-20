@@ -266,6 +266,13 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .pgrid button:hover, .pgrid button:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .pgrid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--grid); }
 .pgrid small { display: block; padding: 0 7px 7px; font-size: 10.5px; line-height: 1.3; color: var(--muted); }
+.mapview { position: relative; height: min(60vh, 560px); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #3B4A3A; }
+.mapview .lf { position: absolute; inset: 0; }
+.mapframe { position: absolute; left: 50%; top: 50%; z-index: 500; pointer-events: none; border: 2px solid #FFF; box-shadow: 0 0 0 1px rgba(0,0,0,0.55), 0 0 0 9999px rgba(20, 18, 15, 0.28); transform-origin: 50% 50%; }
+.mapframe span { position: absolute; left: 0; top: -22px; font-size: 12px; color: #FFF; text-shadow: 0 1px 2px rgba(0,0,0,0.8); white-space: nowrap; }
+.mapres { display: flex; flex-direction: column; gap: 2px; }
+.mapres button { text-align: left; border: 0; background: none; padding: 4px 6px; border-radius: 6px; cursor: pointer; font: inherit; color: var(--ink); }
+.mapres button:hover { background: var(--accent-soft); }
 .pgroup { margin: 4px 0 6px; font-size: 12px; color: var(--muted); }
 html[data-skin=xp] .pgrid button { border-radius: 0; }
 .btable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -550,6 +557,11 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
         <button class="mi" id="ulToggle" type="button">Hide plan</button>
         <button class="mi danger" id="ulRemove" type="button">Remove plan</button>
         <p class="note" style="margin:2px 4px 0">SVG, PDF (page 1), PNG or JPEG.</p>
+        <div style="border-top:1px solid var(--line);margin:6px 0 4px"></div>
+        <button class="mi" id="aerPick" type="button">Aerial photo from map…</button>
+        <label class="mi ulop"><span>Aerial transparency</span><input type="range" id="aerOpacity" min="10" max="100" step="5" value="90" aria-label="Aerial photo opacity"></label>
+        <button class="mi" id="aerToggle" type="button">Hide aerial photo</button>
+        <button class="mi danger" id="aerRemove" type="button">Remove aerial photo</button>
       </div>
     </div>
     <div class="menuwrap">
@@ -651,6 +663,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="field"><span>Area</span><output id="dims">—</output></div>
     <div class="field"><span>North</span><div class="row" style="flex-wrap:nowrap"><input type="range" id="g-north-r" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="flex:1;accent-color:var(--accent)"><input id="g-north" type="number" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="width:4.8em"><span class="pv">°</span><svg id="g-north-dial" width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><circle r="13" fill="none" style="stroke:var(--line)"/><path id="g-north-needle" d="M0 -11 L4 5 L0 2 L-4 5 Z" style="fill:var(--ink)"/></svg></div></div>
     <p class="note" style="margin:0">0° means north is straight up. You can also drag the north arrow on the plan.</p>
+    <div class="field"><span>Aerial photo</span><div class="row"><button class="btn sm" type="button" id="aerPick2">Find the garden on the map…</button></div></div>
     <label class="field"><span>Location</span><input id="g-loc" type="text" placeholder="Latitude, longitude, e.g. 51.3811, -2.3590" autocomplete="off"></label>
     <p class="note" id="locNote" style="margin:0">Used by the sun study. In Google Maps, right-click the site and click the coordinates to copy them, then paste them here.</p>
     <p class="note" id="sizeNote" style="margin:0"></p>
@@ -661,6 +674,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
   </div>
 </div>
 <div class="modal" id="importModal" hidden role="dialog" aria-modal="true" aria-labelledby="impH"><div class="card" id="importBody" style="max-width:860px;max-height:min(92vh, 900px);overflow:auto"></div></div>
+<div class="modal" id="mapModal" hidden role="dialog" aria-modal="true" aria-labelledby="mapH"><div class="card" id="mapBody" style="max-width:1000px;width:100%"></div></div>
 <div class="modal" id="photoModal" hidden role="dialog" aria-modal="true" aria-labelledby="photoH"><div class="card" id="photoBody" style="max-width:760px;width:100%"></div></div>
 <div class="modal" id="clearModal" hidden role="dialog" aria-modal="true" aria-labelledby="clearH">
   <div class="card">
@@ -702,7 +716,7 @@ const HINTS = {
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
-const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'eiderdown', pgridSpace: 0.3, oudolf: false };
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'eiderdown', pgridSpace: 0.3, oudolf: false, esriKey: '' };
 const THEMES = {
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
   woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
@@ -978,6 +992,117 @@ function oudolfRegions() {
   return counted(REG.val);
 }
 
+
+/* ---------- aerial photo under the plan (Esri World Imagery) ----------
+   The garden keeps only where its plan sits on the earth (the top-left corner's latitude and longitude). The photo is
+   fetched fresh from Esri with your own key whenever it's shown or exported, and never saved; it always carries Esri's credit. */
+const ESRI_ATTR = 'Powered by Esri · Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community';
+const esriTile = (z, x, y) => `https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}?token=${encodeURIComponent(S.prefs.esriKey || '')}`;
+const MERC = {
+  px: (lat, lon, z) => { const n = 256 * 2 ** z, sn = Math.sin(clamp(lat, -85, 85) * Math.PI / 180); return [(lon + 180) / 360 * n, (0.5 - Math.log((1 + sn) / (1 - sn)) / (4 * Math.PI)) * n]; },
+  ll: (x, y, z) => { const n = 256 * 2 ** z; return [Math.atan(Math.sinh(Math.PI * (1 - 2 * y / n))) * 180 / Math.PI, x / n * 360 - 180]; },
+  mpp: (lat, z) => 156543.03392 * Math.cos(lat * Math.PI / 180) / 2 ** z,
+};
+const aerialOn = () => !!(S.g?.aerial && S.prefs.esriKey && !S.aerHidden);
+/* the tiles covering the plan (and its margin) at a zoom level, placed in plan metres before the plan's north turn */
+function aerialTiles(a, box, z) {
+  const th = -num(S.g.north, 0) * Math.PI / 180, cs = Math.cos(th), sn = Math.sin(th);
+  const pts = [[box.x0, box.y0], [box.x1, box.y0], [box.x0, box.y1], [box.x1, box.y1]].map(([x, y]) => [x * cs - y * sn, x * sn + y * cs]);
+  for (let zz = z; zz >= 1; zz--) {
+    const m = MERC.mpp(a.lat, zz), [ax, ay] = MERC.px(a.lat, a.lon, zz);
+    const xs = pts.map(p => ax + p[0] / m), ys = pts.map(p => ay + p[1] / m);
+    const tx0 = Math.floor(Math.min(...xs) / 256), tx1 = Math.floor(Math.max(...xs) / 256), ty0 = Math.floor(Math.min(...ys) / 256), ty1 = Math.floor(Math.max(...ys) / 256);
+    if ((tx1 - tx0 + 1) * (ty1 - ty0 + 1) > 120) continue;
+    const out = [];
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) out.push({ href: esriTile(zz, tx, ty), x: +((tx * 256 - ax) * m).toFixed(3), y: +((ty * 256 - ay) * m).toFixed(3), s: +(256 * m).toFixed(4) });
+    return out;
+  }
+  return [];
+}
+function aerialLayer(W, D, pad, px, pr) {
+  const a = S.g.aerial, lat = a.lat, want = pr ? Math.max(W, D) / 2400 : px;   // about one tile pixel per screen pixel; finer for print
+  const z = clamp(Math.round(Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) / Math.max(want, 1e-4))), 1, 20);
+  const tiles = aerialTiles(a, { x0: 0, y0: 0, x1: W, y1: D }, z);
+  /* trimmed to the plot, so the rulers and labels round it stay on plain paper */
+  return `<clipPath id="aerclip"><rect x="0" y="0" width="${W}" height="${D}"/></clipPath><g clip-path="url(#aerclip)" pointer-events="none"><g class="aer" transform="rotate(${num(S.g.north, 0)})" opacity="${clamp(num(a.opacity, 0.9), 0.1, 1)}">${tiles.map(t => `<image class="aert" href="${esc(t.href)}" x="${t.x}" y="${t.y}" width="${t.s + 0.002}" height="${t.s + 0.002}" preserveAspectRatio="none"/>`).join('')}</g></g>`;
+}
+
+
+/* the map window: find the garden, then frame it; the white frame is the plan at its real size */
+const MP = { map: null, W: 10, D: 8 };
+async function loadLeaflet() {
+  if (window.L?.map) return;
+  if (!document.querySelector('link[data-leaflet]')) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'; l.dataset.leaflet = '1'; document.head.appendChild(l); }
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js');
+}
+function closeMapPicker() { $('mapModal').hidden = true; if (MP.map) { MP.map.remove(); MP.map = null; } }
+async function openMapPicker() {
+  if (!S.g) return;
+  const body = $('mapBody'); $('mapModal').hidden = false;
+  if (!S.prefs.esriKey) {
+    body.innerHTML = `<div class="card-h"><h2 id="mapH">Aerial photo</h2><button class="btn sm" type="button" data-mp="close">Close</button></div>
+      <p class="note" style="margin:0">Aerial photos come from Esri World Imagery and need your own free key, once. Sign up for an ArcGIS Location Platform account at <b>location.arcgis.com</b>, create an API key with the <b>Basemaps</b> privilege, and paste it here. It stays on this computer.</p>
+      <form class="row" data-mp-key style="flex-wrap:nowrap"><input type="password" id="mp-key" placeholder="Paste your Esri API key" autocomplete="off" spellcheck="false" style="flex:1"><button class="btn sm primary" type="submit">Save and continue</button></form>`;
+    setTimeout(() => $('mp-key')?.focus(), 0); return;
+  }
+  body.innerHTML = `<div class="card-h"><h2 id="mapH">Find the garden</h2><button class="btn sm" type="button" data-mp="close">Close</button></div>
+    <form class="row" data-mp-search style="flex-wrap:nowrap"><input type="text" id="mp-q" placeholder="Address, postcode, or latitude, longitude" style="flex:1" autocomplete="off"><button class="btn sm" type="submit">Search</button></form>
+    <div class="mapres" id="mp-res"></div>
+    <div class="mapview"><div class="lf" id="mp-map"></div><div class="mapframe" id="mp-frame"><span id="mp-size"></span></div></div>
+    <div class="row" style="justify-content:space-between">
+      <span class="row" style="gap:8px"><span class="pv">Garden</span><input id="mp-w" class="n" type="number" min="1" max="500" step="0.5" value="${S.g.width}" aria-label="Width in metres" style="width:5em"> × <input id="mp-d" class="n" type="number" min="1" max="500" step="0.5" value="${S.g.depth}" aria-label="Depth in metres" style="width:5em"><span class="pv">m</span></span>
+      <span class="row" style="gap:6px"><button class="btn sm" type="button" data-mp="close">Cancel</button><button class="btn sm primary" type="button" data-mp="use">Use this position</button></span>
+    </div>
+    <p class="note" id="mp-note" style="margin:0">Pan and zoom until the garden sits inside the white frame; the frame is the plan at its real size. Change the size here if the plot is bigger or smaller.</p>`;
+  MP.W = S.g.width; MP.D = S.g.depth;
+  try { await loadLeaflet(); } catch { $('mp-note').textContent = 'The map couldn’t be loaded. Check your connection and try again.'; return; }
+  if ($('mapModal').hidden) return;
+  const a = S.g.aerial, start = a ? (() => { const z = 19, [ax, ay] = MERC.px(a.lat, a.lon, z), th = num(S.g.north, 0) * Math.PI / 180, m = MERC.mpp(a.lat, z), cx = S.g.width / 2, cy = S.g.depth / 2;
+    return MERC.ll(ax + (cx * Math.cos(-th) - cy * Math.sin(-th)) / m, ay + (cx * Math.sin(-th) + cy * Math.cos(-th)) / m, z); })() : S.g.lat != null ? [S.g.lat, S.g.lon] : null;
+  const map = MP.map = window.L.map('mp-map', { zoomSnap: 0.25, zoomDelta: 0.5, maxZoom: 21, attributionControl: true }).setView(start || [53.5, -2], start ? 19 : 6);
+  let bad = 0;
+  window.L.tileLayer(esriTile('{z}', '{x}', '{y}').replace('%7Bz%7D', '{z}'), { maxNativeZoom: 20, maxZoom: 21, attribution: ESRI_ATTR })
+    .on('tileerror', () => { if (++bad === 3) $('mp-note').innerHTML = 'Esri didn’t send the photo. Check your API key in Preferences → Aerial photos (it needs the Basemaps privilege).'; }).addTo(map);
+  const frame = () => { const c = map.getCenter(), m = MERC.mpp(c.lat, map.getZoom()), f = $('mp-frame'); if (!f) return;
+    f.style.width = MP.W / m + 'px'; f.style.height = MP.D / m + 'px'; f.style.marginLeft = -MP.W / m / 2 + 'px'; f.style.marginTop = -MP.D / m / 2 + 'px'; f.style.transform = `rotate(${-num(S.g.north, 0)}deg)`;
+    $('mp-size').textContent = `${MP.W} × ${MP.D} m`; };
+  map.on('zoom move resize', frame); frame(); setTimeout(() => { map.invalidateSize(); frame(); }, 60);
+}
+function useMapPosition() {
+  const map = MP.map; if (!map || !S.g) return;
+  const c = map.getCenter(), z = 20, m = MERC.mpp(c.lat, z), [cx, cy] = MERC.px(c.lat, c.lng, z), th = -num(S.g.north, 0) * Math.PI / 180;
+  const hx = MP.W / 2, hy = MP.D / 2, ox = cx - (hx * Math.cos(th) - hy * Math.sin(th)) / m, oy = cy - (hx * Math.sin(th) + hy * Math.cos(th)) / m, [lat, lon] = MERC.ll(ox, oy, z);
+  checkpoint();
+  S.g.aerial = { lat: +lat.toFixed(7), lon: +lon.toFixed(7), opacity: S.g.aerial?.opacity ?? 0.9 };
+  if (MP.W !== S.g.width || MP.D !== S.g.depth) { S.g.width = MP.W; S.g.depth = MP.D; }
+  if (S.g.lat == null) { S.g.lat = +c.lat.toFixed(4); S.g.lon = +c.lng.toFixed(4); }   // the sun study uses it too
+  S.aerHidden = false; saveGarden(); closeMapPicker(); resetView(); renderAll();
+}
+$('mapModal').addEventListener('click', e => {
+  if (e.target.id === 'mapModal') { closeMapPicker(); return; }
+  const b = e.target.closest('[data-mp]'); if (b) { if (b.dataset.mp === 'close') closeMapPicker(); if (b.dataset.mp === 'use') useMapPosition(); return; }
+  const r = e.target.closest('[data-ll]'); if (r && MP.map) { const [la, lo] = r.dataset.ll.split(',').map(Number); MP.map.setView([la, lo], 19); $('mp-res').innerHTML = ''; }
+});
+$('mapModal').addEventListener('input', e => {
+  if (e.target.id === 'mp-w' || e.target.id === 'mp-d') { MP.W = clamp(num($('mp-w').value, MP.W), 1, 500); MP.D = clamp(num($('mp-d').value, MP.D), 1, 500); MP.map?.fire('move'); }
+});
+$('mapModal').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (e.target.matches('[data-mp-key]')) { const k = $('mp-key').value.trim(); if (!k) return; setPref('esriKey', k); openMapPicker(); return; }
+  if (!e.target.matches('[data-mp-search]')) return;
+  const q = $('mp-q').value.trim(), res = $('mp-res'); if (!q || !MP.map) return;
+  const ll = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if (ll) { MP.map.setView([+ll[1], +ll[2]], 19); return; }
+  res.innerHTML = '<span class="pv">Searching…</span>';
+  try {   // OpenStreetMap's free address search, asked only when you press Search
+    const r = await fetch('https://nominatim.openstreetmap.org/search?' + new URLSearchParams({ format: 'jsonv2', limit: '5', q }));
+    if (!r.ok) throw new Error(r.status === 429 ? 'The address search is busy; try again in a moment' : 'The address search didn’t answer');
+    const hits = await r.json();
+    res.innerHTML = hits.length ? hits.map(h => `<button type="button" data-ll="${+h.lat},${+h.lon}">${esc(h.display_name)}</button>`).join('') + '<span class="pv" style="font-size:11px">Address search © OpenStreetMap contributors</span>' : '<span class="pv">Nothing found. Try a postcode, or pan the map yourself.</span>';
+    if (hits.length === 1) MP.map.setView([+hits[0].lat, +hits[0].lon], 19);
+  } catch (err) { res.innerHTML = `<span class="pv">${esc(err?.message || 'Search failed')}. You can also type latitude, longitude, or pan the map.</span>`; }
+});
+
 /* ---------- curve geometry (closed Catmull-Rom splines) ---------- */
 function segs(pts, closed) {
   const n = pts.length, out = [];
@@ -1220,6 +1345,7 @@ function renderMap() {
   const u = g.underlay, showUl = u && !S.ulHidden && ulUrl(u);
   const parts = [];
   parts.push(`<rect x="0" y="0" width="${W}" height="${D}" style="fill:var(--ground)"/>`);
+  if (aerialOn()) parts.push(aerialLayer(W, D, pad, px, pr));
   if (showUl) parts.push(`<image class="ul" href="${esc(ulUrl(u))}" x="0" y="0" width="${u.natW * u.mPerPx}" height="${u.natH * u.mPerPx}" preserveAspectRatio="none" opacity="${num(u.opacity, 0.6)}" pointer-events="none"/>`);
   // grid
   const step = S.prefs.gridStep === 'auto' ? (M > 30 ? 5 : 1) : num(S.prefs.gridStep, 1);
@@ -1232,6 +1358,7 @@ function renderMap() {
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
   const ls = fs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
   const NUM = ls * 0.62, NAME = ls * 0.68;   // every number on the plan is one size, and every name another
+  if (aerialOn()) parts.push(`<text x="${W}" y="${D + fs * 1.25}" font-size="${fs * 0.5}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${esc(ESRI_ATTR)}</text>`);
   if (S.sun.on && !pr) parts.push(sunLayer(W, D, M, pad, fs, px, halo));
   {
     const edit = S.tool === 'bed' && !pr;
@@ -1466,6 +1593,7 @@ function renderTools() {
   $('ulScale').disabled = !u; $('ulRemove').disabled = !u; $('ulToggle').disabled = !u; $('ulOpacity').disabled = !u;
   $('ulScale').setAttribute('aria-pressed', S.tool === 'scale');
   $('ulToggle').textContent = S.ulHidden ? 'Show plan' : 'Hide plan';
+  { const a = S.g?.aerial; $('aerPick').disabled = !S.g; $('aerPick').textContent = a ? 'Move on the map…' : 'Aerial photo from map…'; for (const id of ['aerOpacity', 'aerToggle', 'aerRemove']) $(id).disabled = !a; $('aerToggle').textContent = S.aerHidden ? 'Show aerial photo' : 'Hide aerial photo'; if (a && document.activeElement !== $('aerOpacity')) $('aerOpacity').value = Math.round(num(a.opacity, 0.9) * 100); }
   if (u && document.activeElement !== $('ulOpacity')) $('ulOpacity').value = Math.round(num(u.opacity, 0.6) * 100);
 }
 function renderLibrary() {
@@ -1830,6 +1958,10 @@ function renderPrefs() {
         ${chk('pf-rulers', 'showRulers', 'Show measurements along the edges')}
         ${chk('pf-scale', 'showScale', 'Show scale bar and north arrow')}
       </fieldset>
+      <fieldset class="pref"><legend>Aerial photos</legend>
+        <label class="field"><span>Esri API key</span><input type="password" id="pf-esri" data-pref="esriKey" value="${esc(P.esriKey || '')}" autocomplete="off" spellcheck="false" placeholder="Paste your key"></label>
+        <p class="note" style="margin:0">Aerial photos under the plan come from Esri World Imagery and need your own free key. Sign up for an ArcGIS Location Platform account at location.arcgis.com, create an API key with the Basemaps privilege, and paste it here. The free allowance (2 million map tiles a month) is far more than one designer uses. The key stays on this computer and is left out of backups.</p>
+      </fieldset>
       <fieldset class="pref"><legend>Planting style</legend>
         ${chk('pf-oudolf', 'oudolf', 'Oudolf mode')}
         <p class="note" style="margin:0">Draws the perennials and ground cover as areas that share their borders, in the manner of Piet Oudolf’s and Henk Gerritsen’s plans, keeping each plant’s colour and pattern. You still paint them onto the grid; each area is labelled with its count, worked out from its size and the plant’s number per square metre, which you set in the bar under the toolbar.</p>
@@ -1864,6 +1996,7 @@ function savePrefs() {
 function setPref(k, v) {
   S.prefs[k] = v; savePrefs();
   if (k === 'theme') { applyTheme(v); return; }
+  if (k === 'esriKey') { if (S.loaded) renderMap(); return; }
   if (k === 'pgridSpace') { if (S.loaded) { renderLibrary(); renderLayers(); renderMap(); } return; }
   if (k === 'oudolf') { if (S.loaded) renderAll(); const c = $('pf-oudolf'); if (c) c.checked = !!v; return; }   // only the drawing and counts change; no plant is moved
   if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
@@ -2562,7 +2695,7 @@ function bookletInput(t) {
   clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 350);
 }
 async function planImage(numbered) {
-  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
+  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, aerialOn(), [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
   S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = {};
@@ -2574,7 +2707,7 @@ async function planImage(numbered) {
   markup = markup.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#999');
   const hrefs = [...new Set([...markup.matchAll(/href="([^"]+)"/g)].map(m => m[1]))];
   for (const h of hrefs) {
-    try { const blob = await (await fetch(h)).blob(); const data = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); }); markup = markup.split(`href="${h}"`).join(`href="${data}"`); } catch {}
+    try { const blob = await (await fetch(h.replace(/&amp;/g, '&'))).blob(); const data = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); }); markup = markup.split(`href="${h}"`).join(`href="${data}"`); } catch {}
   }
   const [, , vw, vh] = vb.split(' ').map(Number);
   const W = 2600, H = Math.round(W * vh / vw);
@@ -2726,6 +2859,9 @@ async function planVectorMarkup(o) {
   finally { S.print = null; Object.assign(S, { zoom: save.zoom, cx: save.cx, cy: save.cy, sel: save.sel, multi: save.multi, drag: save.drag, cal: save.cal }); S.prefs.labelMode = save.mode; S.prefs.labelQty = save.qty; S.prefs.labelSize = save.size; renderMap(); }
   const cs = getComputedStyle(document.querySelector('.sheetref')), bg = cs.getPropertyValue('--ground').trim() || '#F1EBDF';
   markup = pdfText(vectorise(markup.replace(/var\((--[\w-]+)\)/g, (m, n) => cs.getPropertyValue(n).trim() || '#999'), o.lw));
+  for (const h of [...new Set([...markup.matchAll(/<image class="aert" href="([^"]+)"/g)].map(m => m[1]))]) {
+    try { const blob = await (await fetch(h.replace(/&amp;/g, '&'))).blob(); const data = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); }); markup = markup.split(`href="${h}"`).join(`href="${data}"`); } catch {}
+  }
   const tag = markup.match(/<image class="ul"[^>]*>(<\/image>)?/);
   if (tag) { let data = null; try { data = await underlayPicture(S.g.underlay, bg); } catch {} markup = markup.replace(tag[0], data ? tag[0].replace(/href="[^"]*"/, `href="${data}"`).replace(/\sopacity="[^"]*"/, '') : ''); }
   return { markup, vb };
@@ -2988,6 +3124,11 @@ $('ulImport').addEventListener('click', () => { closeUlMenu(); $('ulFile').click
 $('ulFile').addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; importPlan(f); });
 $('ulScale').addEventListener('click', () => { closeUlMenu(); setTool(S.tool === 'scale' ? 'select' : 'scale'); });
 $('ulToggle').addEventListener('click', () => { S.ulHidden = !S.ulHidden; renderTools(); renderMap(); });
+$('aerPick').addEventListener('click', () => { closeUlMenu(); openMapPicker(); });
+$('aerToggle').addEventListener('click', () => { S.aerHidden = !S.aerHidden; renderTools(); renderMap(); });
+$('aerRemove').addEventListener('click', () => { if (!S.g?.aerial) return; closeUlMenu(); checkpoint(); delete S.g.aerial; saveGarden(); renderAll(); });
+$('aerOpacity').addEventListener('input', e => { if (!S.g?.aerial) return; S.g.aerial = { ...S.g.aerial, opacity: clamp(num(e.target.value, 90) / 100, 0.1, 1) }; renderMapSoon(); });
+$('aerOpacity').addEventListener('change', () => saveGarden());
 let opTimer = null;
 $('ulOpacity').addEventListener('input', e => {
   const u = S.g?.underlay; if (!u) return;
@@ -3147,6 +3288,7 @@ function openDetails() { if (!S.g) { startNewGarden(); return; } renderGardenFie
 function closeDetails() { $('detailsModal').hidden = true; $('detailsBtn').focus(); }
 $('detailsBtn').addEventListener('click', openDetails);
 $('detailsDone').addEventListener('click', closeDetails);
+$('aerPick2').addEventListener('click', () => { closeDetails(); openMapPicker(); });
 $('detailsModal').addEventListener('click', e => { if (e.target.id === 'detailsModal') closeDetails(); });
 function layerCounts() {
   const c = {}; if (!S.g) return c;
@@ -3264,6 +3406,7 @@ document.addEventListener('keydown', e => {
   if (!$('plantModal').hidden && e.key === 'Escape') { S.editPlant = null; S.confirm = null; renderLibrary(); return; }
   if (!$('clearModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeClear(); } return; }
   if (!$('photoModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closePhotoPicker(); } return; }
+  if (!$('mapModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeMapPicker(); } return; }
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
   if ((e.ctrlKey || e.metaKey) && !typing && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
@@ -3300,7 +3443,8 @@ function normGarden(id, d) {
     booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, colors: d.colors && typeof d.colors === 'object' ? d.colors : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined,
     lat: Number.isFinite(d.lat) ? d.lat : undefined, lon: Number.isFinite(d.lon) ? d.lon : undefined,
     blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined,
-    beds: Array.isArray(d.beds) ? d.beds.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 3) : undefined };
+    beds: Array.isArray(d.beds) ? d.beds.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 3) : undefined,
+    aerial: d.aerial && Number.isFinite(d.aerial.lat) && Number.isFinite(d.aerial.lon) ? d.aerial : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -3995,6 +4139,7 @@ function cleanGarden(d) {
   if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered, orient: ['landscape', 'portrait'].includes(d.sheet.orient) ? d.sheet.orient : 'auto' };
   if (d.example) g.example = true;
   if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
+  if (d.aerial && Number.isFinite(+d.aerial.lat) && Number.isFinite(+d.aerial.lon) && Math.abs(d.aerial.lat) < 85 && Math.abs(d.aerial.lon) <= 180) g.aerial = { lat: +d.aerial.lat, lon: +d.aerial.lon, opacity: clamp(numOrNull(d.aerial.opacity) ?? 0.9, 0.1, 1) };
   return g;
 }
 const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
@@ -4014,7 +4159,7 @@ async function buildBackup(kind) {
     try { const blob = await S.assets.get(id); if (!blob) throw new Error('missing'); files[id] = { type: blob.type || 'image/jpeg', data: await blobToB64(blob) }; } catch { missing++; }
   }
   const out = { app: 'SevenLayers', format: BACKUP_FORMAT, kind, exportedAt: new Date().toISOString(), gardens: JSON.parse(JSON.stringify(gardens)), plants: JSON.parse(JSON.stringify(plants)), files };
-  if (kind === 'all') out.prefs = JSON.parse(JSON.stringify(S.prefs));
+  if (kind === 'all') { out.prefs = JSON.parse(JSON.stringify(S.prefs)); delete out.prefs.esriKey; }   // your Esri key never goes into a backup file
   return { out, missing };
 }
 async function downloadBackup(kind) {
@@ -4075,7 +4220,7 @@ async function restoreBackup(file) {
       S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false,
         showGrid: p.showGrid !== false, gridStep: ['auto', '0.5', '1', '2', '5'].includes(String(p.gridStep)) ? String(p.gridStep) : 'auto', showRulers: p.showRulers !== false, showScale: p.showScale !== false, snap: clamp(numOrNull(p.snap) ?? 0.1, 0.05, 1),
         currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown',
-        pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2), oudolf: p.oudolf === true };
+        pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2), oudolf: p.oudolf === true, esriKey: S.prefs.esriKey || '' };
       const logo = await asset(p.logoId); if (logo) S.prefs.logoId = logo;
       applyRoleColours(); applyTheme(S.prefs.theme); savePrefs();
     }
