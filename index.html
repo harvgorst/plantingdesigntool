@@ -1908,7 +1908,7 @@ function renderLibrary() {
   if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${q ? `No species match “${esc(S.filter)}”` : 'No species'}${LIBF.layers.size || LIBF.used ? ' with these filters. Click All to see everything.' : '.'}</li>`; return; }
   /* grouped under each layer, so a long library is easy to scan */
   const groups = new Set(list.map(p => layerOf(p.role))).size > 1;
-  $('lib').innerHTML = list.map((p, i) => (groups && (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role)) ? `<li class="lh" aria-hidden="true">${esc(ROLES[layerOf(p.role)])}</li>` : '') + `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || 'Flower colour')}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
+  $('lib').innerHTML = list.map((p, i) => (groups && (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role)) ? `<li class="lh" aria-hidden="true">${esc(ROLES[layerOf(p.role)])}</li>` : '') + `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || (p.crop ? 'Harvest colour' : 'Flower colour'))}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
 }
 function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
 function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
@@ -2023,7 +2023,7 @@ function renderInspector() {
   const acts = (extra = '') => `<span class="acts">${extra}${it.lx != null ? '<button class="btn sm" type="button" data-act="resetLabel" title="Put the label back on the plant">Reset label</button>' : ''}<button class="btn sm" type="button" data-act="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
   if (S.sel.kind === 'planting') {
     const p = plantById(it.plantId);
-    const fl = p?.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : 'no flowers';
+    const fl = p?.crop ? (cropMonths(p).length ? 'harvest ' + spanText(cropMonths(p)) : 'crop') : p?.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : 'no flowers';
     el.innerHTML = `<span class="pk">${plantSwatch(p, 14)}${esc(p?.common || 'Missing species')}${p?.existing ? '<span class="ex exist">Existing</span>' : ''}</span>
       <label class="pf"><span>Species</span><select id="pl-species" data-f="plantId">${speciesOpts(it.plantId)}</select></label>
       <label class="pf"><span>Qty</span><input id="pl-qty" class="n" type="number" min="1" max="500" step="1" data-f="qty" value="${it.qty || 1}"></label>
@@ -2099,17 +2099,17 @@ function renderPlantEditor(el) {
     <div class="field"><span>On site</span><label class="checks"><input type="checkbox" id="sp-existing" data-pb="existing"${p.existing ? ' checked' : ''}> Existing plant, already in the garden</label></div>
     <label class="field"><span>Layer</span><select id="sp-role" data-p="role">${opt(ROLES, p.role)}</select></label>
     <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
-    <div class="field" style="align-items:start"><span style="padding-top:4px">Flowers</span>${monthSlider(p)}</div>
+    ${p.crop ? '' : `<div class="field" style="align-items:start"><span style="padding-top:4px">Flowers</span>${monthSlider(p)}</div>`}
     <div class="field" style="align-items:start"><span style="padding-top:4px">Crop</span><div style="display:flex;flex-direction:column;gap:6px;flex:1"><label class="checks"><input type="checkbox" id="sp-crop"${p.crop ? ' checked' : ''}> Crop: grown to eat or use, with a harvest</label>${p.crop ? cropSlider(p) : ''}</div></div>
-    <div class="field" style="align-items:start"><span style="padding-top:4px">Flower colour</span><div style="display:flex;flex-direction:column;gap:8px">
-      <div class="swatches" role="group" aria-label="Flower colour">${FLOWER_COLOURS.map(([n, h]) => `<button type="button" data-color="${h}" data-cname="${n}" title="${n}" aria-label="${n}" aria-pressed="${(p.flowerColor || '').toLowerCase() === h.toLowerCase()}" style="background:${h}"></button>`).join('')}</div>
-      <div class="colrow"><label style="display:inline-flex;gap:6px;align-items:center">Custom <input type="color" id="sp-col" data-p="flowerColor" value="${p.flowerColor || '#c9a7d9'}"></label><span id="colName">${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}"></span>${esc(p.flowerColorName || 'Custom colour')}` : 'No colour chosen'}</span>${p.flowerColor ? '<button class="btn sm" type="button" data-act="clearColour">Clear</button>' : ''}</div>
+    <div class="field" style="align-items:start"><span style="padding-top:4px">${p.crop ? 'Harvest colour' : 'Flower colour'}</span><div style="display:flex;flex-direction:column;gap:8px">
+      <div class="swatches" role="group" aria-label="${p.crop ? 'Harvest colour' : 'Flower colour'}">${FLOWER_COLOURS.map(([n, h]) => `<button type="button" data-color="${h}" data-cname="${n}" title="${n}" aria-label="${n}" aria-pressed="${(showCol(p) || '').toLowerCase() === h.toLowerCase()}" style="background:${h}"></button>`).join('')}</div>
+      <div class="colrow"><label style="display:inline-flex;gap:6px;align-items:center">Custom <input type="color" id="sp-col" data-p="${p.crop ? 'cropColor' : 'flowerColor'}" value="${showCol(p) || '#c9a7d9'}"></label><span id="colName">${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}"></span>${esc(showColName(p) || 'Custom colour')}` : 'No colour chosen'}</span>${showCol(p) ? '<button class="btn sm" type="button" data-act="clearColour">Clear</button>' : ''}</div>
     </div></div>
     <label class="field"><span>Foliage</span><select id="sp-fol" data-p="foliage"><option value="">Not set</option>${opt(FOLIAGE, p.foliage)}</select></label>
-    <div class="field" style="align-items:start"><span style="padding-top:4px">Other interest</span><div style="display:flex;flex-direction:column;gap:6px">
+    ${p.crop ? '' : `<div class="field" style="align-items:start"><span style="padding-top:4px">Other interest</span><div style="display:flex;flex-direction:column;gap:6px">
       ${(p.interest || []).map((it, i) => `<div class="irow"><select data-ii="${i}" data-if="kind" aria-label="Kind of interest">${Object.entries(INTEREST).map(([k, v]) => `<option value="${k}"${it.kind === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select><select data-ii="${i}" data-if="from" aria-label="From month">${mo(it.from).replace('<option value="">None</option>', '')}</select><span class="pv">to</span><select data-ii="${i}" data-if="to" aria-label="To month">${mo(it.to).replace('<option value="">None</option>', '')}</select><input type="color" data-ii="${i}" data-if="color" value="${esc(it.color || '#C92F2F')}" aria-label="Colour"><button class="btn sm" type="button" data-idel="${i}" aria-label="Remove">×</button></div>`).join('')}
       <button class="btn sm" type="button" data-act="addInterest" style="align-self:flex-start">Add berries, autumn colour, stems…</button>
-    </div></div>
+    </div></div>`}
     <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
     ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>`}
     ${p.existing && !onGrid(p) ? '' : `<label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>`}
@@ -2150,7 +2150,7 @@ function renderSchedule() {
   let total = 0, count = 0;
   if (!rows.length) t.innerHTML = `<tbody><tr><td class="empty">${exRows.length ? 'No new plants yet.' : 'The schedule fills in as you place plants on the plan.'}</td></tr></tbody>`;
   else {
-    t.innerHTML = `<thead><tr><th>Species</th><th>Botanical name</th><th>Layer</th><th>Supply</th><th>Supplier</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${rows.map(r => { const each = num(r.p?.cost); total += each * r.qty; count += r.qty; return `<tr><td>${r.p?.flowerColor ? `<span class="fdot" style="background:${esc(r.p.flowerColor)}"></span>` : ''}${esc(r.p?.common || 'Missing species')}</td><td><i>${esc(r.p?.botanical || '')}</i>${r.p?.cultivar ? ` <i>${esc(r.p.cultivar)}</i>` : ''}</td><td>${esc(ROLES[r.p?.role] || '')}</td><td>${esc(r.p?.supply || '')}</td><td>${esc(r.p?.supplier || '')}</td><td class="n">${r.qty}</td><td class="n">${money(each)}</td><td class="n">${money(each * r.qty)}</td></tr>`; }).join('')}</tbody><tfoot><tr><td colspan="5">Plant supply</td><td class="n">${count}</td><td></td><td class="n">${money(total)}</td></tr></tfoot>`;
+    t.innerHTML = `<thead><tr><th>Species</th><th>Botanical name</th><th>Layer</th><th>Supply</th><th>Supplier</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${rows.map(r => { const each = num(r.p?.cost); total += each * r.qty; count += r.qty; return `<tr><td>${showCol(r.p) ? `<span class="fdot" style="background:${esc(showCol(r.p))}"></span>` : ''}${esc(r.p?.common || 'Missing species')}</td><td><i>${esc(r.p?.botanical || '')}</i>${r.p?.cultivar ? ` <i>${esc(r.p.cultivar)}</i>` : ''}</td><td>${esc(ROLES[r.p?.role] || '')}</td><td>${esc(r.p?.supply || '')}</td><td>${esc(r.p?.supplier || '')}</td><td class="n">${r.qty}</td><td class="n">${money(each)}</td><td class="n">${money(each * r.qty)}</td></tr>`; }).join('')}</tbody><tfoot><tr><td colspan="5">Plant supply</td><td class="n">${count}</td><td></td><td class="n">${money(total)}</td></tr></tfoot>`;
   }
   $('schedSum').textContent = rows.length ? `${rows.length} species · ${count} plants · ${money(total)}` : '';
   renderOrders(rows);
@@ -2216,12 +2216,14 @@ function runs(ms) {
 /* months [from..to], wrapping over the new year */
 function monthSpan(from, to) { const f = +from, t = +(to || from); if (!(f >= 1 && f <= 12)) return []; const out = []; for (let i = 0, m = f; i < 12; i++) { out.push(m); if (m === t) break; m = m % 12 + 1; } return out; }
 const cropMonths = p => p?.crop ? monthSpan(p.cropFrom, p.cropTo) : [];   // forest-garden crops: when they are picked
-function interestItems(p) { return (p?.interest || []).filter(x => INTEREST[x.kind] && monthSpan(x.from, x.to).length); }
+const showMonths = p => p?.crop ? cropMonths(p) : flowerMonths(p);   // a crop's harvest stands where other plants' flowers do
+const showCol = p => p?.crop ? p.cropColor : p?.flowerColor, showColName = p => p?.crop ? p.cropColorName : p?.flowerColorName;
+function interestItems(p) { if (p?.crop) return []; return (p?.interest || []).filter(x => INTEREST[x.kind] && monthSpan(x.from, x.to).length); }
 const spanText = ms => (ms.length ? (ms.length > 1 ? `${MONTHS[ms[0] - 1]}–${MONTHS[ms[ms.length - 1] - 1]}` : MONTHS[ms[0] - 1]) : '');
 /* what a plant offers in one month: flowers first, then other interest, then evergreen leaves */
 function seasonOf(p, m) {
   if (!p) return null;
-  if (flowerMonths(p).includes(m)) return { col: p.flowerColor || '#C9A7D9', op: 0.85, what: 'flower' };
+  if (showMonths(p).includes(m)) return { col: showCol(p) || '#C9A7D9', op: 0.85, what: p.crop ? 'harvest' : 'flower' };
   const it = interestItems(p).find(x => monthSpan(x.from, x.to).includes(m));
   if (it) return { col: it.color, op: 0.7, what: it.kind };
   if (p.foliage === 'evergreen') return { col: EVERGREEN, op: 0.38, what: 'evergreen' };
@@ -2234,34 +2236,33 @@ function renderCalendar() {
     ...scheduleRows().map(r => ({ p: r.p, qty: r.qty, ex: false })),
     ...existingRows().filter(r => r.retain + r.prune > 0).map(r => ({ p: r.p, qty: r.retain + r.prune, ex: true })),
   ].filter(r => r.p);
-  const first = p => { const f = flowerMonths(p)[0], i = interestItems(p).map(x => x.from); return f || (i.length ? Math.min(...i) : 99); };
+  const first = p => { const f = showMonths(p)[0], i = interestItems(p).map(x => x.from); return f || (i.length ? Math.min(...i) : 99); };
   const has = p => flowerMonths(p).length || interestItems(p).length || cropMonths(p).length;
   const withI = list.filter(r => has(r.p)).sort((a, b) => (first(a.p) - first(b.p)) || (a.p.common || '').localeCompare(b.p.common || ''));
   const noI = list.filter(r => !has(r.p)).sort((a, b) => (a.p.common || '').localeCompare(b.p.common || ''));
-  const inFlower = MONTHS.map((_, i) => withI.filter(r => flowerMonths(r.p).includes(i + 1)));
-  const other = MONTHS.map((_, i) => withI.flatMap(r => [...interestItems(r.p).filter(x => monthSpan(x.from, x.to).includes(i + 1)), ...(cropMonths(r.p).includes(i + 1) ? [{ kind: 'harvest', color: '#B07A2A' }] : [])].map(x => ({ r, x }))));
+  const inFlower = MONTHS.map((_, i) => withI.filter(r => showMonths(r.p).includes(i + 1)));
+  const other = MONTHS.map((_, i) => withI.flatMap(r => interestItems(r.p).filter(x => monthSpan(x.from, x.to).includes(i + 1)).map(x => ({ r, x }))));
   const peak = Math.max(0, ...inFlower.map(x => x.length)), peakM = MONTHS.filter((_, i) => peak && inFlower[i].length === peak);
   const gaps = MONTHS.filter((_, i) => !inFlower[i].length && !other[i].length), evergreens = list.filter(r => r.p.foliage === 'evergreen').length;
-  const unsetCol = withI.filter(r => flowerMonths(r.p).length && !r.p.flowerColor).length;
+  const unsetCol = withI.filter(r => showMonths(r.p).length && !showCol(r.p)).length;
   const row = r => {
-    const ms = flowerMonths(r.p), col = r.p.flowerColor, its = interestItems(r.p), hv = cropMonths(r.p), o = hv.length ? 1 : 0;
-    let bars = runs(ms).map(([a, b]) => `<div class="cbar${col ? '' : ' unset'}" style="grid-row:1;grid-column:${a} / ${b + 1};${col ? `background:${esc(col)}` : ''}" title="${esc(r.p.common)} in flower: ${spanText(ms)}${col ? ', ' + esc(r.p.flowerColorName || 'custom colour') : ''}"></div>`).join('');
-    if (o) bars += runs(hv).map(([a, b]) => `<div class="cbar hv" style="grid-row:2;grid-column:${a} / ${b + 1}" title="${esc(r.p.common)}: harvest, ${spanText(hv)}"></div>`).join('');
+    const ms = showMonths(r.p), col = showCol(r.p), its = interestItems(r.p), o = 0;
+    let bars = runs(ms).map(([a, b]) => `<div class="cbar${col ? '' : ' unset'}" style="grid-row:1;grid-column:${a} / ${b + 1};${col ? `background:${esc(col)}` : ''}" title="${esc(r.p.common)} ${r.p.crop ? 'harvest' : 'in flower'}: ${spanText(ms)}${col ? ', ' + esc(showColName(r.p) || 'custom colour') : ''}"></div>`).join('');
     its.forEach((x, i) => { const span = monthSpan(x.from, x.to); bars += runs(span).map(([a, b]) => `<div class="cbar sm" style="grid-row:${i + 2 + o};grid-column:${a} / ${b + 1};background:${esc(x.color)}" title="${esc(r.p.common)}: ${esc(INTEREST[x.kind][0].toLowerCase())}, ${spanText(span)}"></div>`).join(''); });
     if (r.p.foliage === 'evergreen') bars += `<div class="cbar ev" style="grid-row:${its.length + 2 + o};grid-column:1 / 13;background:${EVERGREEN}" title="${esc(r.p.common)}: evergreen"></div>`;
     return `<div class="cname"><b>${esc(r.p.common)}</b> <span class="q">× ${r.qty}</span>${r.ex ? '<span class="ex exist">Existing</span>' : ''}<i>${esc(r.p.botanical)}</i></div><div class="ctrack">${bars || '<span class="cnone">No flowering months or other interest set</span>'}</div>`;
   };
   el.innerHTML = `<div class="calhead"><div><span class="lbl">Interest calendar</span><h2>${esc(S.g.name)}</h2></div>
-      <p class="note" style="margin:0;max-width:64ch">${!list.length ? 'Place plants on the plan and they’ll appear here.' : `${withI.length} of ${list.length} species have flowering times or other interest. ${peak ? `Peak in ${peakM.join(', ')} with ${peak} in flower.` : ''} ${gaps.length && gaps.length < 12 ? `Nothing of interest in ${gaps.join(', ')}.` : gaps.length ? '' : 'Something of interest every month.'}${evergreens ? ` ${plural(evergreens, 'evergreen')} hold${evergreens === 1 ? 's' : ''} structure through winter.` : ''}`}</p></div>
+      <p class="note" style="margin:0;max-width:64ch">${!list.length ? 'Place plants on the plan and they’ll appear here.' : `${withI.length} of ${list.length} species have flowering times or other interest. ${peak ? `Peak in ${peakM.join(', ')} with ${peak} in flower${withI.some(r => r.p.crop) ? " or ready to harvest" : ""}.` : ''} ${gaps.length && gaps.length < 12 ? `Nothing of interest in ${gaps.join(', ')}.` : gaps.length ? '' : 'Something of interest every month.'}${evergreens ? ` ${plural(evergreens, 'evergreen')} hold${evergreens === 1 ? 's' : ''} structure through winter.` : ''}`}</p></div>
     ${list.length ? `<div class="calscroll"><div class="cal-grid">
       <div></div><div class="cal-seasons"><span style="grid-column:1/3">Winter</span><span style="grid-column:3/6">Spring</span><span style="grid-column:6/9">Summer</span><span style="grid-column:9/12">Autumn</span><span style="grid-column:12/13" title="Winter">Winter</span></div>
       <div></div><div class="cal-months">${MONTHS.map(m => `<span>${m}</span>`).join('')}</div>
       ${withI.map(row).join('')}${noI.map(row).join('')}
       <div class="cname csum"><b>Colour through the year</b><i>Flowers and other interest each month</i></div>
-      <div class="csum"><div class="cmix">${MONTHS.map((_, i) => `<div title="${MONTHS[i]}: ${[...inFlower[i].map(r => r.p.common), ...other[i].map(o => o.r.p.common + ' (' + (INTEREST[o.x.kind]?.[0] || 'Harvest').toLowerCase() + ')')].map(esc).join(', ') || 'nothing of interest'}">${inFlower[i].map(r => `<span style="background:${r.p.flowerColor ? esc(r.p.flowerColor) : 'var(--accent-soft)'}"></span>`).join('')}${other[i].map(o => `<span style="background:${esc(o.x.color)};flex:0.45"></span>`).join('')}</div>`).join('')}</div>
+      <div class="csum"><div class="cmix">${MONTHS.map((_, i) => `<div title="${MONTHS[i]}: ${[...inFlower[i].map(r => r.p.common), ...other[i].map(o => o.r.p.common + ' (' + (INTEREST[o.x.kind]?.[0] || 'Harvest').toLowerCase() + ')')].map(esc).join(', ') || 'nothing of interest'}">${inFlower[i].map(r => `<span style="background:${showCol(r.p) ? esc(showCol(r.p)) : 'var(--accent-soft)'}"></span>`).join('')}${other[i].map(o => `<span style="background:${esc(o.x.color)};flex:0.45"></span>`).join('')}</div>`).join('')}</div>
         <div class="ccount">${MONTHS.map((_, i) => { const n = inFlower[i].length + other[i].length; return `<span class="${n ? '' : 'gap'}">${n || '–'}</span>`; }).join('')}</div></div>
     </div></div>
-    <div class="calkey"><span><i style="width:26px;height:11px;background:#C9A7D9"></i>Flowers, in the flower colour</span><span><i style="width:26px;height:6px;background:#C92F2F"></i>Berries, autumn colour, stems, seed heads or foliage</span><span><i style="width:26px;height:3px;background:${EVERGREEN};box-shadow:none"></i>Evergreen</span><span><i style="width:26px;height:8px;background:var(--harvest)"></i>Harvest, for crops</span></div>
+    <div class="calkey"><span><i style="width:26px;height:11px;background:#C9A7D9"></i>Flowers, or a crop’s harvest, in their colour</span><span><i style="width:26px;height:6px;background:#C92F2F"></i>Berries, autumn colour, stems, seed heads or foliage</span><span><i style="width:26px;height:3px;background:${EVERGREEN};box-shadow:none"></i>Evergreen</span></div>
     ${(() => { const cr = list.filter(r => cropMonths(r.p).length); if (!cr.length) return ''; const hm = MONTHS.filter((_, i) => cr.some(r => cropMonths(r.p).includes(i + 1))); return `<p class="note" style="margin:0">${plural(cr.length, 'crop')}, with something to harvest in ${hm.length === 12 ? 'every month' : hm.join(', ')}.</p>`; })()}
     ${unsetCol ? `<p class="note" style="margin:0">Hatched bars have no flower colour yet. Use Edit in the plant library to choose one.</p>` : ''}` : ''}`;
 }
@@ -2356,7 +2357,7 @@ function renderDatabase() {
   const L = $('dbLayer');
   if (!L.options.length) L.innerHTML = '<option value="">All layers</option>' + Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   const q = DB.q.trim().toLowerCase();
-  const fm = p => p.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : '';
+  const fm = p => p.crop ? (cropMonths(p).length ? 'Harvest ' + spanText(cropMonths(p)) : '') : p.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : '';
   const usage = usageByPlant();
   let rows = S.plants.map(p => ({ p, used: usage.get(p.id) || [], n: (usage.get(p.id) || []).length }))
     .filter(({ p }) => (!DB.layer || p.role === DB.layer) && (!DB.kind || (DB.kind === 'existing') === !!p.existing))
@@ -2373,7 +2374,7 @@ function renderDatabase() {
       <td class="ck"><input type="checkbox" data-dbsel="${p.id}"${DB.sel.has(p.id) ? ' checked' : ''} aria-label="Select ${esc(p.common || p.botanical)}"></td><td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
       <td><i>${esc(p.botanical)}</i>${p.cultivar ? ` <i>${esc(p.cultivar)}</i>` : ''}</td>
       <td>${esc(ROLES[p.role] || '')}</td>
-      <td>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || '')}"></span>` : ''}${fm(p)}</td>
+      <td>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || '')}"></span>` : ''}${fm(p)}</td>
       <td class="n">${p.height != null && p.height !== '' ? num(p.height).toFixed(2) + ' m' : ''}</td><td class="n">${num(p.spread).toFixed(2)} m</td>
       <td>${esc(p.existing ? 'on site' : p.supply || '')}</td><td>${esc(p.existing ? '' : p.supplier || '')}</td>
       <td class="n">${p.existing ? '–' : money(num(p.cost))}</td>
@@ -3141,11 +3142,11 @@ function bookletPages(planImg, forExport) {
       ${i === parts.length - 1 && (exRows.length || woods.length) ? `<p class="bsub" style="margin:22px 0 8px">Existing plants</p><table class="btable"><thead><tr><th>Plant</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th></tr></thead><tbody>${existingRows().map(r => `<tr><td><i>${esc(r.p?.botanical || '')}</i> <span class="cmn">${esc(r.p?.common || '')}</span></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n">${r.remove || '–'}</td></tr>`).join('')}${woods.map(w => `<tr><td><i>Existing woodland</i> <span class="cmn">${esc(w.name)}, ${esc(w.desc)}</span></td><td class="n">${Math.round(w.area)} m²</td><td class="n">–</td><td class="n">–</td></tr>`).join('')}</tbody></table>` : ''}` }));
   }
   if (b.pages.calendar) {
-    const firstM = p => flowerMonths(p)[0] || Math.min(99, ...interestItems(p).map(x => x.from));
+    const firstM = p => showMonths(p)[0] || Math.min(99, ...interestItems(p).map(x => x.from));
     const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && (flowerMonths(p).length || interestItems(p).length || cropMonths(p).length)).sort((a, c) => firstM(a) - firstM(c));
-    if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Interest through the year${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Wide bars are flowers in their colour. Narrow bars are berries, autumn colour, stems, seed heads or foliage. A green line marks evergreens, and a brown one above the flowers the harvest of crops.</p>
+    if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Interest through the year${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Wide bars are flowers in their colour. Narrow bars are berries, autumn colour, stems, seed heads or foliage. A green line marks evergreens. For crops, the wide bar is the harvest, in the colour of the crop.</p>
       <div class="bcal"><div></div>${MONTHS.map(m => `<div class="mh">${m}</div>`).join('')}
-      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span style="color:#8A8073;margin-right:6px">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i></div><div class="tr" style="grid-row:${row}"></div>${runs(flowerMonths(p)).map(([a, c]) => `<div class="bar" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(p.flowerColor || '#C9D3B8')}"></div>`).join('')}${interestItems(p).map(x => runs(monthSpan(x.from, x.to)).map(([a, c]) => `<div class="bar thin" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(x.color)}"></div>`).join('')).join('')}${p.foliage === 'evergreen' ? `<div class="bar ever" style="grid-row:${row};grid-column:2 / 14"></div>` : ''}${runs(cropMonths(p)).map(([a, c]) => `<div class="bar crop" style="grid-row:${row};grid-column:${a + 1} / ${c + 2}"></div>`).join('')}`; }).join('')}</div>` }));
+      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span style="color:#8A8073;margin-right:6px">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i></div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}${interestItems(p).map(x => runs(monthSpan(x.from, x.to)).map(([a, c]) => `<div class="bar thin" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(x.color)}"></div>`).join('')).join('')}${p.foliage === 'evergreen' ? `<div class="bar ever" style="grid-row:${row};grid-column:2 / 14"></div>` : ''}`; }).join('')}</div>` }));
   }
   if (b.pages.pricing) {
     const supply = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
@@ -3589,8 +3590,7 @@ app.addEventListener('input', e => {
   if (t.id === 'sp-crop' && S.editPlant) {
     const p = S.editPlant; p.crop = t.checked;
     if (t.checked) { p.cropFrom = p.cropFrom || 8; p.cropTo = p.cropTo || 9; }
-    const host = t.closest('div'); host.querySelector('#mslc')?.remove(); if (t.checked) { host.insertAdjacentHTML('beforeend', cropSlider(p)); paintCropSlider(); }
-    return;
+    renderLibrary(); return;
   }
   if (t.dataset.mr && t.dataset.mr.startsWith('crop') && S.editPlant) { S.editPlant[t.dataset.mr] = +t.value; paintCropSlider(); return; }
   if (t.dataset.mr && S.editPlant) {
@@ -3610,7 +3610,7 @@ app.addEventListener('input', e => {
     else if (f === 'color') it.color = t.value; else it[f] = clamp(Math.round(num(t.value, 1)), 1, 12);
     return;
   }
-  if (t.dataset.p === 'flowerColor') { S.editPlant.flowerColor = t.value; S.editPlant.flowerColorName = 'Custom colour'; markSwatches(); return; }
+  if (t.dataset.p === 'flowerColor' || t.dataset.p === 'cropColor') { const k = t.dataset.p; S.editPlant[k] = t.value; S.editPlant[k + 'Name'] = 'Custom colour'; markSwatches(); return; }
   if ((t.dataset.p === 'planColor' || t.dataset.p === 'planPattern') && S.editPlant) { S.editPlant[t.dataset.p] = t.value || null; const sw = $('sp-swatch'); if (sw) sw.outerHTML = plantSwatch({ ...S.editPlant, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"'); return; }
   if (t.dataset.p) { const k = t.dataset.p; S.editPlant[k] = t.type === 'number' ? (t.value === '' ? null : num(t.value)) : (k === 'flowerFrom' || k === 'flowerTo') ? (t.value ? +t.value : null) : t.value; return; }
   if (t.dataset.arr) { const k = t.dataset.arr; S.editPlant[k] = [...app.querySelectorAll(`[data-arr="${k}"]:checked`)].map(x => x.value); return; }
@@ -3632,13 +3632,13 @@ app.addEventListener('input', e => {
 app.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'cal-m') { e.preventDefault(); applyScale(num(e.target.value)); } });
 function markSwatches() {
   const p = S.editPlant; if (!p) return;
-  for (const b of app.querySelectorAll('[data-color]')) b.setAttribute('aria-pressed', (p.flowerColor || '').toLowerCase() === b.dataset.color.toLowerCase());
-  const n = $('colName'); if (n) n.innerHTML = p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}"></span>${esc(p.flowerColorName || 'Custom colour')}` : 'No colour chosen';
+  for (const b of app.querySelectorAll('[data-color]')) b.setAttribute('aria-pressed', (showCol(p) || '').toLowerCase() === b.dataset.color.toLowerCase());
+  const n = $('colName'); if (n) n.innerHTML = showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}"></span>${esc(showColName(p) || 'Custom colour')}` : 'No colour chosen';
 }
 app.addEventListener('click', e => {
   const del = e.target.closest('[data-idel]'); if (del && S.editPlant) { S.editPlant.interest = (S.editPlant.interest || []).filter((_, i) => i !== +del.dataset.idel); renderLibrary(); return; }
   const sw = e.target.closest('[data-color]'); if (!sw || !S.editPlant) return;
-  S.editPlant.flowerColor = sw.dataset.color; S.editPlant.flowerColorName = sw.dataset.cname;
+  const ck = S.editPlant.crop ? 'cropColor' : 'flowerColor'; S.editPlant[ck] = sw.dataset.color; S.editPlant[ck + 'Name'] = sw.dataset.cname;
   const c = $('sp-col'); if (c) c.value = sw.dataset.color.toLowerCase();
   if (!app.querySelector('[data-act=clearColour]')) renderLibrary(); else markSwatches();
 });
@@ -3666,7 +3666,7 @@ app.addEventListener('click', async e => {
   if (act === 'resetRoleCols') { S.prefs.roleColors = {}; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'addInterest' && S.editPlant) { const used = new Set((S.editPlant.interest || []).map(x => x.kind)), k = Object.keys(INTEREST).find(x => !used.has(x)) || 'berries', v = INTEREST[k]; S.editPlant.interest = [...(S.editPlant.interest || []), { kind: k, from: v[1], to: v[2], color: v[3] }].slice(0, 8); renderLibrary(); }
   if (act === 'autoPlanColour' && S.editPlant) { S.editPlant.planColor = null; S.editPlant.planPattern = null; renderLibrary(); }
-  if (act === 'clearColour') { S.editPlant.flowerColor = null; S.editPlant.flowerColorName = null; renderLibrary(); }
+  if (act === 'clearColour') { const ck = S.editPlant.crop ? 'cropColor' : 'flowerColor'; S.editPlant[ck] = null; S.editPlant[ck + 'Name'] = null; renderLibrary(); }
   if (act === 'editSpecies') { const it = findSel() || selectedItems()[0]?.it; if (it?.plantId) openPlantEditor(it.plantId); }
   if (act === 'calApply') applyScale(num($('cal-m')?.value));
   if (act === 'calCancel') setTool('select');
@@ -4550,7 +4550,7 @@ function cleanPlant(d) {
   if (hexOrNull(d.planColor)) p.planColor = d.planColor;
   if (PATTERNS[d.planPattern]) p.planPattern = d.planPattern;
   const interest = cleanInterest(d.interest); if (interest.length) p.interest = interest;
-  if (d.crop === true) { p.crop = true; p.cropFrom = monthOrNull(d.cropFrom) || 8; p.cropTo = monthOrNull(d.cropTo) || p.cropFrom; }
+  if (d.crop === true) { p.crop = true; p.cropFrom = monthOrNull(d.cropFrom) || 8; p.cropTo = monthOrNull(d.cropTo) || p.cropFrom; if (hexOrNull(d.cropColor)) { p.cropColor = d.cropColor; p.cropColorName = str(d.cropColorName, 60); } }
   if (d.example) p.example = true;
   return p;
 }

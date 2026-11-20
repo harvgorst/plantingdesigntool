@@ -918,24 +918,28 @@ test('areas: the Area tool makes beds, buildings, paths and water; nothing is pl
   ok(await app.page.$eval('#shadows', g => g.children.length) > 0, 'the house casts a shadow');
 });
 
-test('crops: a Crop tick in the species form adds harvest months, shown under the flowers on the calendar and in the booklet', async open => {
-  const app = await open(sample());
+test('crops: ticking Crop sets harvest months and colour, which stand in for flowers on the calendar and in the booklet; flowers and other interest are set aside', async open => {
+  const seed = sample(); Object.assign(seed['plants/p5'], { interest: [{ kind: 'foliage', from: 4, to: 10, color: '#B9CF6A' }] });
+  const app = await open(seed);
   await app.page.click('#lib [data-edit=p5]');   // the apple
-  ok(!(await app.page.isVisible('#mslc')), 'no harvest slider until it is a crop');
-  await app.page.check('#sp-crop');
-  ok(await app.page.isVisible('#mslc'), 'ticking Crop shows the harvest months');
+  ok(!(await app.page.isVisible('#mslc')) && await app.page.isVisible('#msl'), 'flowers, no harvest, until it is a crop');
+  await app.page.check('#sp-crop'); await app.page.waitForTimeout(100);
+  ok(await app.page.isVisible('#mslc') && !(await app.page.isVisible('#msl')), 'ticking Crop swaps the flower months for the harvest');
+  ok(!(await app.page.isVisible('[data-act=addInterest]')), 'other interest is set aside');
+  ok((await app.page.textContent('#plantEditor, .card', { timeout: 2000 }).catch(() => app.page.textContent('body'))).includes('Harvest colour'), 'the colour is the harvest colour');
   await app.page.$eval('#sp-cf', el => { el.value = 9; el.dispatchEvent(new Event('input', { bubbles: true })); });
   await app.page.$eval('#sp-ct', el => { el.value = 10; el.dispatchEvent(new Event('input', { bubbles: true })); });
   ok((await app.page.textContent('#mslc-txt')).includes('Sep – Oct'), 'reads Sep – Oct');
+  await app.page.click('[data-color="#C92F2F"]').catch(async () => { const h = await app.page.$$eval('[data-color]', b => b.map(x => x.dataset.color)); await app.page.click(`[data-color="${h[0]}"]`); });
   await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(150);
   const p5 = await app.store('plants/p5');
-  eq([p5.crop, p5.cropFrom, p5.cropTo], [true, 9, 10], 'saved');
+  eq([p5.crop, p5.cropFrom, p5.cropTo, p5.flowerColor], [true, 9, 10, '#FFFFFF'], 'saved, the flower colour untouched');
+  ok(/^#/.test(p5.cropColor || ''), 'harvest colour saved, got ' + p5.cropColor);
   await app.page.click('#navCal'); await app.page.waitForTimeout(200);
-  const hv = await app.page.$$eval('#calView .cbar.hv', bs => bs.map(b => b.style.gridColumn));
-  eq(hv, ['9 / 11'], 'a harvest bar for September and October');
-  ok(/1 crop, with something to harvest in Sep, Oct/.test(await app.page.textContent('#calView')), 'and a note of the harvest months');
+  const bars = await app.page.$$eval('#calView .cbar', bs => bs.filter(b => /^Apple/.test(b.title)).map(b => [b.title.split(':')[0], b.style.gridColumn, b.className]));
+  eq(bars, [['Apple harvest', '9 / 11', 'cbar']], 'the apple shows only its harvest, as a full bar, without blossom or foliage interest');
   await app.page.click('#navPres'); await app.page.waitForSelector('.bpage');
-  ok(await app.page.locator('.bcal .bar.crop').count() >= 1, 'the booklet calendar shows the harvest');
+  ok(await app.page.$$eval('.bcal .bar', (bs, c) => bs.some(b => b.style.background && getComputedStyle(b).backgroundColor !== ''), p5.cropColor), 'the booklet calendar shows the harvest bar');
 });
 
 run();
