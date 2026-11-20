@@ -509,9 +509,9 @@ test('species pop-up saves when you click off it', async open => {
   eq((await app.store('plants/p0')).common, 'English lavender', 'change saved');
   // a change that can't be saved keeps the pop-up open and says why
   await app.page.click('#dbMine [data-edit=p0]'); await app.page.waitForSelector('#plantModal:not([hidden])');
-  await app.page.fill('#sp-common', ''); await off(); await app.page.waitForTimeout(300);
+  await app.page.fill('#sp-common', ''); await app.page.fill('#sp-bot', ''); await off(); await app.page.waitForTimeout(300);
   ok(!(await app.page.evaluate(() => document.getElementById('plantModal').hidden)), 'stays open');
-  ok(/common name/.test(await app.page.textContent('#plantErr')), 'and says what is missing');
+  ok(/name/.test(await app.page.textContent('#plantErr')), 'and says what is missing');
   await app.page.keyboard.press('Escape');
   eq((await app.store('plants/p0')).common, 'English lavender', 'Escape discards');
 });
@@ -756,6 +756,33 @@ test('each garden has its own plant library; the database stays whole; existing 
   await app.page.click('#lib [data-edit=p4]'); await app.page.click('[data-act=unLibrary]'); await app.page.waitForTimeout(900);
   eq((await app.page.$$eval('#lib li[data-pid]', l => l.map(x => x.dataset.pid))).includes('p4'), false, 'removed from this garden');
   ok(await app.store('plants/p4'), 'but still in the database');
+});
+
+test('found in hands-on testing: moved areas never stack or leave a bed; schedule readable; centimetre sizes; tidy rulers', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null; seed['settings/prefs'] = { oudolf: true };
+  const app = await open(seed, { viewport: { width: 1400, height: 900 } });
+  const row = n => +(n * 0.3 * Math.sqrt(3) / 2).toFixed(3);
+  await app.page.click('#lib [data-pid=p1]'); for (let n = 14; n < 22; n++) await app.dragPlan(1, row(n), 3.9, row(n));
+  await app.page.click('#lib [data-pid=p4]'); for (let n = 14; n < 22; n++) await app.dragPlan(4.1, row(n), 7, row(n));
+  await app.page.waitForTimeout(900);
+  const stacked = async () => { const pl = (await app.store('gardens/g1')).plantings; const seen = new Map(); let n = 0; for (const q of pl) { const k = q.x + ',' + q.y; if (seen.has(k)) n++; seen.set(k, 1); } return n; };
+  await app.page.keyboard.press('v'); await app.clickPlan(2, row(17)); await app.dragPlan(2, row(17), 3.2, row(17)); await app.page.waitForTimeout(900);
+  eq(await stacked(), 0, 'no two plants share a spot after moving an area onto its neighbour');
+  ok(/Moved over/.test(await app.status()), 'and it says the neighbour gave way, got ' + await app.status());
+  // a bed: moving an area out of it leaves the outside part off
+  await app.page.keyboard.press('Control+z'); await app.page.waitForTimeout(400);
+  await app.page.keyboard.press('b'); for (const [x, y] of [[0.5, 3.4], [7.5, 3.4], [7.5, 6], [0.5, 6], [0.5, 3.4]]) await app.clickPlan(x, y);
+  await app.page.keyboard.press('v'); await app.clickPlan(5.5, row(18)); await app.dragPlan(5.5, row(18), 5.5, row(18) - 1.4); await app.page.waitForTimeout(900);
+  const g = await app.store('gardens/g1'), inside = await app.page.evaluate(pts => { const path = document.querySelector('#map [data-kind=bed] path'); return pts.every(([x, y]) => path.isPointInFill(new DOMPoint(x, y))); }, g.plantings.map(q => [q.x, q.y]));
+  ok(inside, 'no plant left outside the bed');
+  // the schedule shows every species without a squashed box
+  seed['gardens/g1'].plantings = sample()['gardens/g1'].plantings;
+  await app.go('schedule');
+  const h = await app.page.$eval('#sched', t => [t.parentElement.clientHeight, t.scrollHeight]);
+  ok(h[0] >= h[1] - 2, 'the schedule table is not squashed, got box ' + h[0] + ' for ' + h[1]);
+  // garden sizes to the centimetre
+  await app.go('plan'); await app.page.click('#detailsBtn'); await app.page.fill('#g-w', '12.35'); await app.page.click('#detailsDone'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).width, 12.35, 'a width of 12.35 m is kept');
 });
 
 test('large plans: thousands of plants save and redraw', async open => {

@@ -81,7 +81,7 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 .insp { display: flex; flex-wrap: nowrap; align-items: center; gap: 18px; flex: 1; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; white-space: nowrap; }
 .insp > * { flex: none; }
 .insp > .pv { flex: 0 1 auto; min-width: 60px; overflow: hidden; text-overflow: ellipsis; }
-.pk { white-space: nowrap; font-family: var(--f-display); font-size: 19px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+.pk { white-space: nowrap; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; font-family: var(--f-display); font-size: 19px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
 .pf { display: inline-flex; align-items: center; gap: 7px; }
 .pf input[type=text] { width: 11em; }
 .pf input.n { width: 5em; }
@@ -188,6 +188,7 @@ table.sched.wide { font-size: 14px; min-width: 640px; }
 .colrow input[type=color] { width: 34px; height: 24px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); padding: 1px; }
 .fdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--bar-edge); vertical-align: 0; margin-right: 3px; }
 .app.cal { grid-template-rows: auto minmax(0, 1fr); }
+.calview > * { flex-shrink: 0; }
 .calview { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
 .calhead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; }
 .calhead h2 { font-size: 26px; }
@@ -673,7 +674,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="card-h"><h2 id="detailsH">Garden details</h2><button class="btn sm" type="button" id="detailsDone">Done</button></div>
     <label class="field"><span>Name</span><input id="g-name" type="text" data-g="name"></label>
     <label class="field"><span>Client</span><input id="g-client" type="text" data-g="client"></label>
-    <div class="field"><span>Size</span><div class="row" style="flex-wrap:nowrap"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.5" data-g="width" style="width:5.5em"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.5" data-g="depth" style="width:5.5em"> m</div></div>
+    <div class="field"><span>Size</span><div class="row" style="flex-wrap:nowrap"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.01" data-g="width" style="width:5.5em"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.01" data-g="depth" style="width:5.5em"> m</div></div>
     <div class="field"><span>Area</span><output id="dims">—</output></div>
     <div class="field"><span>North</span><div class="row" style="flex-wrap:nowrap"><input type="range" id="g-north-r" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="flex:1;accent-color:var(--accent)"><input id="g-north" type="number" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="width:4.8em"><span class="pv">°</span><svg id="g-north-dial" width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><circle r="13" fill="none" style="stroke:var(--line)"/><path id="g-north-needle" d="M0 -11 L4 5 L0 2 L-4 5 Z" style="fill:var(--ink)"/></svg></div></div>
     <p class="note" style="margin:0">0° means north is straight up. You can also drag the north arrow on the plan.</p>
@@ -839,8 +840,9 @@ const latticeOf = p => kindOf(p) === 'bulb' ? spacingOf(p) : gridSpace();   // b
 const beds = () => S.g?.beds || [];
 /* a bed's edge is a smooth curve through the corners you click; this is that curve as many short straight pieces, for working out what is inside it */
 const BEDPOLY = new Map();
-function bedPoly(b) { const k = JSON.stringify(b.pts); let v = BEDPOLY.get(b.id); if (!v || v.k !== k) { v = { k, P: sampled({ pts: b.pts, smooth: true }) }; BEDPOLY.set(b.id, v); } return v.P; }
-const bedPath = b => pathD(b.pts, true);
+function bedPoly(b) { const k = JSON.stringify(b.pts); let v = BEDPOLY.get(b.id); if (!v || v.k !== k) { v = { k, P: sampled({ pts: b.pts, smooth: true, k: BED_K }) }; BEDPOLY.set(b.id, v); } return v.P; }
+const BED_K = 1 / 12;   // beds hug their points: corners round off without bulging past a wall or the plot edge
+const bedPath = b => pathD(b.pts, true, true, BED_K);
 const bedFill = b => /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : 'var(--ground)';   // a bed's own colour, or the plain ground
 function bedAt(x, y) { for (const b of beds()) if (pointInPoly(x, y, bedPoly(b))) return b; return null; }
 const NOFRAME = { id: '', ox: 0, oy: 0 };
@@ -1088,7 +1090,7 @@ async function openMapPicker() {
     <div class="mapres" id="mp-res"></div>
     <div class="mapview"><div class="lf" id="mp-map"></div><div class="mapframe" id="mp-frame"><span id="mp-size"></span></div></div>
     <div class="row" style="justify-content:space-between">
-      <span class="row" style="gap:8px"><span class="pv">Garden</span><input id="mp-w" class="n" type="number" min="1" max="500" step="0.5" value="${S.g.width}" aria-label="Width in metres" style="width:5em"> × <input id="mp-d" class="n" type="number" min="1" max="500" step="0.5" value="${S.g.depth}" aria-label="Depth in metres" style="width:5em"><span class="pv">m</span></span>
+      <span class="row" style="gap:8px"><span class="pv">Garden</span><input id="mp-w" class="n" type="number" min="1" max="500" step="0.01" value="${S.g.width}" aria-label="Width in metres" style="width:5em"> × <input id="mp-d" class="n" type="number" min="1" max="500" step="0.01" value="${S.g.depth}" aria-label="Depth in metres" style="width:5em"><span class="pv">m</span></span>
       <span class="row" style="gap:6px"><button class="btn sm" type="button" data-mp="close">Cancel</button><button class="btn sm primary" type="button" data-mp="use">Use this position</button></span>
     </div>
     <p class="note" id="mp-note" style="margin:0">Pan and zoom until the garden sits inside the white frame; the frame is the plan at its real size. Change the size here if the plot is bigger or smaller.</p>`;
@@ -1171,28 +1173,28 @@ $('addModal').addEventListener('change', e => { const id = e.target.dataset?.ap;
 $('addModal').addEventListener('input', e => { if (e.target.id !== 'ap-q') return; AP.q = e.target.value; const pos = e.target.selectionStart; renderAddPlants(); const i = $('ap-q'); i.focus(); i.setSelectionRange(pos, pos); });
 
 /* ---------- curve geometry (closed Catmull-Rom splines) ---------- */
-function segs(pts, closed) {
+function segs(pts, closed, k = 1 / 6) {   // k: how far the curve swings out between points (1/6 is the usual smooth curve)
   const n = pts.length, out = [];
   const last = closed ? n : n - 1;
   for (let i = 0; i < last; i++) {
     const p1 = pts[i], p2 = pts[(i + 1) % n];
     const p0 = closed ? pts[(i - 1 + n) % n] : (i === 0 ? p1 : pts[i - 1]);
     const p3 = closed ? pts[(i + 2) % n] : (i + 2 >= n ? p2 : pts[i + 2]);
-    out.push([p1, [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6], p2]);
+    out.push([p1, [p1[0] + (p2[0] - p0[0]) * k, p1[1] + (p2[1] - p0[1]) * k], [p2[0] - (p3[0] - p1[0]) * k, p2[1] - (p3[1] - p1[1]) * k], p2]);
   }
   return out;
 }
 function normRect(a, b) { return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) }; }
-function pathD(pts, smooth, closed = true) {
+function pathD(pts, smooth, closed = true, k = 1 / 6) {
   if (pts.length < 2) return '';
   const f = v => +v.toFixed(3);
   if (!smooth || pts.length < 3) return 'M' + pts.map(p => f(p[0]) + ' ' + f(p[1])).join(' L') + (closed ? ' Z' : '');
-  return 'M' + f(pts[0][0]) + ' ' + f(pts[0][1]) + segs(pts, closed).map(([, a, b, c]) => ` C${f(a[0])} ${f(a[1])} ${f(b[0])} ${f(b[1])} ${f(c[0])} ${f(c[1])}`).join('') + (closed ? ' Z' : '');
+  return 'M' + f(pts[0][0]) + ' ' + f(pts[0][1]) + segs(pts, closed, k).map(([, a, b, c]) => ` C${f(a[0])} ${f(a[1])} ${f(b[0])} ${f(b[1])} ${f(c[0])} ${f(c[1])}`).join('') + (closed ? ' Z' : '');
 }
 function sampled(a) {
   if (!a.smooth || a.pts.length < 3) return a.pts;
   const out = [];
-  for (const [p1, c1, c2, p2] of segs(a.pts, true)) for (let s = 0; s < 12; s++) {
+  for (const [p1, c1, c2, p2] of segs(a.pts, true, a.k ?? 1 / 6)) for (let s = 0; s < 12; s++) {
     const t = s / 12, u = 1 - t;
     out.push([u * u * u * p1[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * p2[0], u * u * u * p1[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * p2[1]]);
   }
@@ -1335,7 +1337,7 @@ async function flushSave() {
   if (!S.g || !S.online) return;
   saving = true; setStatus('Saving…');
   const body = JSON.parse(JSON.stringify(S.g)); delete body.id;
-  try { await S.db.doc('gardens/' + S.g.id).set(body); setStatus('Saved'); }
+  try { await S.db.doc('gardens/' + S.g.id).set(body); setStatus(S.note || 'Saved'); S.note = null; }
   catch (e) { setStatus(e?.name === 'QuotaExceededError' ? 'Not saved: this browser’s storage is full. Delete an old garden or free up disk space.' : 'Couldn’t save: ' + (e?.message || 'try again'), true); }
   saving = false;
   if (saveAgain) { saveAgain = false; flushSave(); }
@@ -1419,7 +1421,7 @@ function renderMap() {
   const gop = showUl ? 0.35 : 1, maj = v => Math.abs(v / 5 - Math.round(v / 5)) < 1e-6;
   if (S.prefs.showGrid) for (let x = step; x < W - 1e-6; x += step) parts.push(`<line x1="${x}" y1="0" x2="${x}" y2="${D}" style="stroke:var(${maj(x) ? '--grid-major' : '--grid'})" stroke-opacity="${gop}" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   if (S.prefs.showGrid) for (let y = step; y < D - 1e-6; y += step) parts.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}" style="stroke:var(${maj(y) ? '--grid-major' : '--grid'})" stroke-opacity="${gop}" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
-  const lab = M > 20 ? 5 : (M > 10 ? 2 : 1);
+  const lab = [1, 2, 5, 10, 20, 50, 100, 200].find(st => st >= M / 14 && (pr || st / px >= 38)) || 500;   // never closer than about 38 px, nor more than 14 or so along a side
   if (S.prefs.showRulers) for (let x = 0; x <= W + 1e-6; x += lab) parts.push(`<text x="${x}" y="${-fs * 0.7}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--muted)" pointer-events="none">${x}</text>`);
   if (S.prefs.showRulers) for (let y = lab; y <= D + 1e-6; y += lab) parts.push(`<text x="${-fs * 0.6}" y="${y + fs * 0.3}" font-size="${fs * 0.9}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${y}</text>`);
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
@@ -1624,11 +1626,11 @@ function renderMap() {
     const B = S.bedDraw?.pts || [];
     if (B.length) {
       const tip = S.hover ? [...B, bedSnap(S.hover.x, S.hover.y, null, -1)] : B;
-      parts.push(`<path d="${pathD(tip, true, false)}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-dasharray="6 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+      parts.push(`<path d="${pathD(tip, true, false, BED_K)}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-dasharray="6 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
       B.forEach((q, i) => parts.push(`<circle cx="${q[0]}" cy="${q[1]}" r="${px * (i ? 4 : 7)}" style="fill:var(--panel);stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`));
     }
     const sb = beds().find(b => b.id === S.bedSel);
-    if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
+    if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
   svg.innerHTML = parts.join('');
@@ -1976,7 +1978,7 @@ function renderOverlay() {
       <label class="field"><span>Name</span><input id="ng-name" type="text" required placeholder="e.g. Rear garden, 14 Elm Road"></label>
       <label class="field"><span>Client</span><input id="ng-client" type="text"></label>
       <label class="field"><span>Existing plan</span><input id="ng-file" type="file" accept=".svg,.pdf,image/svg+xml,application/pdf,image/png,image/jpeg,image/webp"></label>
-      <div class="field"><span>Size (m)</span><div class="pair"><input id="ng-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.5" value="10" required><input id="ng-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.5" value="8" required></div></div>
+      <div class="field"><span>Size (m)</span><div class="pair"><input id="ng-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.01" value="10" required><input id="ng-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.01" value="8" required></div></div>
       <p class="note" style="margin:0">Attach your site plan as an SVG, PDF or image. You’ll set its scale next by clicking two points a known distance apart. Without a plan, give the plot’s width and depth.</p>
       <div class="row"><button class="btn primary" type="submit">Create garden</button>${S.g ? '<button class="btn" type="button" id="ngCancel">Cancel</button>' : ''}</div></form>`;
     setTimeout(() => $('ng-name')?.focus(), 0);
@@ -2636,8 +2638,31 @@ function endDrag() {
     if (d.pending === 'select') { select(null); return; }
     toolClick(d.pending, d.start, d.marquee); return;
   }
+  if (d.moved && d.items) settleMoved(d.items.map(x => x.m).filter(m => m?.kind === 'planting').map(m => m.it.id));
   if (d.moved) { saveGarden(); renderInspector(); }
   refreshDerived();
+}
+/* after a move, planting on the grid behaves as if painted there: it sits on its bed's grid, takes the spot from any
+   plant of its own kind already there (as painting over a neighbour does), and anything that lands outside the beds is left off */
+function settleMoved(ids) {
+  if (!S.g || !ids.length) return;
+  const moved = new Set(ids), mine = S.g.plantings.filter(pl => moved.has(pl.id) && (pl.qty || 1) === 1 && onGrid(plantById(pl.plantId)));
+  if (!mine.length) return;
+  const key = (pl, q) => kindOf(plantById(pl.plantId)) + ':' + q.x + ',' + q.y, taken = new Map(), drop = new Set(); let outside = 0, over = 0;
+  for (const pl of mine) {
+    const q = latticeSnap(pl.x, pl.y, latticeOf(plantById(pl.plantId)));
+    if (beds().length && !(bedAt(q.x, q.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(q.x, q.y))))) { drop.add(pl.id); outside++; continue; }
+    pl.x = q.x; pl.y = q.y; taken.set(key(pl, q), pl.id);
+  }
+  for (const pl of S.g.plantings) {
+    if (moved.has(pl.id) || (pl.qty || 1) !== 1 || !onGrid(plantById(pl.plantId))) continue;
+    const q = latticeSnap(pl.x, pl.y, latticeOf(plantById(pl.plantId))), k = key(pl, q);
+    if (taken.has(k)) { drop.add(pl.id); over++; }
+  }
+  if (!drop.size) return;
+  S.g.plantings = S.g.plantings.filter(pl => !drop.has(pl.id));
+  S.multi = S.multi.filter(m => !drop.has(m.id));
+  S.note = [over && `Moved over ${plural(over, 'plant')} of a neighbour, as painting would`, outside && `${plural(outside, 'plant')} left off outside the bed`].filter(Boolean).join('; ') + ' · Undo puts them back';   // shown once the move is saved
 }
 function onUp(e) { ptrs.delete(e.pointerId); if (S.pinch) { if (ptrs.size < 2) S.pinch = null; return; } endDrag(); }
 svg.addEventListener('pointerup', onUp);
@@ -3424,7 +3449,10 @@ app.addEventListener('click', async e => {
   }
   if (act === 'savePlant') {
     const p = S.editPlant;
-    if (!(p.common || '').trim()) { $('plantErr').textContent = 'Give the species a common name.'; return; }
+    if (!(p.common || '').trim() && (p.botanical || '').trim()) p.common = p.botanical.trim();   // a botanical name alone will do
+    if (!(p.common || '').trim()) { $('plantErr').textContent = 'Give the species a common or botanical name.'; return; }
+    if (num(p.cost) < 0) { $('plantErr').textContent = 'The unit cost can’t be less than 0.'; return; }
+    if (num(p.height) > 120 || num(p.spread) > 60) { $('plantErr').textContent = 'That height or spread looks too big: sizes are in metres.'; return; }
     if (!(num(p.spread) > 0)) { $('plantErr').textContent = 'Mature spread must be more than 0 m.'; return; }
     const body = { ...p }; delete body._new; delete body.id; delete body.example; delete body._toGarden;
     if (S.online) { b.disabled = true; try { await S.db.doc('plants/' + p.id).set(body); } catch (err) { b.disabled = false; $('plantErr').textContent = 'Couldn’t save: ' + (err?.message || 'try again'); return; } }
