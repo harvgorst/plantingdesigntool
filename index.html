@@ -720,13 +720,13 @@ const TOOLS = [
   { id: 'plant', label: 'Plant', key: 'P', sw: 'var(--r-shrub)', round: true },
   { id: 'row', label: 'Row', key: 'R', icon: 'row' },
   { id: 'measure', label: 'Measure', key: 'M', icon: 'measure' },
-  { id: 'bed', label: 'Bed', key: 'B', icon: 'bed' },
+  { id: 'bed', label: 'Area', key: 'A or B', icon: 'bed' },
 ];
 const HINTS = {
   select: 'Click to select. Drag empty space to move the page. Shift-drag draws a selection box. Ctrl+D duplicates, Ctrl+C and Ctrl+V copy and paste, arrow keys nudge. Scroll to pan; + / − to zoom.',
   row: 'Row: click where the row starts, then where it ends. Plants are spaced evenly along the line. Hold Shift to keep it level, upright or at 45°.',
   measure: 'Measure: click two points on the plan to read the distance between them.',
-  bed: 'Bed: click round the edge of the bed, then click the first point again to close it; the edge is drawn as a smooth curve through your points. Click a bed to select it: drag it to move it, drag its corners to reshape it. Beds can only be changed with this tool.',
+  bed: 'Area: click round the edge, then click the first point again to close it. Click an area to choose what it is (planting bed, existing woodland, building, path or water), name it, move it or reshape it. Planting goes only in beds and woodland, never on buildings, paths or water. Areas can only be changed with this tool.',
   block: 'Click each corner of the building, wall or fence. Click the first corner again to close a building. Enter finishes an open fence; Esc cancels.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
@@ -840,10 +840,38 @@ const latticeOf = p => kindOf(p) === 'bulb' ? spacingOf(p) : gridSpace();   // b
 const beds = () => S.g?.beds || [];
 /* a bed's edge is a smooth curve through the corners you click; this is that curve as many short straight pieces, for working out what is inside it */
 const BEDPOLY = new Map();
-function bedPoly(b) { const k = JSON.stringify(b.pts); let v = BEDPOLY.get(b.id); if (!v || v.k !== k) { v = { k, P: sampled({ pts: b.pts, smooth: true, k: BED_K }) }; BEDPOLY.set(b.id, v); } return v.P; }
+function bedPoly(b) { const k = JSON.stringify(b.pts) + !!b.straight; let v = BEDPOLY.get(b.id); if (!v || v.k !== k) { v = { k, P: sampled({ pts: b.pts, smooth: !b.straight, k: BED_K }) }; BEDPOLY.set(b.id, v); } return v.P; }
 const BED_K = 1 / 12;   // beds hug their points: corners round off without bulging past a wall or the plot edge
-const bedPath = b => pathD(b.pts, true, true, BED_K);
-const bedFill = b => /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : b.wood ? WOOD_COL : 'var(--ground)';
+const bedPath = b => pathD(b.pts, !b.straight, true, BED_K);
+/* an area drawn with the Area tool is a planting bed, existing woodland, a building, a path or water; only beds and woodland take planting */
+const AREA_KINDS = { bed: 'Planting bed', wood: 'Existing woodland', building: 'Building', path: 'Path or paving', water: 'Water' };
+const SURFACES = { paving: ['Paving', '#D8D0C2'], gravel: ['Gravel', '#E2DAC6'], bark: ['Bark', '#B99A78'], grass: ['Grass', '#B7CC92'], decking: ['Decking', '#C7A982'] };
+const WATERS = { pond: 'Pond', lake: 'Lake', river: 'River', stream: 'Stream', rill: 'Rill' };
+const areaKind = b => b?.wood ? 'wood' : ['building', 'path', 'water'].includes(b?.kind) ? b.kind : 'bed';
+const plantable = b => { const k = areaKind(b); return k === 'bed' || k === 'wood'; };
+const pbeds = () => beds().filter(plantable);
+const surfOf = b => SURFACES[b.surf] ? b.surf : 'paving', waterOf = b => WATERS[b.water] ? b.water : 'pond', bhOf = b => clamp(num(b.bh, 6), 0.5, 100);
+const blockedAt = (x, y) => beds().some(b => !plantable(b) && pointInPoly(x, y, bedPoly(b)));   // nothing is planted on a building, path or water
+function areaSub(b) {
+  const k = areaKind(b), named = !!(b.name || '').trim();   // without a name, the heading already says what it is
+  return k === 'wood' ? woodText(b) + ' · retain' : k === 'building' ? (named ? 'building, ' : '') + `${bhOf(b)} m high` : k === 'path' ? SURFACES[surfOf(b)][0].toLowerCase() : k === 'water' && named ? WATERS[waterOf(b)].toLowerCase() : '';
+}
+const areaDefault = b => ({ wood: 'Existing woodland', building: 'Building', path: 'Path', water: WATERS[waterOf(b)] })[areaKind(b)] || 'Bed';
+const bedFill = b => /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : b.wood ? WOOD_COL : ({ building: '#BDB5AA', path: SURFACES[surfOf(b)][1], water: '#9EC3D8' })[areaKind(b)] || 'var(--ground)';
+/* the texture drawn over each kind of area, in plan metres, scaled up on large sites so it never turns to noise */
+function areaPattern(id, sc) {
+  const T = (w, h, body, rot) => `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${w}" height="${h}" patternTransform="${rot ? 'rotate(45) ' : ''}scale(${sc})"><g style="stroke:var(--ink);fill:var(--ink)" stroke-opacity="0.35" fill-opacity="0.35" stroke-width="0.025" stroke-linecap="round">${body}</g></pattern>`;
+  switch (id) {
+    case 'apat-building': return T(0.4, 0.4, '<line x1="0" y1="0" x2="0" y2="0.4"/>', true);
+    case 'apat-paving': return T(0.9, 0.6, '<path d="M0 0H0.9M0 0.3H0.9M0 0V0.3M0.45 0.3V0.6" fill="none"/>');
+    case 'apat-gravel': return T(0.6, 0.6, [[0.1, 0.12], [0.37, 0.07], [0.24, 0.3], [0.52, 0.36], [0.09, 0.48], [0.4, 0.53]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="0.028" stroke="none"/>`).join(''));
+    case 'apat-bark': return T(0.6, 0.5, '<path d="M0.05 0.1l0.12 0.04M0.32 0.2l0.1 -0.06M0.12 0.38l0.11 0.05M0.42 0.42l0.1 0.03" fill="none"/>');
+    case 'apat-grass': return T(0.5, 0.5, '<path d="M0.1 0.3l0.04 -0.12M0.16 0.3l0.02 -0.1M0.33 0.14l-0.03 -0.11M0.38 0.46l0.04 -0.12" fill="none"/>');
+    case 'apat-decking': return T(1.2, 0.15, '<path d="M0 0H1.2M0.8 0V0.15" fill="none"/>');
+    case 'apat-water': return `<pattern id="${id}" patternUnits="userSpaceOnUse" width="1.2" height="0.5" patternTransform="scale(${sc})"><path d="M0.05 0.25q0.15 -0.08 0.3 0t0.3 0" fill="none" stroke="#FFFFFF" stroke-opacity="0.75" stroke-width="0.03" stroke-linecap="round"/></pattern>`;
+  }
+  return '';
+}
 /* a bed can stand for existing woodland: drawn once with a crown edge, casting shade from its canopy, listed as kept, never counted as plants */
 const WOOD_COL = '#9DB38A', WOOD_DENS = { dense: ['Dense', 0.9], light: ['Dappled', 0.65], open: ['Open', 0.4] };
 const woodOf = b => b?.wood ? { h: clamp(num(b.wood.h, 12), 1, 60), dens: WOOD_DENS[b.wood.dens] ? b.wood.dens : 'light', leaf: b.wood.leaf === 'evergreen' ? 'evergreen' : 'deciduous' } : null;
@@ -860,7 +888,7 @@ function woodEdge(b) {
   const sw = A > 0 ? 1 : 0;
   return `M${f(Q[0][0])} ${f(Q[0][1])}` + Q.map((q, i) => { const r = Q[(i + 1) % Q.length], rad = f(Math.hypot(r[0] - q[0], r[1] - q[1]) * 0.62); return `A${rad} ${rad} 0 0 ${sw} ${f(r[0])} ${f(r[1])}`; }).join('') + 'Z';
 }   // a bed's own colour, or the plain ground
-function bedAt(x, y) { for (const b of beds()) if (pointInPoly(x, y, bedPoly(b))) return b; return null; }
+function bedAt(x, y, any) { for (const b of any ? [...beds()].reverse() : beds()) if ((any || plantable(b)) && pointInPoly(x, y, bedPoly(b))) return b; return null; }   // any: every kind of area, topmost first
 const NOFRAME = { id: '', ox: 0, oy: 0 };
 /* each bed keeps its grid's anchor (set where the bed was first drawn, at its centre), so reshaping the bed never shifts the planting grid;
    moving the whole bed moves the anchor, and its planting, with it */
@@ -1563,6 +1591,7 @@ function renderMap() {
     for (const b of beds()) {
       const d = bedPath(b), sel = edit && S.bedSel === b.id;
       parts.push(`<clipPath id="bedclip-${b.id}"><path d="${d}"/></clipPath>`);
+      if (!plantable(b)) continue;   // buildings, paths and water are drawn over the planting, further on
       if (b.wood) { const wd = woodEdge(b);
         if (!parts.some(x => x.startsWith('<pattern id="woodpat"'))) parts.push(`<pattern id="woodpat" patternUnits="userSpaceOnUse" width="5" height="4.4"><g fill="none" style="stroke:var(--ink)" stroke-opacity="0.3" stroke-width="0.035">${[[1.25, 1.1], [3.75, 1.1], [0, 3.3], [2.5, 3.3], [5, 3.3]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.15"/>`).join('')}</g></pattern>`);
         parts.push(`<g data-kind="bed" data-id="${b.id}"${edit ? ' style="cursor:move"' : ' pointer-events="none"'}><path d="${wd}" style="fill:${bedFill(b)};stroke:${sel ? 'var(--accent)' : 'var(--ink)'}" fill-opacity="0.5" stroke-width="${sel ? 2.5 : 1.2}" vector-effect="non-scaling-stroke"/><path d="${wd}" fill="url(#woodpat)" pointer-events="none"/></g>`); continue; }
@@ -1709,17 +1738,23 @@ function renderMap() {
     }
   }
   const fade = on => on ? ' opacity="0.4"' : '';
-  const bedNames = showL ? beds().filter(b => b.wood || (b.name || '').trim()).map(b => { const P = bedPoly(b);
-    if (b.wood) {   // woodland is named in its middle, with its canopy beneath
-      const cx = +(P.reduce((t, q) => t + q[0], 0) / P.length).toFixed(3), cy = +(P.reduce((t, q) => t + q[1], 0) / P.length).toFixed(3), nm = ((b.name || '').trim() || 'Existing woodland').toUpperCase(), sub = woodText(b) + ' · retain', s1 = ls * 0.85, s2 = ls * 0.62;
+  const bedNames = showL ? beds().filter(b => areaKind(b) !== 'bed' || (b.name || '').trim()).map(b => { const P = bedPoly(b);
+    if (areaKind(b) !== 'bed') {   // woodland, buildings, paths and water are named in their middle, with what they are beneath
+      const cx = +(P.reduce((t, q) => t + q[0], 0) / P.length).toFixed(3), cy = +(P.reduce((t, q) => t + q[1], 0) / P.length).toFixed(3), nm = ((b.name || '').trim() || areaDefault(b)).toUpperCase(), sub = areaSub(b), s1 = ls * 0.85, s2 = ls * 0.62;
       return tag(cx, cy, s1, '', {}, { fixed: true, wk: 0.7, len: nm.length, raw: `<text x="${cx}" y="${cy}" font-size="${+s1.toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>` })
-        + tag(cx, +(cy + s2 * 1.5).toFixed(3), s2, '', {}, { fixed: true, wk: 0.5, len: sub.length, raw: `<text x="${cx}" y="${+(cy + s2 * 1.5).toFixed(3)}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label);font-style:italic" pointer-events="none">${esc(sub)}</text>` });
+        + (sub ? tag(cx, +(cy + s2 * 1.5).toFixed(3), s2, '', {}, { fixed: true, wk: 0.5, len: sub.length, raw: `<text x="${cx}" y="${+(cy + s2 * 1.5).toFixed(3)}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label);font-style:italic" pointer-events="none">${esc(sub)}</text>` }) : '');
     }
     const top = P.reduce((m, q) => q[1] < m[1] ? q : m, P[0]), xs = P.map(q => q[0]);
     const x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3), y = +(top[1] - ls * 0.35).toFixed(3), nm = b.name.trim().toUpperCase();
     return tag(x, y, ls * 0.85, '', {}, { fixed: true, wk: 0.7, raw: `<text x="${x}" y="${y}" font-size="${+(ls * 0.85).toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>`, len: nm.length }); }).join('') : '';
-  const bedLines = beds().map(b => `<path d="${b.wood ? woodEdge(b) : bedPath(b)}" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
-  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, '\u0002', `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
+  const psc = +Math.max(1, M / 30).toFixed(3), apats = new Set();
+  const hardAreas = beds().filter(b => !plantable(b)).map(b => {
+    const k = areaKind(b), d = bedPath(b), sel = S.tool === 'bed' && !pr && S.bedSel === b.id, pid = 'apat-' + (k === 'path' ? surfOf(b) : k);
+    if (!apats.has(pid)) { apats.add(pid); parts.push(areaPattern(pid, psc)); }
+    return `<g data-kind="bed" data-id="${b.id}"${S.tool === 'bed' && !pr ? ' style="cursor:move"' : ' pointer-events="none"'}><path d="${d}" style="fill:${bedFill(b)};stroke:${sel ? 'var(--accent)' : k === 'water' ? '#4F7F9C' : 'var(--ink)'}" fill-opacity="0.92" stroke-width="${sel ? 2.5 : k === 'building' ? 2.2 : 1.3}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${d}" fill="url(#${pid})" pointer-events="none"/></g>`;
+  }).join('');
+  const bedLines = beds().filter(plantable).map(b => `<path d="${b.wood ? woodEdge(b) : bedPath(b)}" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
+  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${hardAreas}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, '\u0002', `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
   // handles for the selected curve
   const sa = S.sel?.kind === 'area' ? findSel() : null;
@@ -1731,7 +1766,7 @@ function renderMap() {
     for (const q of [S.cal.a, S.cal.b].filter(Boolean)) parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${px * 5}" style="fill:var(--panel);stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
   if (S.tool === 'plant' && gridOn() && S.hover && !S.hoverShift && !pr && !S.drag) {
-    const p = plantById(S.activePlant), q = latticeSnap(S.hover.x, S.hover.y, latticeOf(p)), outside = beds().length && !bedAt(S.hover.x, S.hover.y);
+    const p = plantById(S.activePlant), q = latticeSnap(S.hover.x, S.hover.y, latticeOf(p)), outside = (pbeds().length && !bedAt(S.hover.x, S.hover.y)) || blockedAt(S.hover.x, S.hover.y);
     if (outside) {} else
     if (oudolf() && kindOf(p) === 'field') { const R = gridSpace() / Math.sqrt(3); parts.push(`<path d="M${[0, 1, 2, 3, 4, 5].map(k => { const a = (30 + 60 * k) * Math.PI / 180; return +(q.x + R * Math.cos(a)).toFixed(3) + ' ' + +(q.y + R * Math.sin(a)).toFixed(3); }).join('L')}Z" style="fill:${speciesStyle(p).col};stroke:var(--accent)" fill-opacity="0.35" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>`); } else
     parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${spacingOf(p) * (kindOf(p) === 'bulb' ? 0.3 : 0.5)}" fill="none" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
@@ -1778,7 +1813,7 @@ function renderMap() {
       B.forEach((q, i) => parts.push(`<circle cx="${q[0]}" cy="${q[1]}" r="${px * (i ? 4 : 7)}" style="fill:var(--panel);stroke:var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`));
     }
     const sb = beds().find(b => b.id === S.bedSel);
-    if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
+    if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, sb.straight ? 0 : BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
   svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, fs, NAME, NUM } : null);
@@ -1892,17 +1927,21 @@ function renderInspector() {
     const n = S.bedDraw?.pts.length || 0, sb = beds().find(b => b.id === S.bedSel);
     if (n || sb) {
       hint.hidden = true; el.hidden = false;
-      el.innerHTML = n ? `<span class="pk">New bed</span><span class="pv">${plural(n, 'corner')}. Click the first corner again, or press Enter, to close the bed. Esc starts again.</span>
-        <span class="acts"><button class="btn sm primary" type="button" data-act="bedDone"${n < 3 ? ' disabled' : ''}>Close bed</button></span>`
-        : `<span class="pk">${esc((sb.name || '').trim() || 'Bed')}</span>
+      el.innerHTML = n ? `<span class="pk">New area</span><span class="pv">${plural(n, 'corner')}. Click the first corner again, or press Enter, to close the bed. Esc starts again.</span>
+        <span class="acts"><button class="btn sm primary" type="button" data-act="bedDone"${n < 3 ? ' disabled' : ''}>Close area</button></span>`
+        : `<span class="pk">${esc((sb.name || '').trim() || areaDefault(sb))}</span>
           <label class="pf"><span>Name</span><input id="bed-name" type="text" maxlength="60" value="${esc(sb.name || '')}" placeholder="e.g. Front border" style="width:11em"></label>
-          <label class="pf"><span>Type</span><select id="bed-type" aria-label="Bed type"><option value="bed">Planting bed</option><option value="wood"${sb.wood ? ' selected' : ''}>Existing woodland</option></select></label>
+          <label class="pf"><span>Type</span><select id="bed-type" aria-label="Area type">${Object.entries(AREA_KINDS).map(([k, l]) => `<option value="${k}"${areaKind(sb) === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+          ${areaKind(sb) === 'building' ? `<label class="pf"><span>Height</span><input id="area-bh" type="number" min="0.5" max="100" step="0.5" value="${bhOf(sb)}" style="width:4.5em" aria-label="Building height in metres"></label>` : ''}
+          ${areaKind(sb) === 'path' ? `<label class="pf"><span>Surface</span><select id="area-surf" aria-label="Surface">${Object.entries(SURFACES).map(([k, [l]]) => `<option value="${k}"${surfOf(sb) === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
+          ${areaKind(sb) === 'water' ? `<label class="pf"><span>Kind</span><select id="area-water" aria-label="Kind of water">${Object.entries(WATERS).map(([k, l]) => `<option value="${k}"${waterOf(sb) === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
           ${sb.wood ? (w => `<label class="pf"><span>Canopy height</span><input id="wood-h" type="number" min="1" max="60" step="0.5" value="${w.h}" style="width:4.5em" aria-label="Canopy height in metres"></label>
           <label class="pf"><span>Canopy</span><select id="wood-dens" aria-label="Canopy density">${Object.entries(WOOD_DENS).map(([k, [l]]) => `<option value="${k}"${w.dens === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="pf"><span>Leaf</span><select id="wood-leaf" aria-label="Deciduous or evergreen"><option value="deciduous">Deciduous</option><option value="evergreen"${w.leaf === 'evergreen' ? ' selected' : ''}>Evergreen</option></select></label>`)(woodOf(sb)) : ''}
-          <label class="pf"><span>Colour</span><input id="bed-col" type="color" value="${/^#[0-9a-f]{6}$/i.test(sb.color || '') ? sb.color : sb.wood ? WOOD_COL : '#E9E1D2'}" aria-label="Bed colour" style="width:34px;height:24px;padding:1px"></label>${sb.color ? '<button class="btn sm" type="button" data-act="bedNoCol">No colour</button>' : ''}
-          <span class="pv">${sb.wood ? `${bedAreaOf(sb).toFixed(0)} m² of existing woodland, kept. Its canopy casts shade in the Sun view, and shade plants can go beneath it as in any bed. ` : ''}${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-click a point to remove it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
-        <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove bed</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
+          <label class="pf"><span>Colour</span><input id="bed-col" type="color" value="${/^#[0-9a-f]{6}$/i.test(sb.color || '') ? sb.color : /^#/.test(bedFill(sb)) ? bedFill(sb) : '#E9E1D2'}" aria-label="Area colour" style="width:34px;height:24px;padding:1px"></label>${sb.color ? '<button class="btn sm" type="button" data-act="bedNoCol">No colour</button>' : ''}
+          <label class="checks"><input type="checkbox" id="area-straight"${sb.straight ? ' checked' : ''}> Straight edges</label>
+          <span class="pv">${({ wood: `${bedAreaOf(sb).toFixed(0)} m² of existing woodland, kept. Its canopy casts shade in the Sun view, and shade plants can go beneath it as in any bed. `, building: 'A building: it casts shade in the Sun view at its height, and nothing is planted on it. ', path: 'A path or hard surface: nothing is planted on it. ', water: 'Water: nothing is planted in it; marginal plants can go in a bed drawn along its edge. ' })[areaKind(sb)] || ''}${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-click a point to remove it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
+        <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove area</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
       return;
     }
   }
@@ -2553,7 +2592,7 @@ function trackHover(e) {
 function paintAt(d, p) {
   if (!S.g || !(p.x >= 0 && p.y >= 0 && p.x <= S.g.width && p.y <= S.g.depth)) return;
   const np = plantById(S.activePlant), kind = kindOf(np), s = latticeOf(np), q = latticeSnap(p.x, p.y, s);
-  if (beds().length && !(bedAt(p.x, p.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(p.x, p.y))))) return;   // with beds drawn, planting stays inside them
+  if ((pbeds().length && !(bedAt(p.x, p.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(p.x, p.y))))) || blockedAt(q.x, q.y)) return;   // with beds drawn, planting stays inside them
   /* each layer only ever touches its own kind: bulbs go in among the planting, the planting ignores the bulbs and the trees above it */
   if (d.erase) {
     const keep = S.g.plantings.filter(x => !((x.qty || 1) === 1 && kindOf(plantById(x.plantId)) === kind && Math.hypot(x.x - p.x, x.y - p.y) < s * 0.55));
@@ -2631,7 +2670,7 @@ svg.addEventListener('pointerdown', e => {
   let hit = e.target.closest('[data-kind]');
   if (hit?.dataset.kind === 'rowc' && S.tool === 'row' && !S.row?.a) { S.drag = { rowBend: hit.dataset.id, moved: false, before: JSON.stringify(S.g), start: toM(e) }; return; }
   /* the Bed tool picks a bed wherever you click inside it, even through the planting drawn over it */
-  const bedHit = S.tool === 'bed' && !S.bedDraw?.pts.length ? (hit?.dataset.kind === 'bedh' || hit?.dataset.kind === 'bedm' ? beds().find(x => x.id === hit.dataset.id) : (() => { const q = toM(e); return bedAt(q.x, q.y); })()) : null;
+  const bedHit = S.tool === 'bed' && !S.bedDraw?.pts.length ? (hit?.dataset.kind === 'bedh' || hit?.dataset.kind === 'bedm' ? beds().find(x => x.id === hit.dataset.id) : (() => { const q = toM(e); return bedAt(q.x, q.y, true); })()) : null;
   if (bedHit) {
     const b = bedHit;
     S.bedSel = b.id; renderInspector(); renderMap();
@@ -2805,7 +2844,7 @@ function settleMoved(ids) {
   const key = (pl, q) => kindOf(plantById(pl.plantId)) + ':' + q.x + ',' + q.y, taken = new Map(), drop = new Set(); let outside = 0, over = 0;
   for (const pl of mine) {
     const q = latticeSnap(pl.x, pl.y, latticeOf(plantById(pl.plantId)));
-    if (beds().length && !(bedAt(q.x, q.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(q.x, q.y))))) { drop.add(pl.id); outside++; continue; }
+    if ((pbeds().length && !(bedAt(q.x, q.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(q.x, q.y))))) || blockedAt(q.x, q.y)) { drop.add(pl.id); outside++; continue; }
     pl.x = q.x; pl.y = q.y; taken.set(key(pl, q), pl.id);
   }
   for (const pl of S.g.plantings) {
@@ -3470,10 +3509,18 @@ const app = document.body;
 let fieldCheckpointed = false;
 app.addEventListener('focusin', () => { fieldCheckpointed = false; });
 app.addEventListener('input', e => {
-  if (['bed-type', 'wood-h', 'wood-dens', 'wood-leaf'].includes(e.target.id)) {
+  if (['bed-type', 'wood-h', 'wood-dens', 'wood-leaf', 'area-bh', 'area-surf', 'area-water', 'area-straight'].includes(e.target.id)) {
     const b = beds().find(x => x.id === S.bedSel), id = e.target.id, v = e.target.value; if (!b) return;
     if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
-    if (id === 'bed-type') { if (v === 'wood') b.wood = b.wood || { h: 12, dens: 'light', leaf: 'deciduous' }; else delete b.wood; saveGarden(); renderInspector(); renderMapSoon(); return; }
+    if (id === 'bed-type') {
+      const wood = b.wood; delete b.wood; delete b.kind;
+      if (v === 'wood') b.wood = wood || { h: 12, dens: 'light', leaf: 'deciduous' };
+      else if (AREA_KINDS[v] && v !== 'bed') { b.kind = v; if (v === 'building' && b.straight == null) b.straight = true; }
+      saveGarden(); renderInspector(); renderMapSoon(); return;
+    }
+    if (id === 'area-bh') { b.bh = clamp(num(v, 6), 0.5, 100); saveGarden(); renderMapSoon(); return; }
+    if (id === 'area-surf' || id === 'area-water') { b[id === 'area-surf' ? 'surf' : 'water'] = v; saveGarden(); renderInspector(); renderMapSoon(); return; }
+    if (id === 'area-straight') { b.straight = e.target.checked; saveGarden(); renderMapSoon(); return; }
     b.wood = { ...woodOf(b), [{ 'wood-h': 'h', 'wood-dens': 'dens', 'wood-leaf': 'leaf' }[id]]: id === 'wood-h' ? clamp(num(v, 12), 1, 60) : v };
     saveGarden(); renderMapSoon(); return;
   }
@@ -3780,7 +3827,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && S.tool === 'bed' && S.bedDraw?.pts.length) { S.bedDraw = { pts: [] }; renderInspector(); renderMap(); return; }
   if (e.key === 'Escape') { setTool('select'); select(null); return; }
   if (e.key.toLowerCase() === 'o' && getPage() === 'plan') { setOudolf(!oudolf()); return; }
-  const t = TOOLS.find(x => x.key.toLowerCase().split(' or ')[0] === e.key.toLowerCase()); if (t) setTool(t.id);
+  const t = TOOLS.find(x => x.key.toLowerCase().split(' or ').includes(e.key.toLowerCase())); if (t) setTool(t.id);
 });
 
 /* ---------- data ---------- */
@@ -4247,6 +4294,7 @@ function sunCasters() {
   }
   for (const a of g.areas) { const p = plantById(a.plantId); if (p && isVisible(p) && num(p.height) > 0.02) out.push({ pts: sampled(a), h: num(p.height), closed: true }); }
   for (const b of g.blocks || []) out.push({ pts: b.pts, h: b.h, closed: b.closed, wall: true });
+  for (const b of beds()) if (areaKind(b) === 'building') out.push({ pts: bedPoly(b), h: bhOf(b), closed: true, wall: true });
   for (const b of beds()) { const w = woodOf(b); if (w) out.push({ pts: bedPoly(b), h: w.h, closed: true, block: WOOD_DENS[w.dens][1] * (w.leaf === 'deciduous' && !inLeaf(S.sun.doy) ? 0.35 : 1) }); }
   return out;
 }
@@ -4501,7 +4549,7 @@ function cleanGarden(d) {
   if (d.colors && typeof d.colors === 'object') { const c = {}; for (const [k, v] of Object.entries(d.colors)) if (safeId(k) && Number.isInteger(v) && v >= 0 && v < 1000) c[k] = v; g.colors = c; }
   if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered, orient: ['landscape', 'portrait'].includes(d.sheet.orient) ? d.sheet.orient : 'auto' };
   if (d.example) g.example = true;
-  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {}, b?.name ? { name: str(b.name, 60) } : {}, hexOrNull(b?.color) ? { color: b.color } : {}, b?.wood && typeof b.wood === 'object' ? { wood: { h: clamp(numOrNull(b.wood.h) ?? 12, 1, 60), dens: WOOD_DENS[b.wood.dens] ? b.wood.dens : 'light', leaf: b.wood.leaf === 'evergreen' ? 'evergreen' : 'deciduous' } } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
+  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {}, b?.name ? { name: str(b.name, 60) } : {}, hexOrNull(b?.color) ? { color: b.color } : {}, ['building', 'path', 'water'].includes(b?.kind) ? { kind: b.kind } : {}, b?.straight === true || b?.straight === false ? { straight: b.straight } : {}, Number.isFinite(b?.bh) ? { bh: clamp(b.bh, 0.5, 100) } : {}, SURFACES[b?.surf] ? { surf: b.surf } : {}, WATERS[b?.water] ? { water: b.water } : {}, b?.wood && typeof b.wood === 'object' ? { wood: { h: clamp(numOrNull(b.wood.h) ?? 12, 1, 60), dens: WOOD_DENS[b.wood.dens] ? b.wood.dens : 'light', leaf: b.wood.leaf === 'evergreen' ? 'evergreen' : 'deciduous' } } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
   if (d.aerial && Number.isFinite(+d.aerial.lat) && Number.isFinite(+d.aerial.lon) && Math.abs(d.aerial.lat) < 85 && Math.abs(d.aerial.lon) <= 180) g.aerial = { lat: +d.aerial.lat, lon: +d.aerial.lon, opacity: clamp(numOrNull(d.aerial.opacity) ?? 0.9, 0.1, 1) };
   if (Array.isArray(d.rows)) { const pt = v => Array.isArray(v) ? [r2(clamp(numOrNull(v[0]) ?? 0, -1000, 2000)), r2(clamp(numOrNull(v[1]) ?? 0, -1000, 2000))] : null;
     const rows = d.rows.slice(0, 500).map(r => ({ id: safeId(r?.id), a: pt(r?.a), b: pt(r?.b), c: pt(r?.c), gap: clamp(numOrNull(r?.gap) ?? 0.3, 0.05, 20) })).filter(r => r.id && r.a && r.b && r.c); if (rows.length) g.rows = rows; }

@@ -877,4 +877,40 @@ test('existing woodland: a bed set as woodland is drawn with a crown edge, casts
   eq(await app.page.textContent('#schedSum'), before, 'the plant count and cost are unchanged');
 });
 
+test('areas: the Area tool makes beds, buildings, paths and water; nothing is planted on buildings, paths or water; buildings cast shade', async open => {
+  const seed = sample(); Object.assign(seed['gardens/g1'], { north: 0, lat: 51.5072, lon: -0.1276, underlay: null });
+  seed['gardens/g1'].plantings = [];
+  seed['gardens/g1'].beds = [
+    { id: 'bB', pts: [[0.5, 4.5], [11.5, 4.5], [11.5, 8.2], [0.5, 8.2]], ox: 6, oy: 6.3 },
+    { id: 'bH', pts: [[0.5, 0.5], [4.5, 0.5], [4.5, 3.5], [0.5, 3.5]], ox: 2.5, oy: 2 },
+    { id: 'bP', pts: [[5.5, 4.5], [6.5, 4.5], [6.5, 8.2], [5.5, 8.2]], ox: 6, oy: 6.3 },
+    { id: 'bW', pts: [[7, 0.8], [11, 1], [10.5, 3.6], [7.5, 3.4]], ox: 9, oy: 2.2 }];
+  const app = await open(seed);
+  ok((await app.page.textContent('[data-tool=bed]')).includes('Area'), 'the tool is called Area');
+  await app.page.keyboard.press('a'); ok(await app.page.getAttribute('[data-tool=bed]', 'aria-pressed') === 'true', 'A picks it');
+  const kind = async (x, y, v) => { await app.clickPlan(x, y); await app.page.selectOption('#bed-type', v); await app.page.waitForTimeout(150); };
+  await kind(2.5, 2, 'building'); await app.page.fill('#area-bh', '8'); await app.page.fill('#bed-name', 'House');
+  ok(await app.page.isChecked('#area-straight'), 'a building has straight edges');
+  await kind(6, 6, 'path'); await app.page.selectOption('#area-surf', 'gravel');
+  await kind(9, 2.2, 'water'); await app.page.selectOption('#area-water', 'pond');
+  await app.page.waitForTimeout(900);
+  const g = (await app.store('gardens/g1')).beds;
+  eq(g.map(b => [b.kind || 'bed', b.bh, b.surf, b.water, b.straight]), [['bed', undefined, undefined, undefined, undefined], ['building', 8, undefined, undefined, true], ['path', undefined, 'gravel', undefined, undefined], ['water', undefined, undefined, 'pond', undefined]], 'kinds saved');
+  const txt = await app.page.textContent('#map');
+  ok(/HOUSE/.test(txt) && /building, 8 m high/.test(txt) && /PATH/.test(txt) && /gravel/.test(txt) && /POND/.test(txt), 'each is named on the plan, got ' + txt.slice(0, 300));
+  ok(/^M[\d.]+ [\d.]+ L/.test(await app.page.$eval('#map [data-kind=bed][data-id=bH] path', p => p.getAttribute('d'))), 'drawn with straight edges');
+  // paint across the bed and the path: nothing lands on the path
+  await app.page.click('[data-tool=select]'); await app.page.click('#lib [data-pid=p1]');
+  await app.dragPlan(3, 6.3, 9, 6.3); await app.page.waitForTimeout(900);
+  const pl = (await app.store('gardens/g1')).plantings;
+  ok(pl.length > 6, 'planted in the bed, got ' + pl.length);
+  ok(pl.every(q => q.x < 5.4 || q.x > 6.6), 'none on the path');
+  if (process.env.SHOT) await app.page.locator('#map').screenshot({ path: process.env.SHOT });
+  // the house casts shade
+  await app.page.click('#sunBtn');
+  await app.page.evaluate(() => { const a = document.getElementById('sunDoy'), c = document.getElementById('sunMin'); a.value = 172; a.dispatchEvent(new Event('input', { bubbles: true })); c.value = 17 * 60; c.dispatchEvent(new Event('input', { bubbles: true })); });
+  await app.page.waitForTimeout(150);
+  ok(await app.page.$eval('#shadows', g => g.children.length) > 0, 'the house casts a shadow');
+});
+
 run();
