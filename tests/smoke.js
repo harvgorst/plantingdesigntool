@@ -884,7 +884,9 @@ test('areas: the Area tool makes beds, buildings, paths and water; nothing is pl
     { id: 'bB', pts: [[0.5, 4.5], [11.5, 4.5], [11.5, 8.2], [0.5, 8.2]], ox: 6, oy: 6.3 },
     { id: 'bH', pts: [[0.5, 0.5], [4.5, 0.5], [4.5, 3.5], [0.5, 3.5]], ox: 2.5, oy: 2 },
     { id: 'bP', pts: [[5.5, 4.5], [6.5, 4.5], [6.5, 8.2], [5.5, 8.2]], ox: 6, oy: 6.3 },
-    { id: 'bW', pts: [[7, 0.8], [11, 1], [10.5, 3.6], [7.5, 3.4]], ox: 9, oy: 2.2 }];
+    { id: 'bW', pts: [[7, 0.8], [11, 1], [10.5, 3.6], [7.5, 3.4]], ox: 9, oy: 2.2 },
+    { id: 'bG', pts: [[0.3, 3.85], [11.7, 3.85], [11.7, 4.25], [0.3, 4.25]], ox: 6, oy: 4.05 },
+    { id: 'bX', pts: [[5, 0.5], [6.6, 0.5], [6.6, 3.2], [5, 3.2]], ox: 5.8, oy: 1.8, wood: { h: 12 } }];
   const app = await open(seed);
   ok((await app.page.textContent('[data-tool=bed]')).includes('Area'), 'the tool is called Area');
   await app.page.keyboard.press('a'); ok(await app.page.getAttribute('[data-tool=bed]', 'aria-pressed') === 'true', 'A picks it');
@@ -893,9 +895,12 @@ test('areas: the Area tool makes beds, buildings, paths and water; nothing is pl
   ok(await app.page.isChecked('#area-straight'), 'a building has straight edges');
   await kind(6, 6, 'path'); await app.page.selectOption('#area-surf', 'gravel');
   await kind(9, 2.2, 'water'); await app.page.selectOption('#area-water', 'pond');
+  await kind(3, 4.05, 'hedge'); await app.page.selectOption('#area-leaf', 'deciduous');
   await app.page.waitForTimeout(900);
   const g = (await app.store('gardens/g1')).beds;
-  eq(g.map(b => [b.kind || 'bed', b.bh, b.surf, b.water, b.straight]), [['bed', undefined, undefined, undefined, undefined], ['building', 8, undefined, undefined, true], ['path', undefined, 'gravel', undefined, undefined], ['water', undefined, undefined, 'pond', undefined]], 'kinds saved');
+  eq(g.map(b => [b.kind || 'bed', b.bh, b.surf, b.water, b.straight]), [['bed', undefined, undefined, undefined, undefined], ['building', 8, undefined, undefined, true], ['path', undefined, 'gravel', undefined, undefined], ['water', undefined, undefined, 'pond', undefined], ['hedge', undefined, undefined, undefined, true], ['bed', undefined, undefined, undefined, undefined]], 'kinds saved');
+  eq(g[4].leaf, 'deciduous', 'hedge leaf saved');
+  ok(/HEDGE/.test(await app.page.textContent('#map')) && /1\.8 m high, deciduous/.test(await app.page.textContent('#map')), 'the hedge is named with its height');
   const txt = await app.page.textContent('#map');
   ok(/HOUSE/.test(txt) && /building, 8 m high/.test(txt) && /PATH/.test(txt) && /gravel/.test(txt) && /POND/.test(txt), 'each is named on the plan, got ' + txt.slice(0, 300));
   ok(/^M[\d.]+ [\d.]+ L/.test(await app.page.$eval('#map [data-kind=bed][data-id=bH] path', p => p.getAttribute('d'))), 'drawn with straight edges');
