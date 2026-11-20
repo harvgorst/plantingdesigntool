@@ -847,4 +847,34 @@ test('labels around the edge: one per species and side, in columns outside the p
   ok(await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.some(t => +t.getAttribute('x') > 0 && +t.getAttribute('x') < 12)), 'Preferences can put them back on the plan');
 });
 
+test('existing woodland: a bed set as woodland is drawn with a crown edge, casts canopy shade, and is listed but never counted', async open => {
+  const seed = sample(); Object.assign(seed['gardens/g1'], { north: 0, lat: 51.5072, lon: -0.1276, underlay: null });
+  seed['gardens/g1'].plantings = seed['gardens/g1'].plantings.filter(q => q.plantId !== 'ex1');
+  seed['gardens/g1'].beds = [{ id: 'bW', pts: [[0.5, 0.5], [6, 0.5], [6, 3], [0.5, 3]], ox: 3, oy: 1.5 }];
+  const app = await open(seed);
+  const before = await app.page.textContent('#schedSum').catch(() => '');
+  await app.page.click('[data-tool=bed]'); await app.clickPlan(3, 2);
+  await app.page.selectOption('#bed-type', 'wood'); await app.page.waitForTimeout(200);
+  await app.page.fill('#wood-h', '15'); await app.page.selectOption('#wood-dens', 'dense'); await app.page.fill('#bed-name', 'Oak copse');
+  await app.page.waitForTimeout(900);
+  const b = (await app.store('gardens/g1')).beds[0];
+  eq(b.wood, { h: 15, dens: 'dense', leaf: 'deciduous' }, 'saved as woodland');
+  ok(/OAK COPSE/.test(await app.page.textContent('#map')) && /canopy c\. 15 m, dense, deciduous/.test(await app.page.textContent('#map')), 'named on the plan with its canopy');
+  ok(/A[\d.]+ [\d.]+ 0 0 [01]/.test(await app.page.$eval('#map [data-kind=bed] path', p => p.getAttribute('d'))), 'a crown (scalloped) edge');
+  await app.page.click('[data-act=bedOff]').catch(() => {});
+  if (process.env.SHOT) await app.page.locator('#map').screenshot({ path: process.env.SHOT });
+  // shade: summer noon, the copse shades the ground to its north (up the plan); in winter out of leaf it is lighter
+  await app.page.click('#sunBtn');
+  const set = async (doy, mins) => { await app.page.evaluate(([d, m]) => { const a = document.getElementById('sunDoy'), c = document.getElementById('sunMin'); a.value = d; a.dispatchEvent(new Event('input', { bubbles: true })); c.value = m; c.dispatchEvent(new Event('input', { bubbles: true })); }, [doy, mins]); await app.page.waitForTimeout(80); };
+  await set(172, 13 * 60);
+  const summer = await app.page.$eval('#map .softshade', g => +g.getAttribute('opacity'));
+  await set(15, 12 * 60);
+  const winter = await app.page.$eval('#map .softshade', g => +g.getAttribute('opacity'));
+  ok(summer > 0.25 && winter < summer * 0.5, `dense canopy in leaf, much lighter bare in winter, got ${summer} and ${winter}`);
+  // listed as kept, not counted
+  await app.go('schedule');
+  ok(/Oak copse/.test(await app.page.textContent('#existingT')) && /1[3-7] m²/.test(await app.page.textContent('#existingT')), 'listed with the existing plants and its area, got ' + await app.page.textContent('#existingT'));
+  eq(await app.page.textContent('#schedSum'), before, 'the plant count and cost are unchanged');
+});
+
 run();
