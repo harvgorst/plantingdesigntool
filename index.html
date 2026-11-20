@@ -178,7 +178,11 @@ table.sched.wide { font-size: 14px; min-width: 640px; }
 .mslider .mlabels { display: grid; grid-template-columns: repeat(12, 1fr); text-align: center; font-size: 10px; color: var(--muted); margin-top: 6px; }
 .mslider .mrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; font-size: 12.5px; }
 .mslider .mrow label { white-space: nowrap; }
-.mslider #msl-txt { color: var(--ink); }
+.mslider #msl-txt, .mslider #mslc-txt { color: var(--ink); }
+.mslider.crop .mcells span.in { background: var(--harvest); }
+.cbar.hv { height: 9px; border-radius: 5px; margin-top: 3px; background: repeating-linear-gradient(90deg, var(--harvest) 0 7px, color-mix(in srgb, var(--harvest) 70%, white) 7px 9px); }
+.bcal .bar.crop { height: 5px; border-radius: 3px; align-self: start; margin-top: 5px; background: #B07A2A; border: 0; }
+:root { --harvest: #B07A2A; }
 .swv { flex: none; display: inline-block; vertical-align: -2px; overflow: visible; }
 .blegend .swv { margin-right: 8px; vertical-align: -2px; }
 .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
@@ -2050,6 +2054,22 @@ function renderGardenFields() {
   if (!S.g) $('dims').textContent = '—';
   else { const n = $('g-north'), r = $('g-north-r'); if (n && document.activeElement !== n && !S.g.north) n.value = 0; if (r && !S.g.north) r.value = 0; $('g-north-needle')?.setAttribute('transform', `rotate(${num(S.g.north, 0)})`); }
 }
+function cropSlider(p) {
+  const f = p.cropFrom || 8, t = p.cropTo || p.cropFrom || 9;
+  return `<div class="mslider crop" id="mslc">
+    <div class="mcells">${MONTHS.map((m, i) => `<span data-m="${i + 1}"></span>`).join('')}</div>
+    <input type="range" id="sp-cf" min="1" max="12" step="1" value="${f}" data-mr="cropFrom" aria-label="Harvest from">
+    <input type="range" id="sp-ct" min="1" max="12" step="1" value="${t}" data-mr="cropTo" aria-label="Harvest to">
+    <div class="mlabels">${MONTHS.map(m => `<span>${m[0]}</span>`).join('')}</div>
+    <div class="mrow"><span id="mslc-txt"></span></div>
+  </div>`;
+}
+function paintCropSlider() {
+  const p = S.editPlant, box = $('mslc'); if (!p || !box) return;
+  const ms = cropMonths(p);
+  for (const c of box.querySelectorAll('[data-m]')) c.classList.toggle('in', ms.includes(+c.dataset.m));
+  $('mslc-txt').textContent = ms.length === 12 ? 'All year' : `Harvest ${MONTHS[p.cropFrom - 1]} – ${MONTHS[(p.cropTo || p.cropFrom) - 1]}${p.cropTo && p.cropTo < p.cropFrom ? ' · over new year' : ''}`;
+}
 function monthSlider(p) {
   const on = !!p.flowerFrom, f = p.flowerFrom || 6, t = p.flowerTo || p.flowerFrom || 8;
   return `<div class="mslider${on ? '' : ' off'}" id="msl">
@@ -2061,6 +2081,7 @@ function monthSlider(p) {
   </div>`;
 }
 function paintMonthSlider() {
+  paintCropSlider();
   const p = S.editPlant, box = $('msl'); if (!p || !box) return;
   const on = !!p.flowerFrom; box.classList.toggle('off', !on);
   const ms = on ? flowerMonths(p) : [];
@@ -2079,6 +2100,7 @@ function renderPlantEditor(el) {
     <label class="field"><span>Layer</span><select id="sp-role" data-p="role">${opt(ROLES, p.role)}</select></label>
     <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
     <div class="field" style="align-items:start"><span style="padding-top:4px">Flowers</span>${monthSlider(p)}</div>
+    <div class="field" style="align-items:start"><span style="padding-top:4px">Crop</span><div style="display:flex;flex-direction:column;gap:6px;flex:1"><label class="checks"><input type="checkbox" id="sp-crop"${p.crop ? ' checked' : ''}> Crop: grown to eat or use, with a harvest</label>${p.crop ? cropSlider(p) : ''}</div></div>
     <div class="field" style="align-items:start"><span style="padding-top:4px">Flower colour</span><div style="display:flex;flex-direction:column;gap:8px">
       <div class="swatches" role="group" aria-label="Flower colour">${FLOWER_COLOURS.map(([n, h]) => `<button type="button" data-color="${h}" data-cname="${n}" title="${n}" aria-label="${n}" aria-pressed="${(p.flowerColor || '').toLowerCase() === h.toLowerCase()}" style="background:${h}"></button>`).join('')}</div>
       <div class="colrow"><label style="display:inline-flex;gap:6px;align-items:center">Custom <input type="color" id="sp-col" data-p="flowerColor" value="${p.flowerColor || '#c9a7d9'}"></label><span id="colName">${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}"></span>${esc(p.flowerColorName || 'Custom colour')}` : 'No colour chosen'}</span>${p.flowerColor ? '<button class="btn sm" type="button" data-act="clearColour">Clear</button>' : ''}</div>
@@ -2193,6 +2215,7 @@ function runs(ms) {
 }
 /* months [from..to], wrapping over the new year */
 function monthSpan(from, to) { const f = +from, t = +(to || from); if (!(f >= 1 && f <= 12)) return []; const out = []; for (let i = 0, m = f; i < 12; i++) { out.push(m); if (m === t) break; m = m % 12 + 1; } return out; }
+const cropMonths = p => p?.crop ? monthSpan(p.cropFrom, p.cropTo) : [];   // forest-garden crops: when they are picked
 function interestItems(p) { return (p?.interest || []).filter(x => INTEREST[x.kind] && monthSpan(x.from, x.to).length); }
 const spanText = ms => (ms.length ? (ms.length > 1 ? `${MONTHS[ms[0] - 1]}–${MONTHS[ms[ms.length - 1] - 1]}` : MONTHS[ms[0] - 1]) : '');
 /* what a plant offers in one month: flowers first, then other interest, then evergreen leaves */
@@ -2212,19 +2235,20 @@ function renderCalendar() {
     ...existingRows().filter(r => r.retain + r.prune > 0).map(r => ({ p: r.p, qty: r.retain + r.prune, ex: true })),
   ].filter(r => r.p);
   const first = p => { const f = flowerMonths(p)[0], i = interestItems(p).map(x => x.from); return f || (i.length ? Math.min(...i) : 99); };
-  const has = p => flowerMonths(p).length || interestItems(p).length;
+  const has = p => flowerMonths(p).length || interestItems(p).length || cropMonths(p).length;
   const withI = list.filter(r => has(r.p)).sort((a, b) => (first(a.p) - first(b.p)) || (a.p.common || '').localeCompare(b.p.common || ''));
   const noI = list.filter(r => !has(r.p)).sort((a, b) => (a.p.common || '').localeCompare(b.p.common || ''));
   const inFlower = MONTHS.map((_, i) => withI.filter(r => flowerMonths(r.p).includes(i + 1)));
-  const other = MONTHS.map((_, i) => withI.flatMap(r => interestItems(r.p).filter(x => monthSpan(x.from, x.to).includes(i + 1)).map(x => ({ r, x }))));
+  const other = MONTHS.map((_, i) => withI.flatMap(r => [...interestItems(r.p).filter(x => monthSpan(x.from, x.to).includes(i + 1)), ...(cropMonths(r.p).includes(i + 1) ? [{ kind: 'harvest', color: '#B07A2A' }] : [])].map(x => ({ r, x }))));
   const peak = Math.max(0, ...inFlower.map(x => x.length)), peakM = MONTHS.filter((_, i) => peak && inFlower[i].length === peak);
   const gaps = MONTHS.filter((_, i) => !inFlower[i].length && !other[i].length), evergreens = list.filter(r => r.p.foliage === 'evergreen').length;
   const unsetCol = withI.filter(r => flowerMonths(r.p).length && !r.p.flowerColor).length;
   const row = r => {
-    const ms = flowerMonths(r.p), col = r.p.flowerColor, its = interestItems(r.p);
+    const ms = flowerMonths(r.p), col = r.p.flowerColor, its = interestItems(r.p), hv = cropMonths(r.p), o = hv.length ? 1 : 0;
     let bars = runs(ms).map(([a, b]) => `<div class="cbar${col ? '' : ' unset'}" style="grid-row:1;grid-column:${a} / ${b + 1};${col ? `background:${esc(col)}` : ''}" title="${esc(r.p.common)} in flower: ${spanText(ms)}${col ? ', ' + esc(r.p.flowerColorName || 'custom colour') : ''}"></div>`).join('');
-    its.forEach((x, i) => { const span = monthSpan(x.from, x.to); bars += runs(span).map(([a, b]) => `<div class="cbar sm" style="grid-row:${i + 2};grid-column:${a} / ${b + 1};background:${esc(x.color)}" title="${esc(r.p.common)}: ${esc(INTEREST[x.kind][0].toLowerCase())}, ${spanText(span)}"></div>`).join(''); });
-    if (r.p.foliage === 'evergreen') bars += `<div class="cbar ev" style="grid-row:${its.length + 2};grid-column:1 / 13;background:${EVERGREEN}" title="${esc(r.p.common)}: evergreen"></div>`;
+    if (o) bars += runs(hv).map(([a, b]) => `<div class="cbar hv" style="grid-row:2;grid-column:${a} / ${b + 1}" title="${esc(r.p.common)}: harvest, ${spanText(hv)}"></div>`).join('');
+    its.forEach((x, i) => { const span = monthSpan(x.from, x.to); bars += runs(span).map(([a, b]) => `<div class="cbar sm" style="grid-row:${i + 2 + o};grid-column:${a} / ${b + 1};background:${esc(x.color)}" title="${esc(r.p.common)}: ${esc(INTEREST[x.kind][0].toLowerCase())}, ${spanText(span)}"></div>`).join(''); });
+    if (r.p.foliage === 'evergreen') bars += `<div class="cbar ev" style="grid-row:${its.length + 2 + o};grid-column:1 / 13;background:${EVERGREEN}" title="${esc(r.p.common)}: evergreen"></div>`;
     return `<div class="cname"><b>${esc(r.p.common)}</b> <span class="q">× ${r.qty}</span>${r.ex ? '<span class="ex exist">Existing</span>' : ''}<i>${esc(r.p.botanical)}</i></div><div class="ctrack">${bars || '<span class="cnone">No flowering months or other interest set</span>'}</div>`;
   };
   el.innerHTML = `<div class="calhead"><div><span class="lbl">Interest calendar</span><h2>${esc(S.g.name)}</h2></div>
@@ -2234,10 +2258,11 @@ function renderCalendar() {
       <div></div><div class="cal-months">${MONTHS.map(m => `<span>${m}</span>`).join('')}</div>
       ${withI.map(row).join('')}${noI.map(row).join('')}
       <div class="cname csum"><b>Colour through the year</b><i>Flowers and other interest each month</i></div>
-      <div class="csum"><div class="cmix">${MONTHS.map((_, i) => `<div title="${MONTHS[i]}: ${[...inFlower[i].map(r => r.p.common), ...other[i].map(o => o.r.p.common + ' (' + INTEREST[o.x.kind][0].toLowerCase() + ')')].map(esc).join(', ') || 'nothing of interest'}">${inFlower[i].map(r => `<span style="background:${r.p.flowerColor ? esc(r.p.flowerColor) : 'var(--accent-soft)'}"></span>`).join('')}${other[i].map(o => `<span style="background:${esc(o.x.color)};flex:0.45"></span>`).join('')}</div>`).join('')}</div>
+      <div class="csum"><div class="cmix">${MONTHS.map((_, i) => `<div title="${MONTHS[i]}: ${[...inFlower[i].map(r => r.p.common), ...other[i].map(o => o.r.p.common + ' (' + (INTEREST[o.x.kind]?.[0] || 'Harvest').toLowerCase() + ')')].map(esc).join(', ') || 'nothing of interest'}">${inFlower[i].map(r => `<span style="background:${r.p.flowerColor ? esc(r.p.flowerColor) : 'var(--accent-soft)'}"></span>`).join('')}${other[i].map(o => `<span style="background:${esc(o.x.color)};flex:0.45"></span>`).join('')}</div>`).join('')}</div>
         <div class="ccount">${MONTHS.map((_, i) => { const n = inFlower[i].length + other[i].length; return `<span class="${n ? '' : 'gap'}">${n || '–'}</span>`; }).join('')}</div></div>
     </div></div>
-    <div class="calkey"><span><i style="width:26px;height:11px;background:#C9A7D9"></i>Flowers, in the flower colour</span><span><i style="width:26px;height:6px;background:#C92F2F"></i>Berries, autumn colour, stems, seed heads or foliage</span><span><i style="width:26px;height:3px;background:${EVERGREEN};box-shadow:none"></i>Evergreen</span></div>
+    <div class="calkey"><span><i style="width:26px;height:11px;background:#C9A7D9"></i>Flowers, in the flower colour</span><span><i style="width:26px;height:6px;background:#C92F2F"></i>Berries, autumn colour, stems, seed heads or foliage</span><span><i style="width:26px;height:3px;background:${EVERGREEN};box-shadow:none"></i>Evergreen</span><span><i style="width:26px;height:8px;background:var(--harvest)"></i>Harvest, for crops</span></div>
+    ${(() => { const cr = list.filter(r => cropMonths(r.p).length); if (!cr.length) return ''; const hm = MONTHS.filter((_, i) => cr.some(r => cropMonths(r.p).includes(i + 1))); return `<p class="note" style="margin:0">${plural(cr.length, 'crop')}, with something to harvest in ${hm.length === 12 ? 'every month' : hm.join(', ')}.</p>`; })()}
     ${unsetCol ? `<p class="note" style="margin:0">Hatched bars have no flower colour yet. Use Edit in the plant library to choose one.</p>` : ''}` : ''}`;
 }
 function renderPrefs() {
@@ -3117,10 +3142,10 @@ function bookletPages(planImg, forExport) {
   }
   if (b.pages.calendar) {
     const firstM = p => flowerMonths(p)[0] || Math.min(99, ...interestItems(p).map(x => x.from));
-    const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && (flowerMonths(p).length || interestItems(p).length)).sort((a, c) => firstM(a) - firstM(c));
-    if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Interest through the year${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Wide bars are flowers in their colour. Narrow bars are berries, autumn colour, stems, seed heads or foliage. A green line marks evergreens.</p>
+    const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && (flowerMonths(p).length || interestItems(p).length || cropMonths(p).length)).sort((a, c) => firstM(a) - firstM(c));
+    if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Interest through the year${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Wide bars are flowers in their colour. Narrow bars are berries, autumn colour, stems, seed heads or foliage. A green line marks evergreens, and a brown one above the flowers the harvest of crops.</p>
       <div class="bcal"><div></div>${MONTHS.map(m => `<div class="mh">${m}</div>`).join('')}
-      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span style="color:#8A8073;margin-right:6px">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i></div><div class="tr" style="grid-row:${row}"></div>${runs(flowerMonths(p)).map(([a, c]) => `<div class="bar" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(p.flowerColor || '#C9D3B8')}"></div>`).join('')}${interestItems(p).map(x => runs(monthSpan(x.from, x.to)).map(([a, c]) => `<div class="bar thin" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(x.color)}"></div>`).join('')).join('')}${p.foliage === 'evergreen' ? `<div class="bar ever" style="grid-row:${row};grid-column:2 / 14"></div>` : ''}`; }).join('')}</div>` }));
+      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span style="color:#8A8073;margin-right:6px">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i></div><div class="tr" style="grid-row:${row}"></div>${runs(flowerMonths(p)).map(([a, c]) => `<div class="bar" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(p.flowerColor || '#C9D3B8')}"></div>`).join('')}${interestItems(p).map(x => runs(monthSpan(x.from, x.to)).map(([a, c]) => `<div class="bar thin" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(x.color)}"></div>`).join('')).join('')}${p.foliage === 'evergreen' ? `<div class="bar ever" style="grid-row:${row};grid-column:2 / 14"></div>` : ''}${runs(cropMonths(p)).map(([a, c]) => `<div class="bar crop" style="grid-row:${row};grid-column:${a + 1} / ${c + 2}"></div>`).join('')}`; }).join('')}</div>` }));
   }
   if (b.pages.pricing) {
     const supply = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
@@ -3561,6 +3586,13 @@ app.addEventListener('input', e => {
   }
   if (t.dataset.sheet) { sheetInput(t); return; }
   if (t.dataset.bk !== undefined || t.dataset.bkline !== undefined || t.dataset.bkpage !== undefined) { bookletInput(t); return; }
+  if (t.id === 'sp-crop' && S.editPlant) {
+    const p = S.editPlant; p.crop = t.checked;
+    if (t.checked) { p.cropFrom = p.cropFrom || 8; p.cropTo = p.cropTo || 9; }
+    const host = t.closest('div'); host.querySelector('#mslc')?.remove(); if (t.checked) { host.insertAdjacentHTML('beforeend', cropSlider(p)); paintCropSlider(); }
+    return;
+  }
+  if (t.dataset.mr && t.dataset.mr.startsWith('crop') && S.editPlant) { S.editPlant[t.dataset.mr] = +t.value; paintCropSlider(); return; }
   if (t.dataset.mr && S.editPlant) {
     const p = S.editPlant;
     if (!p.flowerFrom) { p.flowerFrom = +$('sp-ff').value; p.flowerTo = +$('sp-ft').value; $('sp-nofl').checked = false; }
@@ -4518,6 +4550,7 @@ function cleanPlant(d) {
   if (hexOrNull(d.planColor)) p.planColor = d.planColor;
   if (PATTERNS[d.planPattern]) p.planPattern = d.planPattern;
   const interest = cleanInterest(d.interest); if (interest.length) p.interest = interest;
+  if (d.crop === true) { p.crop = true; p.cropFrom = monthOrNull(d.cropFrom) || 8; p.cropTo = monthOrNull(d.cropTo) || p.cropFrom; }
   if (d.example) p.example = true;
   return p;
 }
