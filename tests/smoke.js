@@ -710,6 +710,25 @@ test('beds can be named and coloured', async open => {
   eq([b2.name, b2.color], ['Front border', undefined], 'No colour clears it, the name stays');
 });
 
+test('plant library filters: by layer, in this garden, grouped, remembered', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = seed['gardens/g1'].plantings.filter(p => ['p0', 'p1'].includes(p.plantId));
+  const app = await open(seed);
+  const names = () => app.page.$$eval('#lib li[data-pid]', l => l.map(x => x.dataset.pid));
+  eq((await names()).length, 7, 'all seven to start');
+  ok((await app.page.$$eval('#lib li.lh', l => l.map(x => x.textContent))).includes('Herbaceous'), 'grouped under layer headings');
+  await app.page.click('#libChips [data-lf=shrub]');
+  eq((await names()).sort(), ['p0', 'p2'], 'Shrub shows the lavender and the rose');
+  await app.page.click('#libChips [data-lf=herbaceous]');
+  eq((await names()).sort(), ['p0', 'p1', 'p2'], 'and adding Herbaceous shows the salvia too');
+  await app.page.click('#libChips [data-lf=used]');
+  eq((await names()).sort(), ['p0', 'p1'], 'In this garden narrows to what is planted');
+  await app.page.click('#libChips [data-lf=all]'); await app.page.click('#libChips [data-lf=used]');
+  eq((await names()).length, 7, 'All clears the layers; In this garden off again');
+  await app.page.click('#libChips [data-lf=tuber]'); eq(await names(), ['p3'], 'bulbs only');
+  await app.page.reload(); await app.page.waitForTimeout(600);
+  eq(await names(), ['p3'], 'the filter is remembered');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });

@@ -104,6 +104,14 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
 #libSearch { width: 100%; }
+.libchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.libchips button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 2px 9px; font: inherit; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.libchips button i { font-style: normal; color: var(--muted); font-size: 11px; }
+.libchips button[aria-pressed=true] { border-color: var(--accent); background: var(--accent-soft); }
+.libchips .sep { width: 1px; background: var(--line); margin: 2px 2px; }
+.lib li.lh { display: block; cursor: default; padding: 8px 7px 2px; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border: 0; }
+.lib li.lh:hover { background: none; }
+html[data-skin=xp] .libchips button { border-radius: 0; }
 .lib { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .lib li { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 9px; align-items: center; padding: 6px 7px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
 .lib li:hover { background: var(--paper); }
@@ -643,6 +651,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       <div class="card-h"><h2 id="libH">Plant library</h2><a href="#database" class="note" style="margin-right:auto;margin-left:8px">Open database</a><button class="btn sm" id="addPlantBtn" type="button">Add species</button></div>
       <div id="libPane" style="display:flex;flex-direction:column;gap:8px">
         <input type="text" id="libSearch" placeholder="Search name or layer" aria-label="Search plant library">
+        <div class="libchips" id="libChips" role="group" aria-label="Show layers"></div>
         <ul class="lib" id="lib"></ul>
       </div>
       <div id="editPane" style="display:flex;flex-direction:column;gap:10px" hidden></div>
@@ -1629,6 +1638,19 @@ function renderTools() {
   { const a = S.g?.aerial; $('aerPick').disabled = !S.g; $('aerPick').textContent = a ? 'Move on the map…' : 'Aerial photo from map…'; for (const id of ['aerOpacity', 'aerToggle', 'aerRemove']) $(id).disabled = !a; $('aerToggle').textContent = S.aerHidden ? 'Show aerial photo' : 'Hide aerial photo'; if (a && document.activeElement !== $('aerOpacity')) $('aerOpacity').value = Math.round(num(a.opacity, 0.9) * 100); }
   if (u && document.activeElement !== $('ulOpacity')) $('ulOpacity').value = Math.round(num(u.opacity, 0.6) * 100);
 }
+/* library filters: any mix of layers, and "In this garden"; remembered on this computer */
+const LIBF = (() => { try { const v = JSON.parse(store.get('gpm.libfilter') || 'null'); return { layers: new Set((v?.layers || []).filter(k => ROLES[k])), used: !!v?.used }; } catch { return { layers: new Set(), used: false }; } })();
+const saveLibF = () => store.set('gpm.libfilter', JSON.stringify({ layers: [...LIBF.layers], used: LIBF.used }));
+function usedHere() { const u = new Set(); if (S.g) { for (const x of S.g.plantings) u.add(x.plantId); for (const a of S.g.areas) u.add(a.plantId); } return u; }
+function renderLibChips() {
+  const el = $('libChips'); if (!el) return;
+  const count = {}; for (const p of S.plants) { const k = layerOf(p.role); count[k] = (count[k] || 0) + 1; }
+  const present = LAYER_ORDER.filter(k => count[k] || LIBF.layers.has(k));   // a chosen layer stays on show (even empty) so it can be switched off
+  el.hidden = S.plants.length < 2;
+  el.innerHTML = `<button type="button" data-lf="all" aria-pressed="${!LIBF.layers.size}">All <i>${S.plants.length}</i></button>`
+    + present.map(k => `<button type="button" data-lf="${k}" aria-pressed="${LIBF.layers.has(k)}"><span class="d" style="width:8px;height:8px;border-radius:50%;background:var(--r-${k})"></span>${esc(ROLES[k])} <i>${count[k] || 0}</i></button>`).join('')
+    + `<span class="sep"></span><button type="button" data-lf="used" aria-pressed="${LIBF.used}" title="Only the species used in this garden">In this garden <i>${usedHere().size ? S.plants.filter(p => usedHere().has(p.id)).length : 0}</i></button>`;
+}
 function renderLibrary() {
   ensureColours();   // so the swatches match the plan from the start
   $('libPane').hidden = !!S.editPlant; $('editPane').hidden = !S.editPlant; $('addPlantBtn').hidden = !!S.editPlant;
@@ -1637,11 +1659,15 @@ function renderLibrary() {
   if (S.editPlant && inDb) { $('libPane').hidden = false; $('editPane').hidden = true; $('addPlantBtn').hidden = false; renderPlantEditor($('plantModalBody')); return; }
   if (S.editPlant) { renderPlantEditor($('editPane')); return; }
   $('editPane').innerHTML = '';
-  const q = S.filter.trim().toLowerCase();
-  const list = S.plants.filter(p => !q || [p.common, p.botanical, ROLES[p.role]].join(' ').toLowerCase().includes(q)).sort((a, b) => (a.common || '').localeCompare(b.common || ''));
+  const q = S.filter.trim().toLowerCase(), used = LIBF.used ? usedHere() : null;
+  renderLibChips();
+  const list = S.plants.filter(p => (!q || [p.common, p.botanical, ROLES[p.role]].join(' ').toLowerCase().includes(q)) && (!LIBF.layers.size || LIBF.layers.has(layerOf(p.role))) && (!used || used.has(p.id)))
+    .sort((a, b) => (LAYER_ORDER.indexOf(layerOf(a.role)) - LAYER_ORDER.indexOf(layerOf(b.role))) || (a.common || '').localeCompare(b.common || ''));
   if (!S.plants.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${S.loaded ? 'Your library is empty. Use Add species to start it. Every species you add here is reused across all your gardens.' : 'Loading your plant library…'}</li>`; return; }
-  if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">No species match “${esc(S.filter)}”.</li>`; return; }
-  $('lib').innerHTML = list.map(p => `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || 'Flower colour')}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
+  if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${q ? `No species match “${esc(S.filter)}”` : 'No species'}${LIBF.layers.size || LIBF.used ? ' with these filters. Click All to see everything.' : '.'}</li>`; return; }
+  /* grouped under each layer, so a long library is easy to scan */
+  const groups = new Set(list.map(p => layerOf(p.role))).size > 1;
+  $('lib').innerHTML = list.map((p, i) => (groups && (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role)) ? `<li class="lh" aria-hidden="true">${esc(ROLES[layerOf(p.role)])}</li>` : '') + `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${p.flowerColor ? `<span class="fdot" style="background:${esc(p.flowerColor)}" title="${esc(p.flowerColorName || 'Flower colour')}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
 }
 function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
 function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
@@ -2094,7 +2120,7 @@ function applyPage() {
 function setOudolf(on) { if (S.drag) return; setPref('oudolf', !!on); }
 function renderAll() { const ob = $('oudolfBtn'); if (ob) { ob.setAttribute('aria-pressed', String(oudolf())); ob.classList.toggle('on', oudolf()); ob.disabled = !S.g; } renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); $('vPlanted').classList.toggle('on', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
-function refreshDerived() { renderMap(); renderSchedule(); updateClear(); }
+function refreshDerived() { renderMap(); renderSchedule(); updateClear(); if (!S.editPlant) renderLibChips(); if (LIBF.used && !S.editPlant) renderLibrary(); }
 
 /* ---------- plan underlay import ---------- */
 function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('The PDF reader could not load. Check your connection, or export the plan as SVG or PNG.')); document.head.appendChild(s); }); }
@@ -3182,6 +3208,11 @@ $('lib').addEventListener('dblclick', e => {
   selectMany(found);
 });
 $('libSearch').addEventListener('input', e => { S.filter = e.target.value; renderLibrary(); });
+$('libChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-lf]'); if (!b) return; const k = b.dataset.lf;
+  if (k === 'all') LIBF.layers.clear(); else if (k === 'used') LIBF.used = !LIBF.used; else if (LIBF.layers.has(k)) LIBF.layers.delete(k); else LIBF.layers.add(k);
+  saveLibF(); renderLibrary();
+});
 $('addPlantBtn').addEventListener('click', () => openPlantEditor(null));
 function openPlantEditor(id) {
   const p = id ? plantById(id) : null;
