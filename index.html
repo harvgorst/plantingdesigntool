@@ -1541,6 +1541,11 @@ function renderMap() {
     if (oudolf() && kindOf(p) === 'field') { const R = gridSpace() / Math.sqrt(3); parts.push(`<path d="M${[0, 1, 2, 3, 4, 5].map(k => { const a = (30 + 60 * k) * Math.PI / 180; return +(q.x + R * Math.cos(a)).toFixed(3) + ' ' + +(q.y + R * Math.sin(a)).toFixed(3); }).join('L')}Z" style="fill:${speciesStyle(p).col};stroke:var(--accent)" fill-opacity="0.35" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>`); } else
     parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${spacingOf(p) * (kindOf(p) === 'bulb' ? 0.3 : 0.5)}" fill="none" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
+  if (S.tool === 'row' && !pr) for (const r of rowsLive()) {
+    const m = rowMid(r), on = S.drag?.rowBend === r.id;
+    parts.push(`<path d="M${r.a[0]} ${r.a[1]} Q${r.c[0]} ${r.c[1]} ${r.b[0]} ${r.b[1]}" fill="none" style="stroke:var(--accent)" stroke-opacity="${on ? 0.9 : 0.45}" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
+    parts.push(`<circle data-kind="rowc" data-id="${r.id}" cx="${+m[0].toFixed(3)}" cy="${+m[1].toFixed(3)}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"><title>Drag to bend this row</title></circle>`);
+  }
   if (S.tool === 'row' && S.row?.a && !pr) {
     const p = plantById(S.activePlant), a = S.row.a, b = S.hover ? rowEnd(a, S.hover, S.hoverShift) : null, col = `var(--r-${p?.role || 'herbaceous'})`, rr = Math.max(spreadOf(p) / 2, px * 3);
     if (b) parts.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
@@ -2227,6 +2232,27 @@ function movePinch() {
 function beginPan(d, e) { d.pan = true; d.sx = e ? e.clientX : d.sx; d.sy = e ? e.clientY : d.sy; d.cx = S.cx; d.cy = S.cy; svg.classList.add('panning'); }
 const snapStep = () => clamp(num(S.prefs.snap, 0.1), 0.05, 1);
 /* rows: evenly spaced single plants between two points */
+
+/* ---------- rows that bend ----------
+   A row keeps its two ends and a bend point; its plants sit evenly along the curve at the row's spacing. Dragging the
+   dot at the middle of the row bends it through that dot; plants are added or taken away as the curve grows or shrinks. */
+function rowsLive() { const g = S.g; if (!g?.rows?.length) return []; const has = new Set(g.plantings.filter(p => p.row).map(p => p.row)); return g.rows.filter(r => has.has(r.id)); }
+const qpt = (r, t) => { const u = 1 - t; return [u * u * r.a[0] + 2 * u * t * r.c[0] + t * t * r.b[0], u * u * r.a[1] + 2 * u * t * r.c[1] + t * t * r.b[1]]; };
+const rowMid = r => qpt(r, 0.5);
+function rowCurvePoints(r) {
+  const N = 240, P = Array.from({ length: N + 1 }, (_, i) => qpt(r, i / N)), acc = [0];
+  for (let i = 1; i <= N; i++) acc.push(acc[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+  const L = acc[N], n = clamp(Math.round(L / Math.max(0.05, r.gap)) + 1, 2, 400), out = [];
+  for (let k = 0; k < n; k++) { const want = L * k / (n - 1); let i = 1; while (i < N && acc[i] < want) i++; const f = acc[i] > acc[i - 1] ? (want - acc[i - 1]) / (acc[i] - acc[i - 1]) : 0; out.push([P[i - 1][0] + (P[i][0] - P[i - 1][0]) * f, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * f]); }
+  return out;
+}
+/* lay a row's plants along its curve, keeping their ids, adding or removing plants at the far end as needed */
+function relayRow(r) {
+  const g = S.g, mine = g.plantings.filter(p => p.row === r.id).sort((x, y) => (x.rowI ?? 0) - (y.rowI ?? 0)), pts = rowCurvePoints(r), pid = mine[0]?.plantId;
+  if (!pid) return;
+  pts.forEach(([x, y], i) => { const pl = mine[i]; if (pl) { pl.x = r2(x); pl.y = r2(y); pl.rowI = i; } else g.plantings.push({ id: uid(), plantId: pid, x: r2(x), y: r2(y), qty: 1, row: r.id, rowI: i }); });
+  if (mine.length > pts.length) { const drop = new Set(mine.slice(pts.length).map(p => p.id)); g.plantings = g.plantings.filter(p => !drop.has(p.id)); }
+}
 function rowGap() { return clamp(S.rowGap || r2(spacingOf(plantById(S.activePlant))), 0.05, 20); }
 function rowEnd(a, p, straight) {
   if (!straight) return { x: snap(p.x), y: snap(p.y) };
@@ -2241,14 +2267,14 @@ function rowPoints(a, b) {
 function rowInfo() {
   if (S.row?.a && S.hover) { const b = rowEnd(S.row.a, S.hover, S.hoverShift), n = rowPoints(S.row.a, b).length, L = Math.hypot(b.x - S.row.a.x, b.y - S.row.a.y); return `${plural(n, 'plant')} over ${L.toFixed(2)} m, ${(n > 1 ? L / (n - 1) : 0).toFixed(2)} m apart`; }
   if (S.row?.a) return 'Now click where the row ends.';
-  return S.rowMade ? `Placed ${plural(S.rowMade, 'plant')}. Click to start another row.` : 'Spacing starts at the plant’s planting spacing.';
+  return S.rowMade ? `Placed ${plural(S.rowMade, 'plant')}. Drag the dot in the middle of a row to bend it, or click to start another row.` : rowsLive().length ? 'Drag the dot in the middle of a row to bend it. Spacing starts at the plant’s planting spacing.' : 'Spacing starts at the plant’s planting spacing.';
 }
 function updateLive() { const el = $('row-info'); if (el) el.textContent = rowInfo(); }
 /* duplicate, copy, paste and nudge */
 function cloneItems(items, dx, dy) {
   const made = [];
   for (const m of items) {
-    const c = JSON.parse(JSON.stringify(m.it)); c.id = uid();
+    const c = JSON.parse(JSON.stringify(m.it)); c.id = uid(); delete c.row; delete c.rowI;   // a copy stands on its own, not bent with the row it came from
     if (m.kind === 'area') { c.pts = c.pts.map(([x, y]) => [r2(x + dx), r2(y + dy)]); S.g.areas.push(c); }
     else { c.x = r2(c.x + dx); c.y = r2(c.y + dy); S.g.plantings.push(c); }
     made.push({ kind: m.kind, id: c.id });
@@ -2339,8 +2365,10 @@ function toolClick(tool, p, shift) {
   if (tool === 'row') {
     if (!S.activePlant) { renderTools(); return; }
     if (!S.row?.a) { S.row = { a: sp }; S.hover = null; S.rowMade = 0; renderTools(); renderInspector(); renderMap(); return; }
-    const made = rowPoints(S.row.a, rowEnd(S.row.a, p, shift)).map(([x, y]) => ({ id: uid(), plantId: S.activePlant, x: r2(x), y: r2(y), qty: 1 }));
+    const b = rowEnd(S.row.a, p, shift), rid = uid();
+    const made = rowPoints(S.row.a, b).map(([x, y], i) => ({ id: uid(), plantId: S.activePlant, x: r2(x), y: r2(y), qty: 1, row: rid, rowI: i }));
     checkpoint(); S.g.plantings.push(...made);
+    S.g.rows = [...(S.g.rows || []), { id: rid, a: [S.row.a.x, S.row.a.y], b: [b.x, b.y], c: [r2((S.row.a.x + b.x) / 2), r2((S.row.a.y + b.y) / 2)], gap: rowGap() }];
     S.row = null; S.hover = null; S.rowMade = made.length; S.sel = null; S.multi = made.map(m => ({ kind: 'planting', id: m.id }));
     saveGarden(); renderTools(); renderInspector(); refreshDerived(); return;
   }
@@ -2368,6 +2396,7 @@ svg.addEventListener('pointerdown', e => {
   if (e.button > 0) return;
   const p = toM(e);
   let hit = e.target.closest('[data-kind]');
+  if (hit?.dataset.kind === 'rowc' && S.tool === 'row' && !S.row?.a) { S.drag = { rowBend: hit.dataset.id, moved: false, before: JSON.stringify(S.g), start: toM(e) }; return; }
   /* the Bed tool picks a bed wherever you click inside it, even through the planting drawn over it */
   const bedHit = S.tool === 'bed' && !S.bedDraw?.pts.length ? (hit?.dataset.kind === 'bedh' || hit?.dataset.kind === 'bedm' ? beds().find(x => x.id === hit.dataset.id) : (() => { const q = toM(e); return bedAt(q.x, q.y); })()) : null;
   if (bedHit) {
@@ -2433,6 +2462,13 @@ svg.addEventListener('pointermove', e => {
   if (S.pinch) { if (ptrs.size >= 2) movePinch(); return; }
   const d = S.drag;
   if (!d) { trackHover(e); return; }
+  if (d.rowBend) {
+    const p = toM(e), r = (S.g.rows || []).find(x => x.id === d.rowBend); if (!r) return;
+    if (!d.moved && Math.hypot(p.x - d.start.x, p.y - d.start.y) * pxPerM() < 3) return;
+    if (!d.moved) { pushHistory(d.before); d.moved = true; }
+    const mx = snap(p.x), my = snap(p.y); r.c = [r2(2 * mx - (r.a[0] + r.b[0]) / 2), r2(2 * my - (r.a[1] + r.b[1]) / 2)];   // the curve passes through the dot
+    relayRow(r); renderMapSoon(); return;
+  }
   if (d.bed) {
     const p = toM(e), dx = p.x - d.start.x, dy = p.y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
@@ -2505,7 +2541,8 @@ function endDrag() {
   const d = S.drag; if (!d) return;
   S.drag = null;
   if (d.paint) { if (d.changed) saveGarden(); renderInspector(); refreshDerived(); return; }
-  if (d.bed) { if (d.moved) { saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }   // S.drag is cleared first, so the areas are worked out afresh
+  if (d.bed) { if (d.moved) { saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }
+  if (d.rowBend) { if (d.moved) { S.sel = null; S.multi = S.g.plantings.filter(p => p.row === d.rowBend).map(p => ({ kind: 'planting', id: p.id })); saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }   // the whole bent row stays selected, plants added included   // S.drag is cleared first, so the areas are worked out afresh
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
   if (d.north) { if (d.moved) saveGarden(); renderMap(); return; }
   if (d.pending) {
@@ -3483,7 +3520,8 @@ function normGarden(id, d) {
     lat: Number.isFinite(d.lat) ? d.lat : undefined, lon: Number.isFinite(d.lon) ? d.lon : undefined,
     blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined,
     beds: Array.isArray(d.beds) ? d.beds.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 3) : undefined,
-    aerial: d.aerial && Number.isFinite(d.aerial.lat) && Number.isFinite(d.aerial.lon) ? d.aerial : undefined };
+    aerial: d.aerial && Number.isFinite(d.aerial.lat) && Number.isFinite(d.aerial.lon) ? d.aerial : undefined,
+    rows: Array.isArray(d.rows) ? d.rows.filter(r => r && Array.isArray(r.a) && Array.isArray(r.b) && Array.isArray(r.c)) : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -4153,6 +4191,7 @@ function cleanGarden(d) {
     const pid = safeId(x?.plantId); if (!pid) continue;
     const pl = { id: safeId(x.id) || uid(), plantId: pid, x: xy(x.x), y: xy(x.y), qty: clamp(Math.round(numOrNull(x.qty) ?? 1), 1, 500) };
     if (STATUS[x.status]) pl.status = x.status;
+    if (safeId(x.row)) { pl.row = x.row; pl.rowI = clamp(Math.round(numOrNull(x.rowI) ?? 0), 0, 400); }
     if (x.note) pl.note = str(x.note, 300);
     for (const k of ['height', 'spread', 'lx', 'ly']) { const n = numOrNull(x[k]); if (n != null) pl[k] = clamp(n, -500, 500); }
     g.plantings.push(pl);
@@ -4179,6 +4218,8 @@ function cleanGarden(d) {
   if (d.example) g.example = true;
   if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {}, b?.name ? { name: str(b.name, 60) } : {}, hexOrNull(b?.color) ? { color: b.color } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
   if (d.aerial && Number.isFinite(+d.aerial.lat) && Number.isFinite(+d.aerial.lon) && Math.abs(d.aerial.lat) < 85 && Math.abs(d.aerial.lon) <= 180) g.aerial = { lat: +d.aerial.lat, lon: +d.aerial.lon, opacity: clamp(numOrNull(d.aerial.opacity) ?? 0.9, 0.1, 1) };
+  if (Array.isArray(d.rows)) { const pt = v => Array.isArray(v) ? [r2(clamp(numOrNull(v[0]) ?? 0, -1000, 2000)), r2(clamp(numOrNull(v[1]) ?? 0, -1000, 2000))] : null;
+    const rows = d.rows.slice(0, 500).map(r => ({ id: safeId(r?.id), a: pt(r?.a), b: pt(r?.b), c: pt(r?.c), gap: clamp(numOrNull(r?.gap) ?? 0.3, 0.05, 20) })).filter(r => r.id && r.a && r.b && r.c); if (rows.length) g.rows = rows; }
   return g;
 }
 const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });

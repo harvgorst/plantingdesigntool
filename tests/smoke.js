@@ -132,6 +132,28 @@ test('row tool places evenly spaced plants', async open => {
   eq(await app.page.locator('#map [data-kind=planting]').count(), 7, 'one undo removes the whole row');
 });
 
+test('rows bend: drag the middle dot and the plants follow the curve, evenly spaced', async open => {
+  const seed = sample(); seed['gardens/g1'].underlay = null;
+  const app = await open(seed);
+  await app.page.click('#lib [data-pid=p0]'); await app.page.click('[data-tool=row]');
+  await app.page.fill('#row-gap', '0.5');
+  await app.clickPlan(2, 7); await app.clickPlan(6, 7); await app.page.waitForTimeout(900);
+  const straight = (await app.store('gardens/g1')).plantings.filter(q => q.row);
+  eq(straight.length, 9, 'a straight row of nine');
+  eq(await app.page.locator('#map [data-kind=rowc]').count(), 1, 'with a bend dot');
+  await app.dragPlan(4, 7, 4, 5.5); await app.page.waitForTimeout(900);
+  const bent = (await app.store('gardens/g1')).plantings.filter(q => q.row).sort((a, b) => a.rowI - b.rowI);
+  eq([bent[0].x, bent[0].y, bent.at(-1).x, bent.at(-1).y], [2, 7, 6, 7], 'the ends stay put');
+  const mid = bent[Math.floor(bent.length / 2)];
+  ok(Math.abs(mid.x - 4) < 0.15 && Math.abs(mid.y - 5.5) < 0.1, 'the curve passes through the dot, got ' + JSON.stringify(mid));
+  const gaps = bent.slice(1).map((q, i) => Math.hypot(q.x - bent[i].x, q.y - bent[i].y));
+  ok(gaps.every(g => Math.abs(g - gaps[0]) < 0.03) && Math.abs(gaps[0] - 0.5) < 0.06, 'evenly spaced along the curve at about 0.5 m, got ' + gaps.map(g => g.toFixed(2)));
+  ok(bent.length > 9, 'a longer curve takes more plants, got ' + bent.length);
+  await app.page.keyboard.press('Control+z'); await app.page.waitForTimeout(900);
+  const back = (await app.store('gardens/g1')).plantings.filter(q => q.row);
+  ok(back.length === 9 && back.every(q => q.y === 7), 'one undo straightens it again');
+});
+
 test('measure tool reads a distance', async open => {
   const app = await open(sample());
   await app.page.keyboard.press('m');
