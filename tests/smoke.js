@@ -163,7 +163,7 @@ test('measure tool reads a distance', async open => {
 });
 
 test('labels can be dragged, with a leader line, and reset', async open => {
-  const app = await open(sample());
+  const seed = sample(); seed['settings/prefs'] = { labelPlace: 'plan' }; const app = await open(seed);   // dragging labels is for labels on the plan
   await app.clickPlan(8, 1.4);
   const h = await app.page.locator('#map [data-kind=lblh]').boundingBox();
   const to = await app.planXY(10.5, 2.6);
@@ -817,7 +817,7 @@ test('labels: a row is labelled once, crowded labels never overlap, and winter r
   const row = Array.from({ length: 8 }, (_, i) => ({ id: 'r' + i, plantId: 'p2', x: 2 + i * 0.9, y: 7, qty: 1, row: 'R1', rowI: i }));
   const crowd = Array.from({ length: 12 }, (_, i) => ({ id: 'k' + i, plantId: ['p0', 'p2', 'p5'][i % 3], x: 3 + (i % 4) * 0.35, y: 3.5 + Math.floor(i / 4) * 0.3, qty: 1 }));
   seed['gardens/g1'].rows = [{ id: 'R1', a: [2, 7], b: [8.3, 7], c: [5.15, 7], gap: 0.9 }];
-  seed['gardens/g1'].plantings.push(...row, ...crowd);
+  seed['gardens/g1'].plantings.push(...row, ...crowd); seed['settings/prefs'] = { labelPlace: 'plan' };
   const app = await open(seed);
   const texts = await app.page.$$eval('#map text', ts => ts.map(t => t.textContent));
   eq(texts.filter(t => /Ros/.test(t) && /^8 /.test(t)).length, 1, 'the row of eight roses has one label with its count');
@@ -830,6 +830,21 @@ test('labels: a row is labelled once, crowded labels never overlap, and winter r
   await app.page.click('#navCal'); await app.page.waitForTimeout(200);
   const html = await app.page.evaluate(() => document.querySelector('.cal-seasons')?.innerHTML || '');
   ok(/grid-column:12\/13[^>]*>Winter</.test(html), 'December sits under Winter, got ' + html);
+});
+
+test('labels around the edge: one per species and side, in columns outside the plan, joined by metro-style lines', async open => {
+  const seed = sample(); seed['gardens/g1'].underlay = null;
+  seed['gardens/g1'].plantings.push({ id: 'z1', plantId: 'p2', x: 9, y: 7, qty: 1 }, { id: 'z2', plantId: 'p2', x: 11, y: 6, qty: 1 });
+  const app = await open(seed);
+  if (process.env.SHOT) await app.page.locator('#map').screenshot({ path: process.env.SHOT });
+  const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => ({ t: t.textContent, x: +t.getAttribute('x'), a: t.getAttribute('text-anchor') })));
+  ok(labs.length > 0 && labs.every(l => (l.a === 'end' && l.x < 0) || (l.a === 'start' && l.x > 12)), 'every plant label sits outside the plan, got ' + JSON.stringify(labs));
+  eq(labs.filter(l => /Ros oli/.test(l.t)).map(l => l.t), ['3 Ros oli'], 'the three roses on the right share one label with their total');
+  const d = await app.page.$eval('#map g[opacity="0.65"] path', p => p.getAttribute('d'));
+  const segs = d.split('M').filter(Boolean).flatMap(m => { const n = m.split('L').map(q => q.trim().split(' ').map(Number)); return n.slice(1).map((q, i) => [q[0] - n[i][0], q[1] - n[i][1]]); });
+  ok(segs.length && segs.every(([dx, dy]) => Math.abs(dx) < 1e-3 || Math.abs(dy) < 1e-3 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 2e-3), 'leader lines only run level, upright or at 45°');
+  await app.page.click('#navPrefs'); await app.page.selectOption('#pf-place', 'plan'); await app.page.click('#navPlan'); await app.page.waitForTimeout(200);
+  ok(await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.some(t => +t.getAttribute('x') > 0 && +t.getAttribute('x') < 12)), 'Preferences can put them back on the plan');
 });
 
 run();

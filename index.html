@@ -732,7 +732,7 @@ const HINTS = {
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
-const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'eiderdown', pgridSpace: 0.3, oudolf: false, esriKey: '' };
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'eiderdown', pgridSpace: 0.3, oudolf: false, esriKey: '', labelPlace: 'edge' };
 const THEMES = {
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
   woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
@@ -1395,7 +1395,79 @@ let rafPending = false;
 /* Move plan labels apart so no two overlap. Labels keep their spot in order of importance (dragged labels and bed names first,
    then rows, blocks and areas, then trees and shrubs, then single plants); a label that is in the way of one already placed
    tries nearby spots, closest first, and gets a fine leader line back to its plant if it ends up more than a line away. */
-function spreadLabels(html, LBL, halo, ls, pr) {
+/* labels around the edge: the plan widens on both sides by edgeEx to make room for a column of labels */
+function edgeLabels() { return S.prefs.labelPlace !== 'plan' && S.prefs.showLabels !== false && !S.print?.noEdge; }
+function edgeEx(fs, pad, numbered) {
+  if (!edgeLabels() || !S.g) return 0;
+  const isNum = numbered || S.prefs.labelMode === 'number', ls = fs * (numbered ? Math.max(num(S.prefs.labelSize, 1), 1.5) : num(S.prefs.labelSize, 1)), size = ls * (isNum ? 0.62 : 0.68);
+  let n = 0;
+  for (const id of libIds(S.g)) {   // the garden's whole library, so the margin stays put while plants are added
+    const p = plantById(id); if (!p) continue;
+    n = Math.max(n, isNum ? String(paletteNumber(p.id) || code(p)).length + (p.existing ? 8 : 0) : (S.prefs.labelQty ? 4 : 0) + plantLabel(p).length + (p.existing ? 8 : 0));
+  }
+  return n ? Math.max(0, pad * 0.8 + n * size * 0.52 + fs * 0.6 - pad) : 0;
+}
+/* Labels in a column down each side of the plan, in the order of what they label, each joined to its plants by fine lines
+   that run straight, then at 45°, then straight, like a metro map. A species is labelled once per side, with its total,
+   and its line branches to each of its groups. */
+function edgeLayout(LBL, halo, e) {
+  const { W, D, pad, fs, NAME, NUM } = e, gx = pad * 0.8, out = [], f = v => +v.toFixed(3), groups = new Map();
+  LBL.forEach((l, i) => {
+    if (l.raw) { out[i] = l.raw; return; }
+    out[i] = '';
+    const side = l.ax < W / 2 ? 'L' : 'R', k = side + '|' + (l.pid ?? 'x' + i) + '|' + (l.name ?? l.txt);
+    if (!groups.has(k)) groups.set(k, { side, at: i, l, n: 0, pts: [] });
+    const gp = groups.get(k); gp.n += l.n ?? 1; gp.pts.push([l.ax, l.ay]);
+  });
+  const all = [...groups.values()];
+  all.forEach(gp => { gp.ay = gp.pts.reduce((t, q) => t + q[1], 0) / gp.pts.length; gp.ax = gp.pts.reduce((t, q) => t + q[0], 0) / gp.pts.length; });
+  const pitch0 = NAME * 1.3, top = -pad * 0.6, bot = D + pad * 0.6, cap = Math.max(1, Math.floor((bot - top) / pitch0));
+  const side = c => all.filter(gp => gp.side === c);
+  /* keep the two columns about even: if one side is full, the labels nearest the middle cross over */
+  for (const [a, b] of [['L', 'R'], ['R', 'L']]) {
+    const A = side(a).sort((p, q) => a === 'L' ? q.ax - p.ax : p.ax - q.ax);
+    let over = A.length - cap, room = cap - side(b).length;
+    for (const gp of A) { if (over <= 0 || room <= 0) break; gp.side = b; over--; room--; }
+  }
+  const lines = [];
+  for (const c of ['L', 'R']) {
+    const col = side(c).sort((p, q) => p.ay - q.ay || p.ax - q.ax);
+    if (!col.length) continue;
+    const pitch = Math.min(pitch0, (bot - top) / col.length), k = pitch / pitch0;
+    /* pack the column: each label as near level with its plants as it can be, clusters spreading evenly about their middle */
+    const cl = [];
+    for (const gp of col) {
+      cl.push({ items: [gp], y0: gp.ay - pitch / 2 });
+      while (cl.length > 1) {
+        const b = cl[cl.length - 1], a = cl[cl.length - 2];
+        if (a.y0 + a.items.length * pitch <= b.y0 + 1e-9) break;
+        const items = [...a.items, ...b.items];
+        cl.splice(-2, 2, { items, y0: items.reduce((t, it, j) => t + it.ay - pitch / 2 - j * pitch, 0) / items.length });
+      }
+    }
+    let lo = top;
+    for (const c2 of cl) { c2.y0 = Math.max(lo, c2.y0); lo = c2.y0 + c2.items.length * pitch; }
+    let hi = bot;
+    for (let j = cl.length - 1; j >= 0; j--) { const c2 = cl[j]; c2.y0 = Math.min(c2.y0, hi - c2.items.length * pitch); hi = c2.y0; }
+    for (const c2 of cl) c2.items.forEach((gp, j) => {
+      const l = gp.l, isN = !!l.o.bold, size = (isN ? NUM : NAME) * Math.max(0.55, k), yc = c2.y0 + j * pitch + pitch / 2;
+      const txt = isN || !S.prefs.labelQty || gp.n < 2 || l.name == null ? (l.name ?? l.txt) : gp.n + ' ' + l.name;
+      const x = c === 'L' ? -gx : W + gx, sx = c === 'L' ? x + size * 0.3 : x - size * 0.3, edge = c === 'L' ? 0 : W;
+      out[gp.at] = halo(f(x), f(yc + size * 0.34), f(size), txt, { ...l.o, anchor: c === 'L' ? 'end' : 'start' });
+      for (const [ax, ay] of gp.pts) {
+        const dy = ay - yc, ad = Math.abs(dy), sg = Math.sign(dy);
+        const xk = c === 'L' ? Math.max(edge, ax - ad) : Math.min(edge, ax + ad), run = Math.abs(ax - xk);
+        const pts = [[sx, yc], [xk, yc], [ax, yc + sg * run], [ax, ay]].filter((q, i, A) => !i || Math.hypot(q[0] - A[i - 1][0], q[1] - A[i - 1][1]) > 1e-6);
+        lines.push(`M${pts.map(q => f(q[0]) + ' ' + f(q[1])).join('L')}`);
+        lines.push(`M${f(ax)} ${f(ay)}m${f(-fs * 0.1)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(fs * 0.2)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(-fs * 0.2)} 0`);
+      }
+    });
+  }
+  return { out, lines: lines.length ? `<g opacity="0.65" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="0.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${lines.filter(d => d.includes('a')).join('')}" style="fill:var(--label)"/></g>` : '' };
+}
+function spreadLabels(html, LBL, halo, ls, pr, edge) {
+  if (edge && LBL.length) { const r = edgeLayout(LBL, halo, edge); return html.replace('\u0002', r.lines).replace(/\u0001(\d+)\u0001/g, (_, n) => r.out[n] ?? ''); }
+  html = html.replace('\u0002', '');
   if (!LBL.length) return html;
   const size = l => { const n = l.len ?? l.txt.replace(/<[^>]*>/g, '').replace(/&\w+;|&#\d+;/g, 'x').length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52), h: l.size * 1.1 }; };
   const cell = Math.max(ls, 1e-6) * 2.5, H = new Map(), gap = ls * 0.06;
@@ -1444,11 +1516,11 @@ function renderMap() {
      m.ax/m.ay is what the label belongs to (a leader line runs back to it if the label had to move far);
      m.fixed keeps a label where it is (one the designer dragged); m.pri decides who keeps their spot first */
   const LBL = [];
-  const tag = (x, y, size, txt, o = {}, m = {}) => { LBL.push({ x, y, size, txt, o, ax: m.ax ?? x, ay: m.ay ?? y, fixed: !!m.fixed, pri: m.pri || 0, raw: m.raw, wk: m.wk, len: m.len }); return `\u0001${LBL.length - 1}\u0001`; };
+  const tag = (x, y, size, txt, o = {}, m = {}) => { LBL.push({ x, y, size, txt, o, ax: m.ax ?? x, ay: m.ay ?? y, fixed: !!m.fixed, pri: m.pri || 0, raw: m.raw, wk: m.wk, len: m.len, pid: m.pid, n: m.n, name: m.name }); return `\u0001${LBL.length - 1}\u0001`; };
   let px = (M / 900) / S.zoom;
   if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
   S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
-  const vw = (W + pad * 2) / S.zoom, vh = (D + pad * 2) / S.zoom;
+  const ex = edgeEx(pr?.fs ?? M / 55 / S.zoom, pad, false), vw = (W + pad * 2 + ex * 2) / S.zoom, vh = (D + pad * 2) / S.zoom;
   svg.setAttribute('viewBox', `${S.cx - vw / 2} ${S.cy - vh / 2} ${vw} ${vh}`);
   { const k = svg.getScreenCTM()?.a; if (k > 0) px = 1 / k; }  // metres per screen pixel
   $('zoomLbl').textContent = Math.round(S.zoom * 100) + '%';
@@ -1520,7 +1592,7 @@ function renderMap() {
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
     const ex = !!p?.existing && !onGrid(p), sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : p ? speciesStyle(p).col : 'var(--muted)';
     const dots = planted && !ex ? driftDots(a) : null, potr = potR(p);
-    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? tag(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }, { ax: c.x, ay: c.y, pri: 60 }) : ''}</g>`);
+    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? tag(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }, { ax: c.x, ay: c.y, pri: 60, pid: p?.id, n: driftQty(a), name: esc(plantLabel(p)) }) : ''}</g>`);
   }
   /* single plants and groups, in three layers: structure under the planting (with its outline and label drawn again on top),
      then the planting, then bulbs; largest first within each. While placing bulbs the rest fades back, and the other way round */
@@ -1534,14 +1606,14 @@ function renderMap() {
       const clip = r.bed ? ` clip-path="url(#bedclip-${r.bed})"` : '', mv = S.drag?.bed && S.drag.off && r.bed === S.drag.bed.id ? ` transform="translate(${S.drag.off[0]} ${S.drag.off[1]})"` : '';
       L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"${clip}><path${mv} d="${r.d}" fill-rule="evenodd" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
       if (!pr && r.ids.every(id => isSelected('planting', id))) L.over.push(`<path d="${r.d}" fill="none" style="stroke:var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
-      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(tag(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' }, { ax: r.lx, ay: r.ly, pri: 50 + Math.min(40, r.qty) })); }
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(tag(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' }, { ax: r.lx, ay: r.ly, pri: 50 + Math.min(40, r.qty), pid: p.id, n: r.qty, name: esc(S.prefs.labelMode === 'number' ? t : plantLabel(p)) })); }
     }
     for (const c of od.singles) {
       const p = plantById(c.pid); if (!isVisible(p)) continue;
       const sr = spacingOf(p) / 2;
       const se = S.season && !pr ? seasonOf(p, S.season) : null, f = se ? { fill: se.col || 'var(--muted)', op: se.op } : spFill(p), sel = !pr && isSelected('planting', c.id);
       L.field.push(`<g data-kind="planting" data-id="${c.id}" style="cursor:move"><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:var(--ground)"/><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" vector-effect="non-scaling-stroke"/>${sel ? `<circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr + fs * 0.5}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}</g>`);
-      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(tag(c.x, c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number' }, { ax: c.x, ay: c.y, pri: 5 })); }
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(tag(c.x, c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number' }, { ax: c.x, ay: c.y, pri: 5, pid: p.id, n: 1, name: esc(t) })); }
     }
   }
   for (const pl of pls) {
@@ -1603,8 +1675,8 @@ function renderMap() {
           lab += `<line x1="${+(pl.x + ux * ringR).toFixed(3)}" y1="${+(pl.y + uy * ringR).toFixed(3)}" x2="${+(bx - ux * t).toFixed(3)}" y2="${+(cy - uy * t).toFixed(3)}" style="stroke:var(--label)" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
         }
       }
-      const handle = !pr && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id;
-      lab += tag(bx, by, size, esc(lbl), { bold: /^\d+$/.test(lbl), live: true }, { ax: pl.x, ay: pl.y, fixed: moved || handle, pri: blk > 1 ? 50 + Math.min(40, blk) : grid ? 10 : 20 + Math.min(30, ringR) });   // only palette numbers are bold
+      const handle = !pr && !edgeLabels() && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id;
+      lab += tag(bx, by, size, esc(lbl), { bold: /^\d+$/.test(lbl), live: true }, { ax: pl.x, ay: pl.y, fixed: moved || handle, pri: blk > 1 ? 50 + Math.min(40, blk) : grid ? 10 : 20 + Math.min(30, ringR), pid: p?.id, n: blk > 1 ? blk : qty, name: esc(/^\d+$/.test(lbl) ? lbl : plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '')) });   // only palette numbers are bold
       if (handle)
         lab += `<circle data-kind="lblh" data-id="${pl.id}" data-lx="${+(bx - pl.x).toFixed(3)}" data-ly="${+(by - pl.y).toFixed(3)}" cx="${bx + tw / 2 + px * 10}" cy="${cy}" r="${px * 5}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"><title>Drag to move this label</title></circle>`;
     }
@@ -1622,7 +1694,7 @@ function renderMap() {
     const x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3), y = +(top[1] - ls * 0.35).toFixed(3), nm = b.name.trim().toUpperCase();
     return tag(x, y, ls * 0.85, '', {}, { fixed: true, wk: 0.7, raw: `<text x="${x}" y="${y}" font-size="${+(ls * 0.85).toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>`, len: nm.length }); }).join('') : '';
   const bedLines = beds().map(b => `<path d="${bedPath(b)}" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
-  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
+  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, '\u0002', `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
   // handles for the selected curve
   const sa = S.sel?.kind === 'area' ? findSel() : null;
@@ -1684,7 +1756,7 @@ function renderMap() {
     if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
-  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr);
+  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, fs, NAME, NUM } : null);
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
 }
 
@@ -2113,6 +2185,7 @@ function renderPrefs() {
       <fieldset class="pref"><legend>Plan labels</legend>
         ${chk('pf-show', 'showLabels', 'Show plant labels')}
         <label class="field"><span>Label size</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-size" data-pref="labelSize" min="0.5" max="2" step="0.1" value="${P.labelSize}" style="flex:1;accent-color:var(--accent)"><output id="pf-size-v" style="min-width:3.5em;text-align:right">${Math.round(P.labelSize * 100)}%</output></span></label>
+        <label class="field"><span>Label placement</span>${sel('pf-place', 'labelPlace', [['edge', 'Around the edge, with leader lines'], ['plan', 'On the plan, beside each plant']])}</label>
         <label class="field"><span>Label text</span>${sel('pf-mode', 'labelMode', [['code', 'Short code (Lav ang)'], ['common', 'Common name'], ['botanical', 'Botanical name']])}</label>
         ${chk('pf-qty', 'labelQty', 'Show quantity before the name')}
         <div class="field"><span>Preview</span><div class="pv-sample"><span id="pf-sample" style="font-size:${Math.round(13 * P.labelSize)}px">${esc(sample)}</span></div></div>
@@ -3074,7 +3147,7 @@ async function underlayPicture(u, bg) {
 async function planVectorMarkup(o) {
   if (aerialOn()) await aerialReady(S.g.aerial).p;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
-  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { vector: true, fs: o.fs, pad: o.pad, sheet: o.sheet };
+  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { vector: true, fs: o.fs, pad: o.pad, sheet: o.sheet, noEdge: o.noEdge };
   if (o.numbered) { S.prefs.labelMode = 'number'; S.prefs.labelQty = false; S.prefs.labelSize = Math.max(num(save.size, 1), 1.5); }
   let markup, vb;
   try { renderMap(); markup = svg.innerHTML; vb = svg.getAttribute('viewBox').split(' ').map(Number); }
@@ -3097,9 +3170,9 @@ async function drawPlanVector(pdf, v, x, y, w, h) {
 function sheetOpts() { const s = S.g?.sheet || {}; return { paper: PAPER[s.paper] ? s.paper : 'A3', scale: SCALES.includes(+s.scale) ? +s.scale : 0, numbered: !!s.numbered, orient: ['landscape', 'portrait'].includes(s.orient) ? s.orient : 'auto' }; }
 function sheetLayout(o = sheetOpts()) {
   const g = S.g, [long, short] = PAPER[o.paper], tb = clamp(long * 0.2, 60, 100), m = 10, gap = 4;
-  const tryFit = (pw, ph, scale) => { const band = ph > pw, tbH = band ? clamp(ph * 0.17, 52, 110) : 0, fs = 3.4 * scale / 1000, pad = fs * 5.5, needW = (g.width + 2 * pad) * 1000 / scale, needH = (g.depth + 2 * pad) * 1000 / scale, availW = pw - 2 * m - (band ? 0 : tb + gap), availH = ph - 2 * m - (band ? tbH + gap : 0); return { ok: needW <= availW && needH <= availH, pw, ph, scale, fs, pad, availW, availH, band, tbH }; };
+  const tryFit = (pw, ph, scale, ne) => { const band = ph > pw, tbH = band ? clamp(ph * 0.17, 52, 110) : 0, fs = 3.4 * scale / 1000, pad = fs * 5.5, needW = (g.width + 2 * pad + 2 * (ne ? 0 : edgeEx(fs, pad, o.numbered))) * 1000 / scale, needH = (g.depth + 2 * pad) * 1000 / scale, availW = pw - 2 * m - (band ? 0 : tb + gap), availH = ph - 2 * m - (band ? tbH + gap : 0); return { ok: needW <= availW && needH <= availH, pw, ph, scale, fs, pad, availW, availH, band, tbH, noEdge: !!ne }; };
   const sides = o.orient === 'landscape' ? [[long, short]] : o.orient === 'portrait' ? [[short, long]] : [[long, short], [short, long]];
-  const pick = scale => sides.map(([pw, ph]) => tryFit(pw, ph, scale)).find(f => f.ok) || null;
+  const pick = scale => sides.map(([pw, ph]) => tryFit(pw, ph, scale)).find(f => f.ok) || sides.map(([pw, ph]) => tryFit(pw, ph, scale, true)).find(f => f.ok) || null;   // at the scale asked for, labels go on the plan before the scale changes
   const wanted = o.scale ? pick(o.scale) : null, best = SCALES.map(pick).find(Boolean) || null;
   return { o, fit: wanted || best, fell: !!o.scale && !wanted, tb, m, gap };
 }
@@ -3107,7 +3180,7 @@ function sheetNote() {
   if (!S.g) return '';
   const l = sheetLayout(), f = l.fit; if (!f) return `This garden is too large to draw on ${l.o.paper}${l.o.orient === 'auto' ? '' : ' ' + l.o.orient}. Pick a larger sheet${l.o.orient === 'auto' ? '' : ' or the other orientation'}.`;
   const how = `${l.o.paper} ${f.pw > f.ph ? 'landscape' : 'portrait'}`;
-  return l.fell ? `Too large for ${l.o.orient === 'auto' ? l.o.paper : how} at 1:${l.o.scale}, so it will print at 1:${f.scale} on ${how}. Pick a larger sheet to keep 1:${l.o.scale}.` : `Prints at 1:${f.scale} on ${how}. Print at 100% (actual size) for the scale to be true.`;
+  return l.fell ? `Too large for ${l.o.orient === 'auto' ? l.o.paper : how} at 1:${l.o.scale}, so it will print at 1:${f.scale} on ${how}. Pick a larger sheet to keep 1:${l.o.scale}.` : `Prints at 1:${f.scale} on ${how}. Print at 100% (actual size) for the scale to be true.${f.noEdge && edgeLabels() ? ' There isn’t room around the plan for the label columns at this scale, so the labels sit on the plan.' : ''}`;
 }
 function sheetInput(t) {
   if (!S.g) return; const k = t.dataset.sheet;
@@ -3128,7 +3201,7 @@ async function exportSheet() {
     const lay = sheetLayout(), f = lay.fit; if (!f) throw new Error(`this garden is too large to draw on ${lay.o.paper}.`);
     const pdf = new window.jspdf.jsPDF({ orientation: f.pw > f.ph ? 'landscape' : 'portrait', unit: 'mm', format: lay.o.paper.toLowerCase(), compress: true });
     const mmPerM = 1000 / f.scale, m = lay.m;
-    const v = await planVectorMarkup({ numbered: lay.o.numbered, fs: f.fs, pad: f.pad, sheet: true, lw: 0.18 / mmPerM });
+    const v = await planVectorMarkup({ numbered: lay.o.numbered, fs: f.fs, pad: f.pad, sheet: true, lw: 0.18 / mmPerM, noEdge: f.noEdge });
     const w = v.vb[2] * mmPerM, h = v.vb[3] * mmPerM;
     await drawPlanVector(pdf, v, m + (f.availW - w) / 2, m + (f.availH - h) / 2, w, h);
     /* frame and title block: a strip down the right on a landscape sheet, a band along the bottom on a portrait one,
@@ -4471,7 +4544,7 @@ async function restoreBackup(file) {
       S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false,
         showGrid: p.showGrid !== false, gridStep: ['auto', '0.5', '1', '2', '5'].includes(String(p.gridStep)) ? String(p.gridStep) : 'auto', showRulers: p.showRulers !== false, showScale: p.showScale !== false, snap: clamp(numOrNull(p.snap) ?? 0.1, 0.05, 1),
         currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown',
-        pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2), oudolf: p.oudolf === true, esriKey: S.prefs.esriKey || '' };
+        pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2), oudolf: p.oudolf === true, esriKey: S.prefs.esriKey || '', labelPlace: p.labelPlace === 'plan' ? 'plan' : 'edge' };
       const logo = await asset(p.logoId); if (logo) S.prefs.logoId = logo;
       applyRoleColours(); applyTheme(S.prefs.theme); savePrefs();
     }
