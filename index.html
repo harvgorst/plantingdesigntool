@@ -1004,6 +1004,30 @@ const MERC = {
   mpp: (lat, z) => 156543.03392 * Math.cos(lat * Math.PI / 180) / 2 ** z,
 };
 const aerialOn = () => !!(S.g?.aerial && S.prefs.esriKey && !S.aerHidden);
+/* Esri's finest photos don't reach every zoom level everywhere: past them it sends a flat grey "Map data not yet
+   available" tile. So look at one tile where the garden is, from the most detailed level down, and use the first real one. */
+const AERZ = new Map();
+async function tileIsBlank(url) {
+  const r = await fetch(url); if (!r.ok) return true;
+  const bmp = await createImageBitmap(await r.blob()), c = document.createElement('canvas'); c.width = c.height = 64;
+  const cx = c.getContext('2d'); cx.drawImage(bmp, 0, 0, 64, 64); const d = cx.getImageData(0, 0, 64, 64).data; let grey = 0;
+  for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - d[i + 1]) < 10 && Math.abs(d[i + 1] - d[i + 2]) < 10 && d[i] > 180 && d[i] < 225) grey++;
+  return grey / (d.length / 4) > 0.85;
+}
+function aerialReady(a) {
+  const k = a.lat.toFixed(5) + ',' + a.lon.toFixed(5) + ',' + (S.prefs.esriKey || '').slice(-6);
+  if (!AERZ.has(k)) {
+    const e = { z: 18 }; AERZ.set(k, e);
+    e.p = (async () => {
+      for (let z = 20; z >= 14; z--) {
+        const [x, y] = MERC.px(a.lat, a.lon, z);
+        try { if (!(await tileIsBlank(esriTile(z, Math.floor(x / 256), Math.floor(y / 256))))) { e.z = z; break; } } catch { e.z = 18; break; }   // can't look: a level that's almost always there
+      }
+      renderMapSoon(); BK.planKey = null; return e.z;
+    })();
+  }
+  return AERZ.get(k);
+}
 /* the tiles covering the plan (and its margin) at a zoom level, placed in plan metres before the plan's north turn */
 function aerialTiles(a, box, z) {
   const th = -num(S.g.north, 0) * Math.PI / 180, cs = Math.cos(th), sn = Math.sin(th);
@@ -1021,7 +1045,7 @@ function aerialTiles(a, box, z) {
 }
 function aerialLayer(W, D, pad, px, pr) {
   const a = S.g.aerial, lat = a.lat, want = pr ? Math.max(W, D) / 2400 : px;   // about one tile pixel per screen pixel; finer for print
-  const z = clamp(Math.round(Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) / Math.max(want, 1e-4))), 1, 20);
+  const z = clamp(Math.round(Math.log2(156543.03392 * Math.cos(lat * Math.PI / 180) / Math.max(want, 1e-4))), 1, aerialReady(a).z);
   const tiles = aerialTiles(a, { x0: 0, y0: 0, x1: W, y1: D }, z);
   /* trimmed to the plot, so the rulers and labels round it stay on plain paper */
   return `<clipPath id="aerclip"><rect x="0" y="0" width="${W}" height="${D}"/></clipPath><g clip-path="url(#aerclip)" pointer-events="none"><g class="aer" transform="rotate(${num(S.g.north, 0)})" opacity="${clamp(num(a.opacity, 0.9), 0.1, 1)}">${tiles.map(t => `<image class="aert" href="${esc(t.href)}" x="${t.x}" y="${t.y}" width="${t.s + 0.002}" height="${t.s + 0.002}" preserveAspectRatio="none"/>`).join('')}</g></g>`;
@@ -1061,7 +1085,7 @@ async function openMapPicker() {
     return MERC.ll(ax + (cx * Math.cos(-th) - cy * Math.sin(-th)) / m, ay + (cx * Math.sin(-th) + cy * Math.cos(-th)) / m, z); })() : S.g.lat != null ? [S.g.lat, S.g.lon] : null;
   const map = MP.map = window.L.map('mp-map', { zoomSnap: 0.25, zoomDelta: 0.5, maxZoom: 21, attributionControl: true }).setView(start || [53.5, -2], start ? 19 : 6);
   let bad = 0;
-  window.L.tileLayer(esriTile('{z}', '{x}', '{y}').replace('%7Bz%7D', '{z}'), { maxNativeZoom: 20, maxZoom: 21, attribution: ESRI_ATTR })
+  window.L.tileLayer(esriTile('{z}', '{x}', '{y}').replace('%7Bz%7D', '{z}'), { maxNativeZoom: 19, maxZoom: 21, attribution: ESRI_ATTR })
     .on('tileerror', () => { if (++bad === 3) $('mp-note').innerHTML = 'Esri didn’t send the photo. Check your API key in Preferences → Aerial photos (it needs the Basemaps privilege).'; }).addTo(map);
   const frame = () => { const c = map.getCenter(), m = MERC.mpp(c.lat, map.getZoom()), f = $('mp-frame'); if (!f) return;
     f.style.width = MP.W / m + 'px'; f.style.height = MP.D / m + 'px'; f.style.marginLeft = -MP.W / m / 2 + 'px'; f.style.marginTop = -MP.D / m / 2 + 'px'; f.style.transform = `rotate(${-num(S.g.north, 0)}deg)`;
@@ -2695,6 +2719,7 @@ function bookletInput(t) {
   clearTimeout(BK.timer); BK.timer = setTimeout(() => renderPages(), 350);
 }
 async function planImage(numbered) {
+  if (aerialOn()) await aerialReady(S.g.aerial).p;
   const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, aerialOn(), [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
@@ -2851,6 +2876,7 @@ async function underlayPicture(u, bg) {
   return c.toDataURL('image/jpeg', 0.88);
 }
 async function planVectorMarkup(o) {
+  if (aerialOn()) await aerialReady(S.g.aerial).p;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
   S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { vector: true, fs: o.fs, pad: o.pad, sheet: o.sheet };
   if (o.numbered) { S.prefs.labelMode = 'number'; S.prefs.labelQty = false; S.prefs.labelSize = Math.max(num(save.size, 1), 1.5); }

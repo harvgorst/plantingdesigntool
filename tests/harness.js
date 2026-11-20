@@ -7,6 +7,15 @@ const LIBS = process.env.SL_LIBS || '';
 const LIB_FILES = { jspdf: 'jspdf.umd.min.js', 'svg2pdf': 'svg2pdf.umd.min.js', xlsx: 'xlsx.full.min.js', 'leaflet.min.css': 'leaflet.css', 'leaflet.min.js': 'leaflet.js' };
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAFklEQVR4nGP8z8Dwn4EIwESMolGF1FMIAD2cAg8tPRTDAAAAAElFTkSuQmCC', 'base64');
 
+function png(w, h, px) {
+  const zlib = require('zlib'), raw = Buffer.alloc((w * 3 + 1) * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = y * (w * 3 + 1) + 1 + x * 3, [r, g, b] = px(x, y); raw[o] = r; raw[o + 1] = g; raw[o + 2] = b; }
+  const crc = b => { let c = ~0; for (const v of b) { c ^= v; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1)); } return ~c >>> 0; };
+  const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
+  const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 2;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+const GREY_TILE = png(64, 64, () => [204, 204, 204]), PHOTO_TILE = png(64, 64, (x, y) => [60 + (x * 7 + y * 13) % 90, 90 + (x * 11 + y * 5) % 80, 50 + (x * 3 + y * 17) % 60]);
 async function open(seed = {}, opts = {}) {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: opts.viewport || { width: 1400, height: 900 }, timezoneId: 'Europe/London', locale: 'en-GB' });
@@ -37,7 +46,10 @@ async function open(seed = {}, opts = {}) {
     return r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ batchcomplete: '', query: { pages } }) });
   });
   // Esri tiles and OpenStreetMap address search stand-ins
-  await page.route('https://ibasemaps-api.arcgis.com/**', r => r.fulfill({ contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PIXEL }));
+  // like the real keyed service: no tile at all (404) past zoom 19 in most of the UK, a speckled photo-like one below
+  // (Esri's public address sends a flat grey "not available" tile instead; GREY_TILE stands in for that where needed)
+  await page.route('https://ibasemaps-api.arcgis.com/**', r => { const z = +(r.request().url().match(/\/tile\/(\d+)\//) || [])[1]; const h = { 'access-control-allow-origin': '*' };
+    return z >= 20 ? r.fulfill({ status: 404, contentType: 'text/plain', headers: h, body: '{"error":{"code":404,"message":"The requested URL was not found."}}' }) : r.fulfill({ contentType: 'image/png', headers: h, body: PHOTO_TILE }); });
   await page.route('https://nominatim.openstreetmap.org/**', r => r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(/Bath/i.test(r.request().url()) ? [{ lat: '51.3811', lon: '-2.3590', display_name: 'Bath, Bath and North East Somerset, England' }] : []) }));
   await page.route('https://upload.wikimedia.org/**', r => r.fulfill({ contentType: 'image/png', headers: { 'access-control-allow-origin': '*' }, body: PIXEL }));
   if (LIBS) await page.route(/https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\/.*/, r => {

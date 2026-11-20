@@ -637,6 +637,9 @@ test('aerial photo: find the garden on the map, frame it, draw over it; the key 
   ok(!JSON.stringify(g).includes('data:image') && !JSON.stringify(g).includes('TEST-KEY'), 'no photo and no key stored with the garden');
   const tiles = await app.page.$$eval('#map .aer image', im => im.map(i => i.getAttribute('href')));
   ok(tiles.length >= 1 && tiles.every(h => /World_Imagery\/MapServer\/tile\/\d+\/\d+\/\d+\?token=TEST-KEY-123/.test(h)), 'Esri tiles under the plan, got ' + tiles.length);
+  await app.page.waitForTimeout(800);
+  const zs = await app.page.$$eval('#map .aer image', im => [...new Set(im.map(i => +i.getAttribute('href').match(/\/tile\/(\d+)\//)[1]))]);
+  eq(zs, [19], 'uses the most detailed level that has a real photo (Esri has none at 20 here)');
   ok((await app.page.textContent('#map')).includes('Powered by Esri'), 'Esri credited on the plan');
   // planting still works on top
   await app.page.click('#lib [data-pid=p0]'); await app.clickPlan(3, 3); await app.page.waitForTimeout(1200);
