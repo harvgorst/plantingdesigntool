@@ -86,7 +86,7 @@ function sample() {
   const seed = {};
   P.forEach(([common, botanical, role, flowerFrom, flowerTo, flowerColor, cost, supply, spread], i) => { seed['plants/p' + i] = { common, botanical, role, flowerFrom, flowerTo, flowerColor, cost, supply, spread, potSpread: 0.15, height: 0.6, supplier: i < 4 ? 'Babylon Plants' : 'Hill Nursery' }; });
   seed['plants/ex1'] = { common: 'Old birch', botanical: 'Betula pendula', role: 'canopy', existing: true, spread: 4, height: 9 };
-  seed['gardens/g1'] = { name: 'Elm Road', client: 'Mr & Mrs Hart', width: 12, depth: 8.6, north: 20, updatedAt: 1, areas: [],
+  seed['gardens/g1'] = { palette: ['p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'ex1'], name: 'Elm Road', client: 'Mr & Mrs Hart', width: 12, depth: 8.6, north: 20, updatedAt: 1, areas: [],
     underlay: { assetId: 'siteplan', kind: 'svg', name: 'site.svg', natW: 1200, natH: 860, mPerPx: 0.01, opacity: 0.6, calibrated: true },
     plantings: [{ id: 'a', plantId: 'p0', x: 4, y: 1.4, qty: 5 }, { id: 'b', plantId: 'p1', x: 6, y: 1.4, qty: 3 }, { id: 'c', plantId: 'p2', x: 8, y: 1.4, qty: 1 }, { id: 'd', plantId: 'p3', x: 5, y: 3, qty: 40 },
       { id: 'e', plantId: 'p4', x: 2, y: 5, qty: 7 }, { id: 'f', plantId: 'p5', x: 10, y: 4.4, qty: 1 }, { id: 'g', plantId: 'ex1', x: 1.6, y: 1.6, qty: 1 }] };

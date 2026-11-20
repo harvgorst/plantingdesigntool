@@ -560,7 +560,7 @@ test('beds: reshaping keeps the grid still, moving takes the planting, points ca
 
 test('existing perennials behave like new ones, but are not bought', async open => {
   const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null;
-  seed['plants/ex2'] = { common: 'Old geranium', botanical: 'Geranium macrorrhizum', role: 'ground', existing: true, spread: 0.5, height: 0.3 };
+  seed['gardens/g1'].palette.push('ex2'); seed['plants/ex2'] = { common: 'Old geranium', botanical: 'Geranium macrorrhizum', role: 'ground', existing: true, spread: 0.5, height: 0.3 };
   const app = await open(seed);
   const row = n => +(n * 0.3 * Math.sqrt(3) / 2).toFixed(3);
   await app.page.click('#lib [data-pid=ex2]');
@@ -729,6 +729,35 @@ test('plant library filters: by layer, in this garden, grouped, remembered', asy
   eq(await names(), ['p3'], 'the filter is remembered');
 });
 
+test('each garden has its own plant library; the database stays whole; existing plants stay with their garden', async open => {
+  const app = await open(sample());
+  // a new garden starts with an empty library
+  await app.page.click('#detailsBtn'); await app.page.click('#newGardenBtn');
+  await app.page.fill('#ng-name', 'Back border'); await app.page.click('#newGardenForm button[type=submit]'); await app.page.waitForTimeout(400);
+  eq(await app.page.$$eval('#lib li[data-pid]', l => l.length), 0, 'new garden: empty library');
+  ok(/library is empty/.test(await app.page.textContent('#lib')), 'and says how to add plants');
+  // Add plants: pick two from the database; the existing birch from Elm Road is not offered
+  await app.page.click('#addPlantBtn');
+  const offered = await app.page.$$eval('#addModal [data-ap]', l => l.map(x => x.dataset.ap));
+  ok(offered.length === 6 && !offered.includes('ex1'), 'database species offered, not another site’s existing plant, got ' + offered);
+  await app.page.check('#addModal [data-ap=p1]'); await app.page.check('#addModal [data-ap=p4]'); await app.page.click('[data-apx=add]');
+  eq((await app.page.$$eval('#lib li[data-pid]', l => l.map(x => x.dataset.pid))).sort(), ['p1', 'p4'], 'just those two in this garden');
+  // a new species made here joins this garden's library and the database
+  await app.page.click('#addPlantBtn'); await app.page.click('[data-apx=new]');
+  await app.page.fill('#sp-common', 'Sesleria'); await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(900);
+  eq(await app.page.$$eval('#lib li[data-pid]', l => l.length), 3, 'the new species joins it');
+  const all = await app.keys('plants/'); ok(all.length === 8, 'and the database, got ' + all.length);
+  // the other garden is untouched
+  await app.page.selectOption('#gardenSel', { label: 'Elm Road' }); await app.page.waitForTimeout(400);
+  const elm = await app.page.$$eval('#lib li[data-pid]', l => l.map(x => x.dataset.pid));
+  ok(elm.length === 7 && !elm.some(id => !/^(p[0-5]|ex1)$/.test(id)), 'Elm Road keeps its own seven, got ' + elm);
+  // take one out of a garden's library (only when it isn't on the plan)
+  await app.page.selectOption('#gardenSel', { label: 'Back border' }); await app.page.waitForTimeout(400);
+  await app.page.click('#lib [data-edit=p4]'); await app.page.click('[data-act=unLibrary]'); await app.page.waitForTimeout(900);
+  eq((await app.page.$$eval('#lib li[data-pid]', l => l.map(x => x.dataset.pid))).includes('p4'), false, 'removed from this garden');
+  ok(await app.store('plants/p4'), 'but still in the database');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });
@@ -746,7 +775,7 @@ test('works on its own: saved in the browser, kept after a reload, files downloa
   ok(await app.page.evaluate(() => !window.claude && !window.__mock), 'no outside runtime on the page');
   await app.page.fill('#ng-name', 'Back border'); await app.page.click('#newGardenForm button[type=submit]');
   await app.page.waitForTimeout(300);
-  await app.page.click('#addPlantBtn'); await app.page.fill('#sp-common', 'Salvia'); await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(300);
+  await app.page.click('#addPlantBtn'); await app.page.click('[data-apx=new]'); await app.page.fill('#sp-common', 'Salvia'); await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(300);
   await app.page.click('#lib li'); await app.clickPlan(2, 2); await app.page.waitForTimeout(1200);
   await app.reload();
   eq(await app.page.$eval('#gardenSel', s => s.selectedOptions[0].textContent), 'Back border', 'garden still there after a reload');

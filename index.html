@@ -281,6 +281,11 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .mapres { display: flex; flex-direction: column; gap: 2px; }
 .mapres button { text-align: left; border: 0; background: none; padding: 4px 6px; border-radius: 6px; cursor: pointer; font: inherit; color: var(--ink); }
 .mapres button:hover { background: var(--accent-soft); }
+.addlist { display: flex; flex-direction: column; gap: 1px; max-height: min(56vh, 520px); overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.addlist label { display: grid; grid-template-columns: 18px 14px 1fr auto; gap: 8px; align-items: center; padding: 5px 7px; border-radius: 6px; cursor: pointer; }
+.addlist label:hover { background: var(--paper); }
+.addlist label i { color: var(--muted); }
+.addlist .lh { padding: 8px 7px 2px; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .pgroup { margin: 4px 0 6px; font-size: 12px; color: var(--muted); }
 html[data-skin=xp] .pgrid button { border-radius: 0; }
 .btable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -609,7 +614,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
         <select id="dbKind" aria-label="New or existing plants"><option value="">New and existing</option><option value="new">New plants only</option><option value="existing">Existing plants only</option></select>
         <span class="spacer"></span><span class="note" id="dbCount"></span><button class="btn sm" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div>
       <div style="overflow-x:auto"><table class="sched wide dbt" id="dbTable"></table></div>
-      <div class="avbar" id="dbBar" hidden><b id="dbSelN">0 selected</b><span class="note" id="dbBarMsg"></span><span class="spacer"></span><button class="btn sm" type="button" id="dbSelClear">Clear selection</button><button class="btn sm danger" type="button" id="dbForce" hidden>Remove from gardens too</button><button class="btn sm danger" type="button" id="dbSelRemove">Remove selected</button></div>
+      <div class="avbar" id="dbBar" hidden><b id="dbSelN">0 selected</b><span class="note" id="dbBarMsg"></span><span class="spacer"></span><button class="btn sm" type="button" id="dbToGarden">Add to this garden</button><button class="btn sm" type="button" id="dbSelClear">Clear selection</button><button class="btn sm danger" type="button" id="dbForce" hidden>Remove from gardens too</button><button class="btn sm danger" type="button" id="dbSelRemove">Remove selected</button></div>
     </div>
     <div id="dbAvail" hidden style="display:flex;flex-direction:column;gap:14px">
       <p class="note" style="margin:0;max-width:75ch">Supplier availability lists are kept separately from your plants. Tick the lines you want and add them to My plants. The price, supplier, pot size and code come across with them. Set height, spread and flowering yourself with Edit in My plants.</p>
@@ -648,7 +653,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Drag to resize the plan and plant library" title="Drag to resize · double-click to reset" tabindex="0"></div>
     <div class="side">
     <section class="card" aria-labelledby="libH">
-      <div class="card-h"><h2 id="libH">Plant library</h2><a href="#database" class="note" style="margin-right:auto;margin-left:8px">Open database</a><button class="btn sm" id="addPlantBtn" type="button">Add species</button></div>
+      <div class="card-h"><h2 id="libH">Plant library</h2><a href="#database" class="note" style="margin-right:auto;margin-left:8px">Open database</a><button class="btn sm" id="addPlantBtn" type="button">Add plants</button></div>
       <div id="libPane" style="display:flex;flex-direction:column;gap:8px">
         <input type="text" id="libSearch" placeholder="Search name or layer" aria-label="Search plant library">
         <div class="libchips" id="libChips" role="group" aria-label="Show layers"></div>
@@ -683,6 +688,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
   </div>
 </div>
 <div class="modal" id="importModal" hidden role="dialog" aria-modal="true" aria-labelledby="impH"><div class="card" id="importBody" style="max-width:860px;max-height:min(92vh, 900px);overflow:auto"></div></div>
+<div class="modal" id="addModal" hidden role="dialog" aria-modal="true" aria-labelledby="addH"><div class="card" id="addBody" style="max-width:620px;width:100%"></div></div>
 <div class="modal" id="mapModal" hidden role="dialog" aria-modal="true" aria-labelledby="mapH"><div class="card" id="mapBody" style="max-width:1000px;width:100%"></div></div>
 <div class="modal" id="photoModal" hidden role="dialog" aria-modal="true" aria-labelledby="photoH"><div class="card" id="photoBody" style="max-width:760px;width:100%"></div></div>
 <div class="modal" id="clearModal" hidden role="dialog" aria-modal="true" aria-labelledby="clearH">
@@ -1134,6 +1140,35 @@ $('mapModal').addEventListener('submit', async e => {
     if (hits.length === 1) MP.map.setView([+hits[0].lat, +hits[0].lon], 19);
   } catch (err) { res.innerHTML = `<span class="pv">${esc(err?.message || 'Search failed')}. You can also type latitude, longitude, or pan the map.</span>`; }
 });
+
+
+/* Add plants: tick species from your plant database to bring into this garden's library, or make a new one.
+   Plants recorded as existing on another site are never offered: they belong to that garden. */
+const AP = { q: '', sel: new Set() };
+function openAddPlants() { AP.q = ''; AP.sel = new Set(); $('addModal').hidden = false; renderAddPlants(); setTimeout(() => $('ap-q')?.focus(), 0); }
+function closeAddPlants() { $('addModal').hidden = true; }
+function renderAddPlants() {
+  const lib = libIds(), q = AP.q.trim().toLowerCase();
+  const all = S.plants.filter(p => !p.existing && !lib.has(p.id)), list = all.filter(p => !q || [p.common, p.botanical, ROLES[layerOf(p.role)]].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => (LAYER_ORDER.indexOf(layerOf(a.role)) - LAYER_ORDER.indexOf(layerOf(b.role))) || (a.common || '').localeCompare(b.common || ''));
+  const rows = list.map((p, i) => (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role) ? `<div class="lh">${esc(ROLES[layerOf(p.role)])}</div>` : '')
+    + `<label><input type="checkbox" data-ap="${p.id}"${AP.sel.has(p.id) ? ' checked' : ''}>${plantSwatch(p)}<span><b>${esc(p.common || 'Unnamed')}</b> <i>${esc(p.botanical || '')}</i></span><span class="pv">${num(p.spread).toFixed(1)} m</span></label>`).join('');
+  $('addBody').innerHTML = `<div class="card-h"><h2 id="addH">Add plants to ${esc(S.g?.name || 'this garden')}</h2><button class="btn sm" type="button" data-apx="close">Close</button></div>
+    <p class="note" style="margin:0">Tick species from your plant database to use in this design, or make a new one. Plants already in this garden aren’t listed, and plants recorded as existing on another site stay with that garden.</p>
+    <input type="text" id="ap-q" value="${esc(AP.q)}" placeholder="Search your plant database" autocomplete="off">
+    <div class="addlist" id="ap-list">${rows || `<p class="empty" style="margin:8px">${all.length ? 'Nothing matches.' : 'Every species in your database is already in this garden.'}</p>`}</div>
+    <div class="row" style="justify-content:space-between"><button class="btn sm" type="button" data-apx="new">New species…</button>
+      <span class="row" style="gap:6px"><button class="btn sm" type="button" data-apx="close">Cancel</button><button class="btn sm primary" type="button" data-apx="add"${AP.sel.size ? '' : ' disabled'}>Add ${AP.sel.size ? plural(AP.sel.size, 'plant') : 'plants'}</button></span></div>`;
+}
+$('addModal').addEventListener('click', e => {
+  if (e.target.id === 'addModal') { closeAddPlants(); return; }
+  const b = e.target.closest('[data-apx]'); if (!b) return;
+  if (b.dataset.apx === 'close') closeAddPlants();
+  if (b.dataset.apx === 'new') { closeAddPlants(); openPlantEditor(null); if (S.editPlant) { S.editPlant._toGarden = true; } }
+  if (b.dataset.apx === 'add') { const n = addToLibrary([...AP.sel]); closeAddPlants(); renderLibrary(); setStatus(n ? `Added ${plural(n, 'plant')} to this garden` : 'Saved'); }
+});
+$('addModal').addEventListener('change', e => { const id = e.target.dataset?.ap; if (!id) return; if (e.target.checked) AP.sel.add(id); else AP.sel.delete(id); const a = $('addBody').querySelector('[data-apx=add]'); a.disabled = !AP.sel.size; a.textContent = `Add ${AP.sel.size ? plural(AP.sel.size, 'plant') : 'plants'}`; });
+$('addModal').addEventListener('input', e => { if (e.target.id !== 'ap-q') return; AP.q = e.target.value; const pos = e.target.selectionStart; renderAddPlants(); const i = $('ap-q'); i.focus(); i.setSelectionRange(pos, pos); });
 
 /* ---------- curve geometry (closed Catmull-Rom splines) ---------- */
 function segs(pts, closed) {
@@ -1641,15 +1676,28 @@ function renderTools() {
 /* library filters: any mix of layers, and "In this garden"; remembered on this computer */
 const LIBF = (() => { try { const v = JSON.parse(store.get('gpm.libfilter') || 'null'); return { layers: new Set((v?.layers || []).filter(k => ROLES[k])), used: !!v?.used }; } catch { return { layers: new Set(), used: false }; } })();
 const saveLibF = () => store.set('gpm.libfilter', JSON.stringify({ layers: [...LIBF.layers], used: LIBF.used }));
+/* each garden has its own plant library: the species chosen for that design (and anything already on its plan).
+   Gardens from before this kept no list, so theirs is simply what's on the plan. */
+function libIds(g = S.g) { const ids = new Set(g?.palette || []); if (g) { for (const x of g.plantings) ids.add(x.plantId); for (const a of g.areas) ids.add(a.plantId); } return ids; }
+function addToLibrary(ids) {
+  if (!S.g || !ids.length) return 0;
+  const have = libIds(), add = ids.filter(id => !have.has(id) && plantById(id)); if (!add.length) return 0;
+  checkpoint(); S.g.palette = [...new Set([...(S.g.palette || [...have]), ...add])]; saveGarden(); return add.length;
+}
+function removeFromLibrary(id) {
+  if (!S.g) return false;
+  const used = usedHere(); if (used.has(id)) return false;
+  checkpoint(); S.g.palette = [...libIds()].filter(x => x !== id); if (S.activePlant === id) S.activePlant = null; saveGarden(); return true;
+}
 function usedHere() { const u = new Set(); if (S.g) { for (const x of S.g.plantings) u.add(x.plantId); for (const a of S.g.areas) u.add(a.plantId); } return u; }
 function renderLibChips() {
   const el = $('libChips'); if (!el) return;
-  const count = {}; for (const p of S.plants) { const k = layerOf(p.role); count[k] = (count[k] || 0) + 1; }
+  const lib = libIds(), mine = S.plants.filter(p => lib.has(p.id)), count = {}; for (const p of mine) { const k = layerOf(p.role); count[k] = (count[k] || 0) + 1; }
   const present = LAYER_ORDER.filter(k => count[k] || LIBF.layers.has(k));   // a chosen layer stays on show (even empty) so it can be switched off
-  el.hidden = S.plants.length < 2;
-  el.innerHTML = `<button type="button" data-lf="all" aria-pressed="${!LIBF.layers.size}">All <i>${S.plants.length}</i></button>`
+  el.hidden = mine.length < 2;
+  el.innerHTML = `<button type="button" data-lf="all" aria-pressed="${!LIBF.layers.size}">All <i>${mine.length}</i></button>`
     + present.map(k => `<button type="button" data-lf="${k}" aria-pressed="${LIBF.layers.has(k)}"><span class="d" style="width:8px;height:8px;border-radius:50%;background:var(--r-${k})"></span>${esc(ROLES[k])} <i>${count[k] || 0}</i></button>`).join('')
-    + `<span class="sep"></span><button type="button" data-lf="used" aria-pressed="${LIBF.used}" title="Only the species used in this garden">In this garden <i>${usedHere().size ? S.plants.filter(p => usedHere().has(p.id)).length : 0}</i></button>`;
+    + `<span class="sep"></span><button type="button" data-lf="used" aria-pressed="${LIBF.used}" title="Only the species already on the plan">On the plan <i>${S.plants.filter(p => usedHere().has(p.id)).length}</i></button>`;
 }
 function renderLibrary() {
   ensureColours();   // so the swatches match the plan from the start
@@ -1660,9 +1708,11 @@ function renderLibrary() {
   if (S.editPlant) { renderPlantEditor($('editPane')); return; }
   $('editPane').innerHTML = '';
   const q = S.filter.trim().toLowerCase(), used = LIBF.used ? usedHere() : null;
-  renderLibChips();
-  const list = S.plants.filter(p => (!q || [p.common, p.botanical, ROLES[p.role]].join(' ').toLowerCase().includes(q)) && (!LIBF.layers.size || LIBF.layers.has(layerOf(p.role))) && (!used || used.has(p.id)))
+  const lib = libIds();
+  if (S.g && !lib.size) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">This garden’s plant library is empty. Use <b>Add plants</b> to bring species in from your plant database, or to make new ones. Each garden keeps its own list; your plant database stays as it is.</li>`; return; }
+  const list = S.plants.filter(p => (!S.g || lib.has(p.id)) && (!q || [p.common, p.botanical, ROLES[p.role]].join(' ').toLowerCase().includes(q)) && (!LIBF.layers.size || LIBF.layers.has(layerOf(p.role))) && (!used || used.has(p.id)))
     .sort((a, b) => (LAYER_ORDER.indexOf(layerOf(a.role)) - LAYER_ORDER.indexOf(layerOf(b.role))) || (a.common || '').localeCompare(b.common || ''));
+  renderLibChips();
   if (!S.plants.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${S.loaded ? 'Your library is empty. Use Add species to start it. Every species you add here is reused across all your gardens.' : 'Loading your plant library…'}</li>`; return; }
   if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${q ? `No species match “${esc(S.filter)}”` : 'No species'}${LIBF.layers.size || LIBF.used ? ' with these filters. Click All to see everything.' : '.'}</li>`; return; }
   /* grouped under each layer, so a long library is easy to scan */
@@ -1851,7 +1901,7 @@ function renderPlantEditor(el) {
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
     <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label><button class="btn sm" type="button" data-act="findPhotoEdit">Find a photo online</button>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div>${p.photoCredit && p.photoId ? `<span class="note">${esc(photoCreditText(p.photoCredit))}</span>` : ''}</div>
     <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing trees and shrubs are drawn dashed at that size; existing perennials, ground cover and bulbs are painted on the grid like new ones. Existing plants are left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets the plant’s size on the plan and the starting spacing for a row.'}</p>
-    <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
+    <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new && S.g && getPage() !== 'database' && libIds().has(p.id) ? `<button class="btn" type="button" data-act="unLibrary"${usedHere().has(p.id) ? ' disabled title="It’s on the plan: take it off the plan first"' : ''}>Remove from this garden</button>` : ''}${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
     ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants from the plan first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
     <p class="note" id="plantErr" style="margin:0;color:var(--crit)"></p>`;
   paintMonthSlider();
@@ -3213,7 +3263,7 @@ $('libChips').addEventListener('click', e => {
   if (k === 'all') LIBF.layers.clear(); else if (k === 'used') LIBF.used = !LIBF.used; else if (LIBF.layers.has(k)) LIBF.layers.delete(k); else LIBF.layers.add(k);
   saveLibF(); renderLibrary();
 });
-$('addPlantBtn').addEventListener('click', () => openPlantEditor(null));
+$('addPlantBtn').addEventListener('click', () => { if (S.g) openAddPlants(); else openPlantEditor(null); });
 function openPlantEditor(id) {
   const p = id ? plantById(id) : null;
   S.editPlant = p ? JSON.parse(JSON.stringify(p)) : { id: uid(), _new: true, common: '', botanical: '', role: 'herbaceous', spread: 0.5, potSpread: 0.2, height: 0.5, light: ['sun'], moisture: ['moist'], cost: 0 };
@@ -3360,6 +3410,7 @@ app.addEventListener('click', async e => {
     if (S.tool === 'scale') S.tool = 'select';
     renderAll();
   }
+  if (act === 'unLibrary' && S.editPlant) { if (removeFromLibrary(S.editPlant.id)) { S.editPlant = null; S.confirm = null; renderAll(); } return; }
   if (act === 'cancelPlant') { S.editPlant = null; S.confirm = null; renderLibrary(); }
   if (act === 'askDeletePlant') { S.confirm = 'plant'; renderLibrary(); }
   if (act === 'cancelConfirm') { S.confirm = null; renderLibrary(); }
@@ -3375,11 +3426,12 @@ app.addEventListener('click', async e => {
     const p = S.editPlant;
     if (!(p.common || '').trim()) { $('plantErr').textContent = 'Give the species a common name.'; return; }
     if (!(num(p.spread) > 0)) { $('plantErr').textContent = 'Mature spread must be more than 0 m.'; return; }
-    const body = { ...p }; delete body._new; delete body.id; delete body.example;
+    const body = { ...p }; delete body._new; delete body.id; delete body.example; delete body._toGarden;
     if (S.online) { b.disabled = true; try { await S.db.doc('plants/' + p.id).set(body); } catch (err) { b.disabled = false; $('plantErr').textContent = 'Couldn’t save: ' + (err?.message || 'try again'); return; } }
     const was = plantById(p.id);
     pushHistory({ plants: [{ id: p.id, before: was ? { ...was } : null, after: { id: p.id, ...body } }] });
     upsertPlant({ id: p.id, ...body });
+    if (S.g && getPage() !== 'database' && (p._new || p._toGarden)) addToLibrary([p.id]);   // made from this garden's library: it joins it
     S.editPlant = null; S.activePlant = p.id; S.tool = 'plant'; renderAll();
   }
 });
@@ -3443,7 +3495,7 @@ $('overlay').addEventListener('click', e => { if (e.target.id === 'ngCancel') { 
 $('overlay').addEventListener('submit', async e => {
   e.preventDefault();
   const file = $('ng-file').files?.[0];
-  const g = { id: uid(), name: $('ng-name').value.trim() || 'Untitled garden', client: $('ng-client').value.trim(), width: clamp(num($('ng-w').value, 10), 1, 500), depth: clamp(num($('ng-d').value, 8), 1, 500), underlay: null, areas: [], plantings: [], updatedAt: Date.now() };
+  const g = { id: uid(), name: $('ng-name').value.trim() || 'Untitled garden', client: $('ng-client').value.trim(), width: clamp(num($('ng-w').value, 10), 1, 500), depth: clamp(num($('ng-d').value, 8), 1, 500), underlay: null, areas: [], plantings: [], palette: [], updatedAt: Date.now() };
   if (S.online) { const body = { ...g }; delete body.id; try { await S.db.doc('gardens/' + g.id).set(body); } catch (err) { setStatus('Couldn’t create garden: ' + (err?.message || ''), true); return; } setStatus('Saved'); }
   S.gardens.push(g); S.newGarden = false; S.g = JSON.parse(JSON.stringify(g)); clearHistory(); S.sel = null; store.set('gpm.last', g.id); resetView();
   S.tool = 'select'; renderAll();
@@ -3514,6 +3566,7 @@ document.addEventListener('keydown', e => {
   if (!$('clearModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeClear(); } return; }
   if (!$('photoModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closePhotoPicker(); } return; }
   if (!$('mapModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeMapPicker(); } return; }
+  if (!$('addModal').hidden) { if (e.key === 'Escape') { e.preventDefault(); closeAddPlants(); } return; }
   const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement?.tagName || '');
   if ((e.ctrlKey || e.metaKey) && !typing && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
@@ -3552,7 +3605,8 @@ function normGarden(id, d) {
     blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined,
     beds: Array.isArray(d.beds) ? d.beds.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 3) : undefined,
     aerial: d.aerial && Number.isFinite(d.aerial.lat) && Number.isFinite(d.aerial.lon) ? d.aerial : undefined,
-    rows: Array.isArray(d.rows) ? d.rows.filter(r => r && Array.isArray(r.a) && Array.isArray(r.b) && Array.isArray(r.c)) : undefined };
+    rows: Array.isArray(d.rows) ? d.rows.filter(r => r && Array.isArray(r.a) && Array.isArray(r.b) && Array.isArray(r.c)) : undefined,
+    palette: Array.isArray(d.palette) ? d.palette.filter(x => typeof x === 'string') : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -3878,6 +3932,7 @@ function renderDbBar() {
   $('dbSelN').textContent = `${n} selected`;
   $('dbSelRemove').textContent = DB.arm ? `Click again to remove ${n}` : 'Remove selected';
   $('dbSelRemove').disabled = !n; $('dbSelClear').disabled = !n;
+  $('dbToGarden').disabled = !n || !S.g; $('dbToGarden').title = S.g ? `Add the ticked species to ${S.g.name}’s plant library` : 'Open a garden first';
 }
 $('dbTable').addEventListener('change', e => {
   const t = e.target;
@@ -3885,6 +3940,11 @@ $('dbTable').addEventListener('change', e => {
   else if (t.dataset.dbsel) { if (t.checked) DB.sel.add(t.dataset.dbsel); else DB.sel.delete(t.dataset.dbsel); }
   else return;
   DB.arm = false; $('dbBarMsg').textContent = ''; $('dbForce').hidden = true; renderDbBar();
+});
+$('dbToGarden').addEventListener('click', () => {
+  const ids = [...DB.sel].filter(id => !plantById(id)?.existing), skipped = DB.sel.size - ids.length, n = addToLibrary(ids);
+  $('dbBarMsg').textContent = `Added ${n} species to ${S.g?.name || 'this garden'}${n < ids.length ? ` (${ids.length - n} already there)` : ''}${skipped ? `; ${skipped} existing on another site left out` : ''}.`;
+  renderDbBar(); renderLibrary();
 });
 $('dbSelClear').addEventListener('click', () => { DB.sel.clear(); DB.arm = false; $('dbBarMsg').textContent = ''; $('dbForce').hidden = true; renderDatabase(); });
 $('dbSelRemove').addEventListener('click', async () => {
@@ -4251,6 +4311,7 @@ function cleanGarden(d) {
   if (d.aerial && Number.isFinite(+d.aerial.lat) && Number.isFinite(+d.aerial.lon) && Math.abs(d.aerial.lat) < 85 && Math.abs(d.aerial.lon) <= 180) g.aerial = { lat: +d.aerial.lat, lon: +d.aerial.lon, opacity: clamp(numOrNull(d.aerial.opacity) ?? 0.9, 0.1, 1) };
   if (Array.isArray(d.rows)) { const pt = v => Array.isArray(v) ? [r2(clamp(numOrNull(v[0]) ?? 0, -1000, 2000)), r2(clamp(numOrNull(v[1]) ?? 0, -1000, 2000))] : null;
     const rows = d.rows.slice(0, 500).map(r => ({ id: safeId(r?.id), a: pt(r?.a), b: pt(r?.b), c: pt(r?.c), gap: clamp(numOrNull(r?.gap) ?? 0.3, 0.05, 20) })).filter(r => r.id && r.a && r.b && r.c); if (rows.length) g.rows = rows; }
+  if (Array.isArray(d.palette)) g.palette = [...new Set(d.palette.map(safeId).filter(Boolean))].slice(0, 2000);
   return g;
 }
 const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
@@ -4259,7 +4320,7 @@ async function buildBackup(kind) {
   if (saveTimer) { clearTimeout(saveTimer); await flushSave(); }
   const gardens = kind === 'library' ? [] : kind === 'garden' ? (S.g ? [S.g] : []) : S.gardens.map(g => (S.g && g.id === S.g.id ? S.g : g));
   let plants = S.plants;
-  if (kind === 'garden') { const used = new Set(); for (const g of gardens) { for (const x of g.plantings) used.add(x.plantId); for (const a of g.areas) used.add(a.plantId); } plants = plants.filter(p => used.has(p.id)); }
+  if (kind === 'garden') { const used = new Set(); for (const g of gardens) { for (const x of g.plantings) used.add(x.plantId); for (const a of g.areas) used.add(a.plantId); for (const id of g.palette || []) used.add(id); } plants = plants.filter(p => used.has(p.id)); }
   const ids = new Set();
   for (const g of gardens) if (g.underlay?.assetId) ids.add(g.underlay.assetId);
   for (const p of plants) if (p.photoId) ids.add(p.photoId);
