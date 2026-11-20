@@ -314,7 +314,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 .calscroll { overflow-x: auto; }
 .cal-grid { min-width: 720px; display: grid; grid-template-columns: minmax(170px, 240px) minmax(0, 1fr); column-gap: 14px; }
 .cal-months, .ctrack, .cal-seasons { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
-.cal-seasons span { font-family: var(--f-display); font-style: italic; font-size: 15px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 2px; margin: 0 2px; }
+.cal-seasons span { white-space: nowrap; overflow: hidden; text-overflow: clip; font-family: var(--f-display); font-style: italic; font-size: 15px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 2px; margin: 0 2px; }
 .cal-months span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-align: center; padding: 6px 0; }
 .cname { padding: 7px 0; border-top: 1px solid var(--line-soft); min-width: 0; }
 .cname b { font-weight: 600; } .cname i { color: var(--muted); font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1392,6 +1392,42 @@ function removeSel() {
 const svg = $('map');
 function ulUrl(u) { return u?.assetId ? blobUrl(u.assetId) : (S.localUl || ''); }
 let rafPending = false;
+/* Move plan labels apart so no two overlap. Labels keep their spot in order of importance (dragged labels and bed names first,
+   then rows, blocks and areas, then trees and shrubs, then single plants); a label that is in the way of one already placed
+   tries nearby spots, closest first, and gets a fine leader line back to its plant if it ends up more than a line away. */
+function spreadLabels(html, LBL, halo, ls, pr) {
+  if (!LBL.length) return html;
+  const size = l => { const n = l.len ?? l.txt.replace(/<[^>]*>/g, '').replace(/&\w+;|&#\d+;/g, 'x').length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52), h: l.size * 1.1 }; };
+  const cell = Math.max(ls, 1e-6) * 2.5, H = new Map(), gap = ls * 0.06;
+  const cells = (b, f) => { for (let i = Math.floor(b.x0 / cell); i <= Math.floor(b.x1 / cell); i++) for (let j = Math.floor(b.y0 / cell); j <= Math.floor(b.y1 / cell); j++) f(i + ',' + j); };
+  const clash = b => { let hit = false; cells(b, k => { if (!hit) for (const o of H.get(k) || []) if (b.x0 < o.x1 + gap && o.x0 < b.x1 + gap && b.y0 < o.y1 + gap && o.y0 < b.y1 + gap) { hit = true; break; } }); return hit; };
+  const keep = b => cells(b, k => { if (!H.has(k)) H.set(k, []); H.get(k).push(b); });
+  const boxAt = (l, x, y, d) => ({ x0: x - d.w / 2, x1: x + d.w / 2, y0: y - l.size * 0.82, y1: y - l.size * 0.82 + d.h });
+  const order = LBL.map((l, i) => i).sort((a, b) => (LBL[b].fixed - LBL[a].fixed) || (LBL[b].pri - LBL[a].pri) || (LBL[a].y - LBL[b].y) || (LBL[a].x - LBL[b].x));
+  const out = new Array(LBL.length);
+  for (const i of order) {
+    const l = LBL[i], d = size(l);
+    let x = l.x, y = l.y, b = boxAt(l, x, y, d);
+    if (!l.fixed && clash(b)) {
+      const tries = [];
+      for (let r = 1; r <= 5; r++) for (let a = 0; a < 8 * r; a++) { const t = a / (8 * r) * Math.PI * 2; tries.push([Math.sin(t) * r * (d.w * 0.55 + d.h * 0.3), -Math.cos(t) * r * d.h * 1.0]); }
+      tries.sort((p, q) => Math.hypot(p[0] / d.w, p[1] / d.h) - Math.hypot(q[0] / d.w, q[1] / d.h));
+      for (const [dx, dy] of tries) { const c = boxAt(l, l.x + dx, l.y + dy, d); if (!clash(c)) { x = l.x + dx; y = l.y + dy; b = c; break; } }
+    }
+    keep(b);
+    if (l.raw) { out[i] = l.raw; continue; }
+    const f = v => +v.toFixed(3);
+    let s = '';
+    const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, dx = cx - l.ax, dy = cy - l.ay, dist = Math.hypot(dx, dy);
+    if ((x !== l.x || y !== l.y) && Math.hypot(x - l.x, y - l.y) > d.h * 0.9 && dist > 1e-6) {   // a leader line from the plant to the label's edge
+      const ux = dx / dist, uy = dy / dist, hw = d.w / 2 + l.size * 0.15, hh = d.h / 2 + l.size * 0.1;
+      const t = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
+      if (dist > t) s += `<line x1="${f(l.ax)}" y1="${f(l.ay)}" x2="${f(cx - ux * t)}" y2="${f(cy - uy * t)}" style="stroke:var(--label)" stroke-opacity="0.55" stroke-width="0.8" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
+    }
+    out[i] = s + halo(f(x), f(y), l.size, l.txt, l.o);
+  }
+  return html.replace(/\u0001(\d+)\u0001/g, (_, n) => out[n] ?? '');
+}
 function renderMapSoon() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMap(); }); }
 function renderMap() {
   const g = S.g;
@@ -1404,6 +1440,11 @@ function renderMap() {
     const base = `x="${x}" y="${y}" font-size="${size}" text-anchor="${o.anchor || 'middle'}"`, fw = `font-weight:${o.bold ? 700 : 400}`;
     return `<text ${base} style="fill:var(--label);${fw}" pointer-events="${o.live ? 'auto' : 'none'}">${txt}</text>`;   // plain lettering, no outline
   };
+  /* plant and bed labels are gathered as the plan is drawn and spread apart at the end so none overlap.
+     m.ax/m.ay is what the label belongs to (a leader line runs back to it if the label had to move far);
+     m.fixed keeps a label where it is (one the designer dragged); m.pri decides who keeps their spot first */
+  const LBL = [];
+  const tag = (x, y, size, txt, o = {}, m = {}) => { LBL.push({ x, y, size, txt, o, ax: m.ax ?? x, ay: m.ay ?? y, fixed: !!m.fixed, pri: m.pri || 0, raw: m.raw, wk: m.wk, len: m.len }); return `\u0001${LBL.length - 1}\u0001`; };
   let px = (M / 900) / S.zoom;
   if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
   S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
@@ -1446,8 +1487,16 @@ function renderMap() {
   /* touching plants of one species on the grid form a block that is labelled once */
   let blockLab = null;
   if (showL) {
-    blockLab = new Map(); const by = new Map();
-    for (const pl of g.plantings) { const p = plantById(pl.plantId); if (!p || !onGrid(p) || (pl.qty || 1) > 1 || !isVisible(p) || pl.lx != null) continue; if (!by.has(p.id)) by.set(p.id, []); by.get(p.id).push(pl); }
+    blockLab = new Map(); const by = new Map(), rows = new Map();
+    /* a row of one plant is labelled once, at its middle plant, with the count for the whole row */
+    for (const pl of g.plantings) { if (!pl.row) continue; const p = plantById(pl.plantId); if (!p || !isVisible(p)) continue; const k = pl.row + '|' + p.id; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(pl); }
+    for (const mem of rows.values()) {
+      if (mem.length < 2) continue;
+      mem.sort((a, b) => (a.rowI ?? 0) - (b.rowI ?? 0));
+      const rp = mem.find(q => q.lx != null) || mem[(mem.length - 1) >> 1], n = mem.reduce((t, q) => t + Math.max(1, q.qty || 1), 0);
+      for (const q of mem) blockLab.set(q.id, q === rp ? n : 0);
+    }
+    for (const pl of g.plantings) { const p = plantById(pl.plantId); if (!p || !onGrid(p) || (pl.qty || 1) > 1 || !isVisible(p) || pl.lx != null || blockLab.has(pl.id)) continue; if (!by.has(p.id)) by.set(p.id, []); by.get(p.id).push(pl); }
     for (const [pid, list] of by) {
       if (list.length < 2) continue;
       const lim = spacingOf(plantById(pid)) * 1.2, up = list.map((_, i) => i), find = i => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; }, H = new Map(), key = (a, b) => a + ',' + b;
@@ -1471,7 +1520,7 @@ function renderMap() {
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
     const ex = !!p?.existing && !onGrid(p), sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : p ? speciesStyle(p).col : 'var(--muted)';
     const dots = planted && !ex ? driftDots(a) : null, potr = potR(p);
-    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? halo(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }) : ''}</g>`);
+    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? tag(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }, { ax: c.x, ay: c.y, pri: 60 }) : ''}</g>`);
   }
   /* single plants and groups, in three layers: structure under the planting (with its outline and label drawn again on top),
      then the planting, then bulbs; largest first within each. While placing bulbs the rest fades back, and the other way round */
@@ -1485,14 +1534,14 @@ function renderMap() {
       const clip = r.bed ? ` clip-path="url(#bedclip-${r.bed})"` : '', mv = S.drag?.bed && S.drag.off && r.bed === S.drag.bed.id ? ` transform="translate(${S.drag.off[0]} ${S.drag.off[1]})"` : '';
       L.field.push(`<g data-kind="region" data-ids="${r.ids.join(',')}" style="cursor:move"${clip}><path${mv} d="${r.d}" fill-rule="evenodd" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
       if (!pr && r.ids.every(id => isSelected('planting', id))) L.over.push(`<path d="${r.d}" fill="none" style="stroke:var(--accent)" stroke-width="3" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
-      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(halo(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : (S.prefs.labelQty ? r.qty + ' ' : '') + plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(tag(r.lx, r.ly + size * 0.34, size, esc(t), { bold: S.prefs.labelMode === 'number' }, { ax: r.lx, ay: r.ly, pri: 50 + Math.min(40, r.qty) })); }
     }
     for (const c of od.singles) {
       const p = plantById(c.pid); if (!isVisible(p)) continue;
       const sr = spacingOf(p) / 2;
       const se = S.season && !pr ? seasonOf(p, S.season) : null, f = se ? { fill: se.col || 'var(--muted)', op: se.op } : spFill(p), sel = !pr && isSelected('planting', c.id);
       L.field.push(`<g data-kind="planting" data-id="${c.id}" style="cursor:move"><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:var(--ground)"/><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" vector-effect="non-scaling-stroke"/>${sel ? `<circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr + fs * 0.5}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}</g>`);
-      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(halo(c.x, c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number' })); }
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(tag(c.x, c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number' }, { ax: c.x, ay: c.y, pri: 5 })); }
     }
   }
   for (const pl of pls) {
@@ -1554,8 +1603,9 @@ function renderMap() {
           lab += `<line x1="${+(pl.x + ux * ringR).toFixed(3)}" y1="${+(pl.y + uy * ringR).toFixed(3)}" x2="${+(bx - ux * t).toFixed(3)}" y2="${+(cy - uy * t).toFixed(3)}" style="stroke:var(--label)" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
         }
       }
-      lab += halo(bx, by, size, esc(lbl), { bold: /^\d+$/.test(lbl), live: true });   // only palette numbers are bold
-      if (!pr && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id)
+      const handle = !pr && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id;
+      lab += tag(bx, by, size, esc(lbl), { bold: /^\d+$/.test(lbl), live: true }, { ax: pl.x, ay: pl.y, fixed: moved || handle, pri: blk > 1 ? 50 + Math.min(40, blk) : grid ? 10 : 20 + Math.min(30, ringR) });   // only palette numbers are bold
+      if (handle)
         lab += `<circle data-kind="lblh" data-id="${pl.id}" data-lx="${+(bx - pl.x).toFixed(3)}" data-ly="${+(by - pl.y).toFixed(3)}" cx="${bx + tw / 2 + px * 10}" cy="${cy}" r="${px * 5}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"><title>Drag to move this label</title></circle>`;
     }
     const selRing = isSel ? `<circle cx="${pl.x}" cy="${pl.y}" r="${ringR + fs * 0.6}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : '';
@@ -1569,7 +1619,8 @@ function renderMap() {
   }
   const fade = on => on ? ' opacity="0.4"' : '';
   const bedNames = showL ? beds().filter(b => (b.name || '').trim()).map(b => { const P = bedPoly(b), top = P.reduce((m, q) => q[1] < m[1] ? q : m, P[0]), xs = P.map(q => q[0]);
-    return `<text x="${+(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3)}" y="${+(top[1] - ls * 0.35).toFixed(3)}" font-size="${+(ls * 0.85).toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(b.name.trim().toUpperCase())}</text>`; }).join('') : '';
+    const x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3), y = +(top[1] - ls * 0.35).toFixed(3), nm = b.name.trim().toUpperCase();
+    return tag(x, y, ls * 0.85, '', {}, { fixed: true, wk: 0.7, raw: `<text x="${x}" y="${y}" font-size="${+(ls * 0.85).toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>`, len: nm.length }); }).join('') : '';
   const bedLines = beds().map(b => `<path d="${bedPath(b)}" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
   parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
@@ -1633,7 +1684,7 @@ function renderMap() {
     if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
-  svg.innerHTML = parts.join('');
+  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr);
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
 }
 
@@ -2035,7 +2086,7 @@ function renderCalendar() {
   el.innerHTML = `<div class="calhead"><div><span class="lbl">Interest calendar</span><h2>${esc(S.g.name)}</h2></div>
       <p class="note" style="margin:0;max-width:64ch">${!list.length ? 'Place plants on the plan and they’ll appear here.' : `${withI.length} of ${list.length} species have flowering times or other interest. ${peak ? `Peak in ${peakM.join(', ')} with ${peak} in flower.` : ''} ${gaps.length && gaps.length < 12 ? `Nothing of interest in ${gaps.join(', ')}.` : gaps.length ? '' : 'Something of interest every month.'}${evergreens ? ` ${plural(evergreens, 'evergreen')} hold${evergreens === 1 ? 's' : ''} structure through winter.` : ''}`}</p></div>
     ${list.length ? `<div class="calscroll"><div class="cal-grid">
-      <div></div><div class="cal-seasons"><span style="grid-column:1/3">Winter</span><span style="grid-column:3/6">Spring</span><span style="grid-column:6/9">Summer</span><span style="grid-column:9/12">Autumn</span><span style="grid-column:12/13">&nbsp;</span></div>
+      <div></div><div class="cal-seasons"><span style="grid-column:1/3">Winter</span><span style="grid-column:3/6">Spring</span><span style="grid-column:6/9">Summer</span><span style="grid-column:9/12">Autumn</span><span style="grid-column:12/13" title="Winter">Winter</span></div>
       <div></div><div class="cal-months">${MONTHS.map(m => `<span>${m}</span>`).join('')}</div>
       ${withI.map(row).join('')}${noI.map(row).join('')}
       <div class="cname csum"><b>Colour through the year</b><i>Flowers and other interest each month</i></div>

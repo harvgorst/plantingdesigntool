@@ -812,4 +812,24 @@ test('works on its own: saved in the browser, kept after a reload, files downloa
   ok(/^SevenLayers backup - everything - .*\.json$/.test(dl.suggestedFilename()), 'backup downloaded as a file, got ' + dl.suggestedFilename());
 });
 
+test('labels: a row is labelled once, crowded labels never overlap, and winter runs into December', async open => {
+  const seed = sample(); seed['gardens/g1'].underlay = null;
+  const row = Array.from({ length: 8 }, (_, i) => ({ id: 'r' + i, plantId: 'p2', x: 2 + i * 0.9, y: 7, qty: 1, row: 'R1', rowI: i }));
+  const crowd = Array.from({ length: 12 }, (_, i) => ({ id: 'k' + i, plantId: ['p0', 'p2', 'p5'][i % 3], x: 3 + (i % 4) * 0.35, y: 3.5 + Math.floor(i / 4) * 0.3, qty: 1 }));
+  seed['gardens/g1'].rows = [{ id: 'R1', a: [2, 7], b: [8.3, 7], c: [5.15, 7], gap: 0.9 }];
+  seed['gardens/g1'].plantings.push(...row, ...crowd);
+  const app = await open(seed);
+  const texts = await app.page.$$eval('#map text', ts => ts.map(t => t.textContent));
+  eq(texts.filter(t => /Ros/.test(t) && /^8 /.test(t)).length, 1, 'the row of eight roses has one label with its count');
+  const boxes = await app.page.$$eval('#map text', ts => ts.filter(t => /Lav|Ros|Mal|Sal|Ger|Tul|Bet/.test(t.textContent)).map(t => { const w = t.getComputedTextLength(), x = +t.getAttribute('x'), h = +t.getAttribute('font-size'); return { t: t.textContent, x0: x - w / 2, x1: x + w / 2, y0: +t.getAttribute('y') - h * 0.72, y1: +t.getAttribute('y') + h * 0.05, e: h * 0.02 }; }));
+  const bad = [];
+  boxes.forEach((a, i) => boxes.slice(i + 1).forEach(b => { if (a.x0 < b.x1 - a.e && b.x0 < a.x1 - a.e && a.y0 < b.y1 - a.e && b.y0 < a.y1 - a.e) bad.push(a.t + ' / ' + b.t); }));
+  if (process.env.SHOT) await app.page.locator('#map').screenshot({ path: process.env.SHOT });
+  eq(bad, [], 'no two plant labels overlap');
+  ok(await app.page.locator('#map line[stroke-width="0.8"]').count() > 0, 'labels moved well away get a leader line');
+  await app.page.click('#navCal'); await app.page.waitForTimeout(200);
+  const html = await app.page.evaluate(() => document.querySelector('.cal-seasons')?.innerHTML || '');
+  ok(/grid-column:12\/13[^>]*>Winter</.test(html), 'December sits under Winter, got ' + html);
+});
+
 run();
