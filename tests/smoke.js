@@ -205,7 +205,7 @@ test('season view colours the plan by month', async open => {
   eq((await fill('b'))[1], '0.04', 'salvia, not yet in flower, is faint');
   ok(/^April: 2 of 7 species in flower/.test(await app.page.textContent('#hint')), 'summary line, got: ' + await app.page.textContent('#hint'));
   await app.page.selectOption('#seasonSel', '0');
-  eq((await fill('a'))[1], '0.14', 'back to the usual layer colours, light so the planting shows through');
+  const back = await fill('a'); ok(['0.55', '1'].includes(back[1]) && back[0] !== 'rgb(94, 138, 78)', 'back to its own species colour and pattern, got ' + JSON.stringify(back));
 });
 
 test('sun study: sun position for a place, date and time', async open => {
@@ -375,7 +375,9 @@ test('one plan, three layers: structure placed freely, planting on the grid, bul
   ok(fills.length >= 4, 'each species its own fill, got ' + fills.length);
   const order = await app.page.evaluate(ids => { const all = [...document.querySelectorAll('#map [data-kind=planting]')].map(g => g.dataset.id); return ids.map(id => all.indexOf(id)); }, [rose.id, sid, bulbs[0].id]);
   ok(order[0] < order[1] && order[1] < order[2], 'drawn structure, then planting, then bulbs, got ' + order);
-  const cols = (await app.store('gardens/g1')).colors; ok(cols.p1 === 0 && cols.p4 === 1 && cols.p2 == null && cols.ex1 == null, 'species colours only for the planting, got ' + JSON.stringify(cols));
+  const cols = (await app.store('gardens/g1')).colors; ok(cols.p1 === 0 && cols.p4 === 1 && cols.p2 != null && cols.ex1 != null && new Set(Object.values(cols)).size === Object.keys(cols).length, 'every species its own colour, trees and shrubs too, got ' + JSON.stringify(cols));
+  const dots = await app.page.evaluate(id => document.querySelectorAll(`#map [data-kind=planting][data-id="${id}"] circle`).length, rose.id);
+  ok(dots >= 2, 'the rose keeps its centre dot');
 });
 
 test('Oudolf mode: areas that share borders, counted from plants per square metre', async open => {

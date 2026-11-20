@@ -791,7 +791,7 @@ function ensureColours() {
   const g = S.g; if (!g) return;
   const map = g.colors && typeof g.colors === 'object' ? g.colors : (g.colors = {}), used = new Set(Object.values(map));
   for (const x of [...g.plantings, ...g.areas]) {
-    if (map[x.plantId] != null || !onGrid(plantById(x.plantId))) continue;
+    if (map[x.plantId] != null || !plantById(x.plantId)) continue;
     let i = 0; while (used.has(i)) i++;
     map[x.plantId] = i; used.add(i);
   }
@@ -812,10 +812,8 @@ function patternDef(id, col, pat, t) {
 }
 /* a small key swatch for a species, in whichever colour scheme is on */
 function plantSwatch(p, size = 12, force = false) {
-  if (p?.existing && !onGrid(p)) return `<span class="sw round" style="background:none;border:1.5px dashed var(--exist)"></span>`;
-  if (!onGrid(p) && !force) return `<span class="sw round" style="background:var(--r-${p?.role || 'herbaceous'});border-color:var(--r-${p?.role || 'herbaceous'})"></span>`;
   const st = speciesStyle(p), id = 'sws-' + String(p?.id).replace(/[^\w-]/g, '') + '-' + size, r = size / 2 - 0.75;
-  return `<svg class="swv" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${st.pat === 'solid' ? '' : `<defs>${patternDef(id, st.col, st.pat, size / 3.2)}</defs>`}<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${st.pat === 'solid' ? st.col : `url(#${id})`}"${st.pat === 'solid' ? ' fill-opacity="0.7"' : ''} stroke="${st.col}" stroke-width="1.2"/></svg>`;
+  return `<svg class="swv" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${st.pat === 'solid' ? '' : `<defs>${patternDef(id, st.col, st.pat, size / 3.2)}</defs>`}<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${st.pat === 'solid' ? st.col : `url(#${id})`}"${st.pat === 'solid' ? ' fill-opacity="0.7"' : ''} stroke="${st.col}" stroke-width="1.2"${p?.existing && !onGrid(p) && !force ? ' stroke-dasharray="2.2 1.6"' : ''}/></svg>`;
 }
 /* the interlocked (staggered) planting grid */
 const gridFor = p => onGrid(p);   // trees, shrubs, climbers and existing ones of those always go exactly where they are put
@@ -1395,6 +1393,9 @@ function renderMap() {
   }
   ensureColours();
   const defs = new Map(), patT = +Math.max(0.03, Math.min(0.08, px * 7)).toFixed(4);
+  /* how a plant looks on the plan, the same for every kind: its species colour and pattern (or its season colour),
+     with a dashed edge for existing trees and shrubs */
+  const look = (p, se) => { if (se) return { fill: se.col || 'var(--muted)', op: se.op, line: 'var(--muted)', dash: false }; const f = spFill(p); return { ...f, dash: !!p?.existing && !onGrid(p) }; };
   const spFill = p => { const st = speciesStyle(p); if (st.pat === 'solid') return { fill: st.col, op: 0.55, line: st.col }; const id = 'pat-' + String(p.id).replace(/[^\w-]/g, ''); if (!defs.has(id)) defs.set(id, patternDef(id, st.col, st.pat, patT)); return { fill: `url(#${id})`, op: 1, line: st.col }; };
   /* touching plants of one species on the grid form a block that is labelled once */
   let blockLab = null;
@@ -1422,7 +1423,7 @@ function renderMap() {
     const p = plantById(a.plantId);
     if (!isVisible(p)) continue;
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
-    const ex = !!p?.existing && !onGrid(p), sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : ex ? 'var(--exist)' : onGrid(p) ? speciesStyle(p).col : `var(--r-${p?.role || 'herbaceous'})`;
+    const ex = !!p?.existing && !onGrid(p), sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : p ? speciesStyle(p).col : 'var(--muted)';
     const dots = planted && !ex ? driftDots(a) : null, potr = potR(p);
     parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? halo(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }) : ''}</g>`);
   }
@@ -1455,9 +1456,9 @@ function renderMap() {
     if (od && kind === 'field') continue;
     const ex = !!p?.existing, st = pl.status || 'retain', qty = Math.max(1, pl.qty || 1);
     const se = S.season && !pr ? seasonOf(p, S.season) : null;
-    const spf = grid && !se && kind === 'field' ? spFill(p) : null;
-    const c = se ? (se.col || 'var(--muted)') : ex && !grid ? 'var(--exist)' : spf ? spf.line : `var(--r-${p?.role || 'herbaceous'})`, sc = se ? 'var(--muted)' : c, fo = se ? se.op : ex ? 0.13 : 0.14;
-    const fillOf = () => (spf ? spf.fill : c), opOf = () => (spf ? spf.op : fo);
+    const lk = p ? look(p, se) : { fill: 'var(--muted)', op: 0.3, line: 'var(--muted)', dash: false }, spf = !se && kind !== 'bulb' && p ? lk : null;
+    const c = se ? (se.col || 'var(--muted)') : lk.line, sc = se ? 'var(--muted)' : c, fo = se ? se.op : lk.op;
+    const fillOf = () => lk.fill, opOf = () => lk.op;
     const isSel = isSelected('planting', pl.id);
     let lbl = (S.prefs.labelQty && qty > 1 ? qty + ' ' : '') + plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '');
     let body, ringR;
@@ -1486,7 +1487,7 @@ function renderMap() {
       const r = radiusOf(pl), k = r * 0.7071;
       body = `<circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${fillOf()};stroke:${sc}" fill-opacity="${opOf()}" stroke-width="${se ? 1 : 1.5}" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
       ${ex && st === 'remove' ? `<path d="M${pl.x - k} ${pl.y - k} L${pl.x + k} ${pl.y + k} M${pl.x + k} ${pl.y - k} L${pl.x - k} ${pl.y + k}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}
-      ${(S.prefs.labelMode === 'number' && showL) || spf ? '' : `<circle cx="${pl.x}" cy="${pl.y}" r="${fs * 0.18}" style="fill:${c}"/>`}`;
+      ${S.prefs.labelMode === 'number' && showL ? '' : `<circle cx="${pl.x}" cy="${pl.y}" r="${fs * 0.18}" style="fill:${c}"/>`}`;   // trees and shrubs keep their centre dot
       ringR = r;
     }
     /* the label: above or inside the plant by default, or wherever it has been dragged, with a leader line back to the plant */
@@ -1817,8 +1818,8 @@ function renderPlantEditor(el) {
     </div></div>
     <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
     ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>`}
-    ${p.existing && !onGrid(p) ? '' : `<label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>
-    <div class="field"><span>Plan colour</span><div class="row pcrow">${plantSwatch({ ...p, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
+    ${p.existing && !onGrid(p) ? '' : `<label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>`}
+    ${`<div class="field"><span>Plan colour</span><div class="row pcrow">${plantSwatch({ ...p, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
     ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
@@ -2803,7 +2804,7 @@ function bookletPages(planImg, forExport) {
     const used = LAYER_ORDER.filter(k => pal.some(r => layerOf(r.p.role) === k));
     pages.push({ html: `${head('Planting plan')}<h3>Planting plan</h3><p class="bsub">${g.width} × ${g.depth} m${b.numberPlan ? ' · numbers refer to the plant palette' : ''}</p>
       <div class="bbody"><div class="bplan">${planImg ? `<img data-plan src="${planImg}" alt="Planting plan">` : ''}</div>
-      <div class="blegend">${(() => { const gp = pal.filter(r => onGrid(r.p)), st = used.filter(k => !['herbaceous', 'ground', 'tuber'].includes(k)); return (gp.length ? `<div class="t">Planting</div>${gp.slice(0, 20).map(r => `<div>${plantSwatch(r.p, 12)}${b.numberPlan ? r.n + '&nbsp; ' : ''}<i>${esc(r.p.botanical || r.p.common)}</i></div>`).join('')}${gp.length > 20 ? `<div>and ${gp.length - 20} more</div>` : ''}` : '') + (st.length ? `<div class="t"${gp.length ? ' style="margin-top:10px"' : ''}>Structure</div>${st.map(k => `<div><span class="d" style="background:var(--r-${k})"></span>${ROLES[k]}</div>`).join('')}` : ''); })()}${exRows.length ? `<div><span class="d" style="border:1.5px dashed var(--exist);background:none"></span>Existing plants</div>` : ''}
+      <div class="blegend">${`<div class="t">Plants</div>${pal.slice(0, 22).map(r => `<div>${plantSwatch(r.p, 12)}${b.numberPlan ? r.n + '&nbsp; ' : ''}<i>${esc(r.p.botanical || r.p.common)}</i></div>`).join('')}${pal.length > 22 ? `<div>and ${pal.length - 22} more</div>` : ''}`}${exRows.length ? `<div><span class="d" style="border:1.5px dashed var(--ink);background:none"></span>Dashed: existing trees and shrubs</div>` : ''}
       <div class="t" style="margin-top:14px">Plants</div><div>${pal.reduce((t, r) => t + r.qty, 0)} new plants</div><div>${pal.length} species</div></div></div>` });
   }
   if (b.pages.palette && pal.length) chunk(pal, 12).forEach((part, i, all) => pages.push({ html: `${head('Plant palette')}<h3>Plant palette${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Numbered to match the planting plan and schedule</p>
@@ -3007,8 +3008,7 @@ async function exportSheet() {
     for (const [ri, r] of shown.entries()) {
       if (ri && ri % perCol === 0) { x0k += colW + 6; y = keyTop; }
       const x0 = x0k, tw = colW;
-      if (onGrid(r.p)) { const sw = new DOMParser().parseFromString(plantSwatch(r.p, 12).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 'image/svg+xml').documentElement; const z = size * 0.42; try { await pdf.svg(sw, { x: x0 + 1 - z / 2, y: y - size * 0.12 - z / 2, width: z, height: z }); } catch {} }
-      else { pdf.setFillColor(cs.getPropertyValue('--r-' + layerOf(r.p.role)).trim() || '#888888'); pdf.circle(x0 + 1, y - size * 0.12, size * 0.13, 'F'); }
+      { const sw = new DOMParser().parseFromString(plantSwatch(r.p, 12).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 'image/svg+xml').documentElement; const z = size * 0.42; try { await pdf.svg(sw, { x: x0 + 1 - z / 2, y: y - size * 0.12 - z / 2, width: z, height: z }); } catch {} }
       pdf.setTextColor(25); pdf.setFontSize(size); pdf.setFont('helvetica', 'bold'); pdf.text(pdfText(lay.o.numbered ? String(r.n) : code(r.p)), x0 + 3.2, y);
       pdf.setFont('helvetica', 'italic'); let name = pdfText(r.p.botanical || r.p.common || ''); const maxW = tw - lblW - 3.2 - 8; while (name.length > 4 && pdf.getTextWidth(name) > maxW) name = name.slice(0, -2); if (name !== pdfText(r.p.botanical || r.p.common || '')) name += '.';
       pdf.text(name, x0 + 3.2 + lblW, y); pdf.setFont('helvetica', 'normal'); pdf.text(String(r.qty), x0 + tw, y, { align: 'right' }); y += rh;
