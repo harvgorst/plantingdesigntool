@@ -663,6 +663,29 @@ test('aerial photo: find the garden on the map, frame it, draw over it; the key 
   ok(!(await app.store('gardens/g1')).aerial, 'removed');
 });
 
+test('beds can be named and coloured', async open => {
+  const seed = sample(); seed['gardens/g1'].underlay = null; seed['gardens/g1'].plantings = [];
+  seed['gardens/g1'].beds = [{ id: 'bA', pts: [[1, 1], [6, 1], [6, 4], [1, 4]], ox: 3.5, oy: 2.5 }];
+  const app = await open(seed);
+  await app.page.keyboard.press('b'); await app.clickPlan(3.5, 2.5);
+  await app.page.fill('#bed-name', 'Front border');
+  await app.page.$eval('#bed-col', el => { el.value = '#c98a5a'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await app.page.waitForTimeout(900);
+  const b = (await app.store('gardens/g1')).beds[0];
+  eq([b.name, b.color], ['Front border', '#c98a5a'], 'name and colour saved');
+  ok((await app.page.textContent('#map')).includes('FRONT BORDER'), 'the name is on the plan');
+  eq(await app.page.$eval('#map [data-kind=bed] path', p => p.style.fill), 'rgb(201, 138, 90)', 'the bed is coloured');
+  // undo takes the colour back, then the name, one step each
+  await app.page.evaluate(() => document.activeElement.blur()); await app.page.keyboard.press('Control+z'); await app.page.waitForTimeout(300);
+  ok(!(await app.page.$eval('#map [data-kind=bed] path', p => p.style.fill)).includes('201'), 'undo takes the colour off');
+  await app.page.keyboard.press('Control+z'); await app.page.waitForTimeout(300);
+  ok(!(await app.page.textContent('#map')).includes('FRONT BORDER'), 'and then the name');
+  await app.page.keyboard.press('Control+y'); await app.page.keyboard.press('Control+y'); await app.page.waitForTimeout(900);
+  await app.clickPlan(3.5, 2.5); await app.page.click('[data-act=bedNoCol]'); await app.page.waitForTimeout(900);
+  const b2 = (await app.store('gardens/g1')).beds[0];
+  eq([b2.name, b2.color], ['Front border', undefined], 'No colour clears it, the name stays');
+});
+
 test('large plans: thousands of plants save and redraw', async open => {
   const seed = sample(), g = seed['gardens/g1'];
   for (let i = 0; i < 4000; i++) g.plantings.push({ id: 'mw6prrcs' + String(i).padStart(6, '0'), plantId: 'p' + (i % 5), x: (i % 60) * 0.15, y: Math.round(Math.floor(i / 60) * 0.1 * 100) / 100, qty: 1 });

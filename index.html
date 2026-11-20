@@ -828,6 +828,7 @@ const beds = () => S.g?.beds || [];
 const BEDPOLY = new Map();
 function bedPoly(b) { const k = JSON.stringify(b.pts); let v = BEDPOLY.get(b.id); if (!v || v.k !== k) { v = { k, P: sampled({ pts: b.pts, smooth: true }) }; BEDPOLY.set(b.id, v); } return v.P; }
 const bedPath = b => pathD(b.pts, true);
+const bedFill = b => /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : 'var(--ground)';   // a bed's own colour, or the plain ground
 function bedAt(x, y) { for (const b of beds()) if (pointInPoly(x, y, bedPoly(b))) return b; return null; }
 const NOFRAME = { id: '', ox: 0, oy: 0 };
 /* each bed keeps its grid's anchor (set where the bed was first drawn, at its centre), so reshaping the bed never shifts the planting grid;
@@ -1389,7 +1390,7 @@ function renderMap() {
     for (const b of beds()) {
       const d = bedPath(b), sel = edit && S.bedSel === b.id;
       parts.push(`<clipPath id="bedclip-${b.id}"><path d="${d}"/></clipPath>`);
-      parts.push(`<g data-kind="bed" data-id="${b.id}"${edit ? ' style="cursor:move"' : ' pointer-events="none"'}><path d="${d}" style="fill:var(--ground);stroke:${sel ? 'var(--accent)' : 'var(--ink)'}" fill-opacity="0.55" stroke-width="${sel ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
+      parts.push(`<g data-kind="bed" data-id="${b.id}"${edit ? ' style="cursor:move"' : ' pointer-events="none"'}><path d="${d}" style="fill:${bedFill(b)};stroke:${sel ? 'var(--accent)' : 'var(--ink)'}" fill-opacity="${b.color ? 0.4 : 0.55}" stroke-width="${sel ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></g>`);
     }
   }
   ensureColours();
@@ -1520,8 +1521,10 @@ function renderMap() {
     }
   }
   const fade = on => on ? ' opacity="0.4"' : '';
+  const bedNames = showL ? beds().filter(b => (b.name || '').trim()).map(b => { const P = bedPoly(b), top = P.reduce((m, q) => q[1] < m[1] ? q : m, P[0]), xs = P.map(q => q[0]);
+    return `<text x="${+(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3)}" y="${+(top[1] - ls * 0.35).toFixed(3)}" font-size="${+(ls * 0.85).toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(b.name.trim().toUpperCase())}</text>`; }).join('') : '';
   const bedLines = beds().map(b => `<path d="${bedPath(b)}" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
-  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${bedLines}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
+  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
   // handles for the selected curve
   const sa = S.sel?.kind === 'area' ? findSel() : null;
@@ -1659,7 +1662,10 @@ function renderInspector() {
       hint.hidden = true; el.hidden = false;
       el.innerHTML = n ? `<span class="pk">New bed</span><span class="pv">${plural(n, 'corner')}. Click the first corner again, or press Enter, to close the bed. Esc starts again.</span>
         <span class="acts"><button class="btn sm primary" type="button" data-act="bedDone"${n < 3 ? ' disabled' : ''}>Close bed</button></span>`
-        : `<span class="pk">Bed</span><span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-click a point to remove it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
+        : `<span class="pk">${esc((sb.name || '').trim() || 'Bed')}</span>
+          <label class="pf"><span>Name</span><input id="bed-name" type="text" maxlength="60" value="${esc(sb.name || '')}" placeholder="e.g. Front border" style="width:11em"></label>
+          <label class="pf"><span>Colour</span><input id="bed-col" type="color" value="${/^#[0-9a-f]{6}$/i.test(sb.color || '') ? sb.color : '#E9E1D2'}" aria-label="Bed colour" style="width:34px;height:24px;padding:1px"></label>${sb.color ? '<button class="btn sm" type="button" data-act="bedNoCol">No colour</button>' : ''}
+          <span class="pv">${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-click a point to remove it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
         <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove bed</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
       return;
     }
@@ -3167,6 +3173,12 @@ const app = document.body;
 let fieldCheckpointed = false;
 app.addEventListener('focusin', () => { fieldCheckpointed = false; });
 app.addEventListener('input', e => {
+  if (e.target.id === 'bed-name' || e.target.id === 'bed-col') {   // typed or picked: the plan follows at once; one undo step per field
+    const b = beds().find(x => x.id === S.bedSel); if (!b) return;
+    if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
+    if (e.target.id === 'bed-name') b.name = e.target.value.slice(0, 60); else b.color = e.target.value;
+    saveGarden(); renderMapSoon(); return;
+  }
   const t = e.target;
   if (t.id === 'pg-space') { setPref('pgridSpace', clamp(num(t.value, 0.3), 0.05, 2)); renderMapSoon(); return; }
   if (t.id === 'blk-h') { if (S.blk) S.blk.h = clamp(num(t.value, 1.8), 0.1, 100); return; }
@@ -3254,6 +3266,7 @@ app.addEventListener('click', async e => {
   if (act === 'blkDone') finishBlock(false);
   if (act === 'bedDone') finishBed();
   if (act === 'bedDel') removeBed();
+  if (act === 'bedNoCol') { const b = beds().find(x => x.id === S.bedSel); if (b) { checkpoint(); delete b.color; saveGarden(); renderInspector(); renderMap(); } }
   if (act === 'bedOff') setTool('select');
   if (act === 'blkCancel') setTool('select');
   if (act === 'resetLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lx; delete it.ly; saveGarden(); renderInspector(); renderMap(); } }
@@ -4164,7 +4177,7 @@ function cleanGarden(d) {
   if (d.colors && typeof d.colors === 'object') { const c = {}; for (const [k, v] of Object.entries(d.colors)) if (safeId(k) && Number.isInteger(v) && v >= 0 && v < 1000) c[k] = v; g.colors = c; }
   if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered, orient: ['landscape', 'portrait'].includes(d.sheet.orient) ? d.sheet.orient : 'auto' };
   if (d.example) g.example = true;
-  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
+  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {}, b?.name ? { name: str(b.name, 60) } : {}, hexOrNull(b?.color) ? { color: b.color } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
   if (d.aerial && Number.isFinite(+d.aerial.lat) && Number.isFinite(+d.aerial.lon) && Math.abs(d.aerial.lat) < 85 && Math.abs(d.aerial.lon) <= 180) g.aerial = { lat: +d.aerial.lat, lon: +d.aerial.lon, opacity: clamp(numOrNull(d.aerial.opacity) ?? 0.9, 0.1, 1) };
   return g;
 }
