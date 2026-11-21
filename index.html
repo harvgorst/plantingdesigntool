@@ -16,7 +16,7 @@
   --bed: #E6D6BE; --lawn: #DEE5CA; --pathc: #E6E0D4; --struct: #D6CFC2; --water: #CADDE1; --tree: #C0CCAC;
   --sun: #D9A93F; --shade: #7D8FA6; --wet: #5F93AA;
   --warn: #A06C1E; --crit: #A8402F;
-  --r-canopy: #2F5A3C; --r-understory: #4B807B; --r-shrub: #7E9A55; --r-herbaceous: #9C5378; --r-ground: #A39543; --r-tuber: #B97B42; --r-climber: #5D6FA3; --bar-edge: rgba(47, 43, 37, 0.2); --label: #000000; --exist: #7B7266;
+  --r-canopy: #2F5A3C; --r-understory: #4B807B; --r-shrub: #7E9A55; --r-herbaceous: #9C5378; --r-ground: #A39543; --r-tuber: #B97B42; --r-climber: #5D6FA3; --bar-edge: rgba(47, 43, 37, 0.2); --bar-pale: rgba(47, 43, 37, 0.5); --label: #000000; --exist: #7B7266;
   --f-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
   --f-body: "Source Serif 4", "Iowan Old Style", Georgia, serif;
   --f-mono: "Source Serif 4", Georgia, serif;
@@ -413,6 +413,8 @@ html[data-skin=xp] .pcrow input[type=color] { border-radius: 0; }
 .irow input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 .ctrack { align-content: center; padding: 5px 0; }
 .cbar.sm { height: 7px; border-radius: 4px; margin-top: 3px; }
+.cbar.pale { box-shadow: inset 0 0 0 1.5px var(--bar-pale); }
+.bcal .bar.pale { border: 1.5px solid #8A9188; }
 .cbar.ev { height: 3px; border-radius: 2px; margin-top: 3px; box-shadow: none; }
 .calkey { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12.5px; color: var(--muted); }
 .calkey i { display: inline-block; vertical-align: 1px; margin-right: 6px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--bar-edge); }
@@ -10742,7 +10744,7 @@ function edgeLayout(LBL, halo, e) {
     lines.push(`M${f(ax)} ${f(ay)}m${f(-fs * 0.1)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(fs * 0.2)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(-fs * 0.2)} 0`);
   }
   const sans = PT.sans, dots = lines.filter(d => d.includes('a')).join('');
-  return { out, extra, inner, moved: obst, lines: lines.length ? `<g class="leaders" opacity="${sans ? 0.8 : 0.65}" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="${sans ? 0.7 : 0.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${sans ? `<path d="${dots}" fill="none" style="stroke:var(--panel)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}<path d="${dots}" style="fill:var(--label)"/></g>` : '' };
+  return { out, extra, inner, moved: obst, wires: lines.filter(d => !d.includes('a')), lines: lines.length ? `<g class="leaders" opacity="${sans ? 0.8 : 0.65}" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="${sans ? 0.7 : 0.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${sans ? `<path d="${dots}" fill="none" style="stroke:var(--panel)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}<path d="${dots}" style="fill:var(--label)"/></g>` : '' };
 }
 /* a leader line like a metro map: straight, then at 45°, then straight, from (sx, sy) to (ax, ay); across first or down first */
 function metroPath(sx, sy, ax, ay, hFirst, f) {
@@ -10757,7 +10759,7 @@ function metroPath(sx, sy, ax, ay, hFirst, f) {
 const plainText = t => String(t ?? '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&\w+;/g, 'x');
 /* the spots tried round a label that clashes: nine rings, 8 more spots on each ring out (sin, cos, ring) */
 const RINGS = []; for (let r = 1; r <= 9; r++) for (let a = 0; a < 8 * r; a++) { const t = a / (8 * r) * Math.PI * 2; RINGS.push([Math.sin(t), Math.cos(t), r]); }
-function placeOnPlan(LBL, halo, ls) {
+function placeOnPlan(LBL, halo, ls, wires = []) {
   const out = new Array(LBL.length);
   if (!LBL.length) return out;
   const PT = planType(), wk = planWk();
@@ -10770,18 +10772,37 @@ function placeOnPlan(LBL, halo, ls) {
   const cells = (b, f) => { const j0 = Math.floor(b.y0 / cell), j1 = Math.floor(b.y1 / cell); for (let i = Math.floor(b.x0 / cell), i1 = Math.floor(b.x1 / cell); i <= i1; i++) for (let j = j0; j <= j1; j++) f(i * 1048576 + j); };   // numeric cell keys: no string per lookup
   const clash = b => { let hit = false; cells(b, k => { if (!hit) for (const o of H.get(k) || []) if (b.x0 < o.x1 + gap && o.x0 < b.x1 + gap && b.y0 < o.y1 + gap && o.y0 < b.y1 + gap) { hit = true; break; } }); return hit; };
   const overlap = b => { let a = 0; const seen = new Set(); cells(b, k => { for (const o of H.get(k) || []) if (!seen.has(o)) { seen.add(o); a += Math.max(0, Math.min(b.x1, o.x1 + gap) - Math.max(b.x0, o.x0 - gap)) * Math.max(0, Math.min(b.y1, o.y1 + gap) - Math.max(b.y0, o.y0 - gap)); } }); return a; };
-  const keep = b => cells(b, k => { if (!H.has(k)) H.set(k, []); H.get(k).push(b); });
+  const keep = (b, G = H) => cells(b, k => { if (!G.has(k)) G.set(k, []); G.get(k).push(b); });
+  /* leader lines: only bed and area names keep off them (a name with a line through it reads badly); cut into short pieces
+     so a diagonal run blocks only the strip it crosses */
+  const WH = new Map(), wireHit = b => { let hit = false; cells(b, k => { if (!hit) for (const o of WH.get(k) || []) if (b.x0 < o.x1 && o.x0 < b.x1 && b.y0 < o.y1 && o.y0 < b.y1) { hit = true; break; } }); return hit; };
+  for (const d of wires) {
+    const P = (d.match(/-?[\d.]+/g) || []).map(Number);
+    for (let i = 2; i + 1 < P.length; i += 2) {
+      const [x0, y0, x1, y1] = [P[i - 2], P[i - 1], P[i], P[i + 1]], n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / Math.max(ls, 1e-6)));
+      for (let j = 0; j < n; j++) { const a = j / n, c = (j + 1) / n; keep({ x0: Math.min(x0 + (x1 - x0) * a, x0 + (x1 - x0) * c), x1: Math.max(x0 + (x1 - x0) * a, x0 + (x1 - x0) * c), y0: Math.min(y0 + (y1 - y0) * a, y0 + (y1 - y0) * c), y1: Math.max(y0 + (y1 - y0) * a, y0 + (y1 - y0) * c) }, WH); }
+    }
+  }
   const boxAt = (l, x, y, d) => ({ x0: x - d.w / 2, x1: x + d.w / 2, y0: y - l.size * 0.9, y1: y - l.size * 0.9 + d.h });
   const order = LBL.map((l, i) => i).sort((a, b) => (LBL[b].fixed - LBL[a].fixed) || (LBL[b].pri - LBL[a].pri) || (LBL[a].y - LBL[b].y) || (LBL[a].x - LBL[b].x));
   for (const i of order) {
     const l = LBL[i], d = size(l);
     let x = l.x, y = l.y, b = boxAt(l, x, y, d);
-    if (!l.fixed && clash(b)) {
+    /* a bed name crossed by a leader line slides a little along its line to a clear gap; with no gap close by it stays put */
+    if (l.raw && !l.fixed && WH.size && wireHit(b)) {
+      const step = d.h * 0.4, lim = d.w * 0.6;
+      for (let k = 1; k * step <= lim; k++) {
+        const c = [k, -k].map(s => boxAt(l, l.x + s * step, l.y, d)).find(c => !clash(c) && !wireHit(c));
+        if (c) { x = (c.x0 + c.x1) / 2; b = c; break; }
+      }
+    }
+    const blocked = clash;
+    if (!l.fixed && x === l.x && blocked(b)) {
       const tries = [], sx = d.w * 0.55 + d.h * 0.3, sy = d.h;
       for (const [s, c, r] of RINGS) tries.push([s * r * sx, -c * r * sy, (s * r * sx / d.w) ** 2 + (c * r * sy / d.h) ** 2]);
       tries.sort((p, q) => p[2] - q[2]);   // nearest first, measured in label widths and heights
       let found = false;
-      for (const [dx, dy] of tries) { const c = boxAt(l, l.x + dx, l.y + dy, d); if (!clash(c)) { x = l.x + dx; y = l.y + dy; b = c; found = true; break; } }
+      for (const [dx, dy] of tries) { const c = boxAt(l, l.x + dx, l.y + dy, d); if (!blocked(c)) { x = l.x + dx; y = l.y + dy; b = c; found = true; break; } }
       if (!found) {   // nowhere clear nearby: the spot (in the nearer half of the search) where it covers the least of the others
         let least = overlap(b);
         for (const [dx, dy] of tries.slice(0, tries.length / 2)) { const c = boxAt(l, l.x + dx, l.y + dy, d), o = overlap(c); if (o < least - 1e-9) { least = o; x = l.x + dx; y = l.y + dy; b = c; } }
@@ -10813,13 +10834,20 @@ function spreadLabels(html, LBL, halo, ls, pr, edge) {
     /* and the species labelled on the plan, in full, placed first so their codes keep clear of them */
     const full = r.inner.map(({ l, txt }) => { const size = l.o.bold ? edge.NUM : edge.NAME; return { ...l, o: { ...l.o, key: l.pid != null ? 's' + l.pid : undefined, plid: l.plid, ax: l.ax, ay: l.ay }, txt, len: undefined, size, x: l.ax, y: l.ay + size * 0.34, pri: (l.pri || 0) + 1 }; });
     const areas = LBL.map((l, i) => ({ l, i })).filter(x => x.l.raw), idx = [...areas, ...r.inner, ...codes, ...held.map(() => ({ i: -1 }))].map(x => x.i);
-    placeOnPlan([...areas.map(x => x.l), ...full, ...small, ...held], halo, ls).forEach((m, j) => { if (idx[j] >= 0) r.out[idx[j]] = m; });
+    placeOnPlan([...areas.map(x => x.l), ...full, ...small, ...held], halo, ls, r.wires).forEach((m, j) => { if (idx[j] >= 0) r.out[idx[j]] = m; });
     return html.replace('\u0002', r.lines).replace(/\u0001(\d+)\u0001/g, (_, n) => r.out[n] ?? '');
   }
   html = html.replace('\u0002', '');
   if (!LBL.length) return html;
   const out = placeOnPlan(LBL, halo, ls);
   return html.replace(/\u0001(\d+)\u0001/g, (_, n) => out[n] ?? '');
+}
+/* the north arrow sits just after the scale bar under the plan, where the bottom row of labels already keeps clear and no
+   canopy or leader line reaches; sized to the margin so the N, wherever it turns, stays clear of the plan's edge */
+function northAt(W, D, pad, fs) {
+  const M = Math.max(W, D), sb = M > 20 ? 5 : 2, u = Math.max(fs * 0.4, Math.min(fs * 0.85, (pad * 0.9 - fs * 0.2) / 4.5));
+  const nx = sb + fs * 2.4 + u * 2.3, ny = D + fs * 0.2 + u * 2.25;
+  return { nx, ny, u, end: nx + u * 2.4 };
 }
 function renderMapSoon() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMap(); }); }
 function renderMap() {
@@ -11096,14 +11124,15 @@ function renderMap() {
   const sb = M > 20 ? 5 : 2, sy = D + pad * 0.55;
   if (showScale) parts.push(`<g pointer-events="none"><rect x="0" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--ink)"/><rect x="${sb / 2}" y="${sy - fs * 0.25}" width="${sb / 2}" height="${fs * 0.5}" style="fill:var(--panel);stroke:var(--ink)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${sb + fs * 0.5}" y="${sy + fs * 0.35}" font-size="${fs * 0.9}" style="fill:var(--muted)">${sb} m</text></g>`);
   if (showScale) {
-    const nx = W + pad * 0.38, ny = D - fs * 2.4, deg = num(g.north, 0), rad = deg * Math.PI / 180, isN = S.drag?.north;
-    const lx = nx + Math.sin(rad) * fs * 1.9, ly = ny - Math.cos(rad) * fs * 1.9;
+    const { nx, ny, u } = northAt(W, D, pad, fs), deg = num(g.north, 0), rad = deg * Math.PI / 180, isN = S.drag?.north;
+    const lx = nx + Math.sin(rad) * u * 1.9, ly = ny - Math.cos(rad) * u * 1.9;
     parts.push(`<g data-kind="north" style="cursor:${isN ? 'grabbing' : 'grab'}"><title>Drag to turn north to match your site plan (Shift snaps to 15°)</title>
-      <circle cx="${nx}" cy="${ny}" r="${fs * 2.6}" fill="transparent"/>
-      ${isN ? `<circle cx="${nx}" cy="${ny}" r="${fs * 1.7}" fill="none" style="stroke:var(--accent)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}
-      <g transform="translate(${nx} ${ny}) rotate(${deg})"><path d="M0 ${-fs * 1.4} L${fs * 0.55} ${fs * 0.7} L0 ${fs * 0.3} L${-fs * 0.55} ${fs * 0.7} Z" style="fill:var(--ink)"/></g>
-      <text x="${lx}" y="${ly + fs * 0.32}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--ink)">N</text>
-      ${isN ? `<text x="${nx}" y="${ny + fs * 2.4}" font-size="${fs * 0.7}" text-anchor="middle" style="fill:var(--muted)">${Math.round(deg)}°</text>` : ''}</g>`);
+      <circle cx="${nx}" cy="${ny}" r="${u * 2.6}" fill="transparent"/>
+      <circle cx="${nx}" cy="${ny}" r="${u * 2.3}" style="fill:var(--panel)" fill-opacity="0.92"/>
+      ${isN ? `<circle cx="${nx}" cy="${ny}" r="${u * 1.7}" fill="none" style="stroke:var(--accent)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>` : ''}
+      <g transform="translate(${nx} ${ny}) rotate(${deg})"><path d="M0 ${-u * 1.4} L${u * 0.55} ${u * 0.7} L0 ${u * 0.3} L${-u * 0.55} ${u * 0.7} Z" style="fill:var(--ink)"/></g>
+      <text x="${lx}" y="${ly + u * 0.32}" font-size="${u * 0.9}" text-anchor="middle" style="fill:var(--ink)">N</text>
+      ${isN ? `<text x="${nx + u * 2.5}" y="${ny + u * 0.3}" font-size="${u * 0.8}" text-anchor="start" style="fill:var(--muted)">${Math.round(deg)}°</text>` : ''}</g>`);
   }
   if (defs.size) parts.unshift(`<defs>${[...defs.values()].join('')}</defs>`);
   /* the bed being drawn, and the corners of the selected bed */
@@ -11118,7 +11147,7 @@ function renderMap() {
     if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, sb.straight ? 0 : BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
-  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, ex, fs: lfs, NAME, NUM, sbEnd: showScale ? (M > 20 ? 5 : 2) + fs * 3 : 0 } : null);
+  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, ex, fs: lfs, NAME, NUM, sbEnd: showScale ? northAt(W, D, pad, fs).end : 0 } : null);
   /* on screen each plant label gets a clear box over it to grab (the browser picks tiny scaled text badly), and the one
      you clicked is outlined, so Delete clearly hides that label and nothing else */
   if (!pr) {
@@ -11562,6 +11591,8 @@ function monthSpan(from, to) { const f = +from, t = +(to || from); if (!(f >= 1 
 const cropMonths = p => p?.crop ? flowerMonths(p) : [];
 const showMonths = p => flowerMonths(p);
 const showCol = p => p?.flowerColor, showColName = p => p?.flowerColorName;
+/* white and pale flower colours vanish against the paper: they get a firmer edge on the calendar */
+const isPale = c => { const m = /^#?([0-9a-f]{6})$/i.exec(String(c || '').trim()); if (!m) return false; const n = parseInt(m[1], 16), ch = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * ch(n >> 16) + 0.7152 * ch(n >> 8 & 255) + 0.0722 * ch(n & 255) > 0.6; };
 const seasonWord = p => p?.crop ? 'harvest' : 'flowers';
 function foldCrop(p) {   // a crop from before flowers and crops shared one season: its harvest becomes the season
   if (p?.crop && p.cropFrom) { p.flowerFrom = p.cropFrom; p.flowerTo = p.cropTo || p.cropFrom; if (p.cropColor) { p.flowerColor = p.cropColor; p.flowerColorName = p.cropColorName || ''; } }
@@ -11597,8 +11628,8 @@ function renderCalendar() {
   const unsetCol = withI.filter(r => showMonths(r.p).length && !showCol(r.p)).length;
   const row = r => {
     const ms = showMonths(r.p), col = showCol(r.p), its = interestItems(r.p), o = 0;
-    let bars = runs(ms).map(([a, b]) => `<div class="cbar${col ? '' : ' unset'}" style="grid-row:1;grid-column:${a} / ${b + 1};${col ? `background:${esc(col)}` : ''}" title="${esc(r.p.common)} ${r.p.crop ? 'harvest' : 'in flower'}: ${spanText(ms)}${col ? ', ' + esc(showColName(r.p) || 'custom colour') : ''}"></div>`).join('');
-    its.forEach((x, i) => { const span = monthSpan(x.from, x.to); bars += runs(span).map(([a, b]) => `<div class="cbar sm" style="grid-row:${i + 2 + o};grid-column:${a} / ${b + 1};background:${esc(x.color)}" title="${esc(r.p.common)}: ${esc(INTEREST[x.kind][0].toLowerCase())}, ${spanText(span)}"></div>`).join(''); });
+    let bars = runs(ms).map(([a, b]) => `<div class="cbar${col ? (isPale(col) ? ' pale' : '') : ' unset'}" style="grid-row:1;grid-column:${a} / ${b + 1};${col ? `background:${esc(col)}` : ''}" title="${esc(r.p.common)} ${r.p.crop ? 'harvest' : 'in flower'}: ${spanText(ms)}${col ? ', ' + esc(showColName(r.p) || 'custom colour') : ''}"></div>`).join('');
+    its.forEach((x, i) => { const span = monthSpan(x.from, x.to); bars += runs(span).map(([a, b]) => `<div class="cbar sm${isPale(x.color) ? ' pale' : ''}" style="grid-row:${i + 2 + o};grid-column:${a} / ${b + 1};background:${esc(x.color)}" title="${esc(r.p.common)}: ${esc(INTEREST[x.kind][0].toLowerCase())}, ${spanText(span)}"></div>`).join(''); });
     if (false) bars += `<div class="cbar ev" style="grid-row:${its.length + 2 + o};grid-column:1 / 13;background:${EVERGREEN}" title="${esc(r.p.common)}: evergreen"></div>`;
     return `<div class="cname"><b>${esc(r.p.common)}</b> <span class="q">× ${r.qty}</span>${r.ex ? '<span class="ex exist">Existing</span>' : ''}${r.p.crop ? '<span class="ex crop">Crop</span>' : ''}<i>${esc(r.p.botanical)}</i></div><div class="ctrack">${bars || '<span class="cnone">No flowering or harvest months set</span>'}</div>`;
   };
@@ -12161,8 +12192,8 @@ svg.addEventListener('pointermove', e => {
   }
   const p = toM(e);
   if (d.north) {
-    const W = S.g.width, D = S.g.depth, M = Math.max(W, D), fs = M / 55 / S.zoom, pad = M * 0.07;
-    let deg = Math.atan2(p.x - (W + pad * 0.38), -(p.y - (D - fs * 2.4))) * 180 / Math.PI;
+    const W = S.g.width, D = S.g.depth, M = Math.max(W, D), { nx, ny } = northAt(W, D, M * 0.07, M / 55 / S.zoom);
+    let deg = Math.atan2(p.x - nx, -(p.y - ny)) * 180 / Math.PI;
     deg = ((Math.round(deg / (e.shiftKey ? 15 : 1)) * (e.shiftKey ? 15 : 1)) % 360 + 360) % 360;
     if (!d.moved) { pushHistory(d.before); d.moved = true; }
     S.g.north = deg; renderMapSoon(); renderGardenFields(); return;
@@ -12584,7 +12615,7 @@ function bookletPages(planImg, forExport) {
     const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && flowerMonths(p).length).sort((a, c) => firstM(a) - firstM(c));
     if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Through the year${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">When each plant flowers, or for crops when they are harvested, in their colour.</p>
       <div class="bcal"><div></div>${MONTHS.map(m => `<div class="mh">${m}</div>`).join('')}
-      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span class="lnum">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i>${p.crop ? ' <span class="crop">crop</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
+      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span class="lnum">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i>${p.crop ? ' <span class="crop">crop</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar${isPale(showCol(p)) ? ' pale' : ''}" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
   }
   if (b.pages.pricing) {
     const supply = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
