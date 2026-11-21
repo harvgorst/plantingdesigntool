@@ -9576,7 +9576,7 @@ function textW(txt, weight = 400, fam = planFamily()) {
   return w;
 }
 /* how wide the plan face is next to Georgia, for the few places that still count characters (tuned for Georgia) */
-function planWk() { const t = 'Lavandula ang 12 Ger roz', fam = planFamily(); return fam === GEORGIA ? 1 : textW(t, 400, fam) / textW(t, 400, GEORGIA); }
+function planWk() { const t = 'Lavandula ang 12 Ger roz', fam = planFamily(); return fam === GEORGIA ? 1 : textW(t, planType().name, fam) / textW(t, 400, GEORGIA); }   // at the weight labels are set in
 if (document.fonts) document.fonts.addEventListener('loadingdone', () => { MW.clear(); if (typeof renderMapSoon === 'function' && S.g) renderMapSoon(); });
 /* the plan face's files, for prints: registered with the page (so widths measure right) and kept for the PDF */
 let PLEX_DATA = null;
@@ -10429,7 +10429,7 @@ function edgeLayout(LBL, halo, e) {
     if (endD(lead) <= REACH) { Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, lead, deep: endD(lead) }); rows[lead.ay < D / 2 ? 'T' : 'B'].push(gp); continue; }
     onPlan(gp);
   }
-  const pitch0 = NAME * 1.3, top = -pad * 0.6, bot = D + pad * 0.6, cap = Math.max(1, Math.floor((bot - top) / pitch0));
+  const pitch0 = NAME * 1.42, top = -pad * 0.6, bot = D + pad * 0.6, cap = Math.max(1, Math.floor((bot - top) / pitch0));
   const side = c => all.filter(gp => gp.side === c);
   /* keep the two columns about even: if one side is full, the labels nearest the middle cross over */
   for (const [a, b] of [['L', 'R'], ['R', 'L']]) {
@@ -10518,14 +10518,14 @@ function placeOnPlan(LBL, halo, ls) {
   if (!LBL.length) return out;
   const PT = planType(), wk = planWk();
   const size = l => {
-    if (l.len == null && !l.wk && l.txt) return { w: Math.max(textW(plainText(l.txt), l.o.bold ? PT.bold : PT.name), 0.3) * l.size, h: l.size * 1.1 };
-    const n = l.len ?? plainText(l.txt).length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52) * wk, h: l.size * 1.1 };
+    if (l.len == null && !l.wk && l.txt) return { w: Math.max(textW(plainText(l.txt), l.o.bold ? PT.bold : PT.name), 0.3) * l.size * 1.04, h: l.size * 1.2 };
+    const n = l.len ?? plainText(l.txt).length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52) * wk, h: l.size * 1.2 };
   };
-  const cell = Math.max(ls, 1e-6) * 2.5, H = new Map(), gap = ls * 0.06;
+  const cell = Math.max(ls, 1e-6) * 2.5, H = new Map(), gap = ls * 0.16;
   const cells = (b, f) => { for (let i = Math.floor(b.x0 / cell); i <= Math.floor(b.x1 / cell); i++) for (let j = Math.floor(b.y0 / cell); j <= Math.floor(b.y1 / cell); j++) f(i + ',' + j); };
   const clash = b => { let hit = false; cells(b, k => { if (!hit) for (const o of H.get(k) || []) if (b.x0 < o.x1 + gap && o.x0 < b.x1 + gap && b.y0 < o.y1 + gap && o.y0 < b.y1 + gap) { hit = true; break; } }); return hit; };
   const keep = b => cells(b, k => { if (!H.has(k)) H.set(k, []); H.get(k).push(b); });
-  const boxAt = (l, x, y, d) => ({ x0: x - d.w / 2, x1: x + d.w / 2, y0: y - l.size * 0.82, y1: y - l.size * 0.82 + d.h });
+  const boxAt = (l, x, y, d) => ({ x0: x - d.w / 2, x1: x + d.w / 2, y0: y - l.size * 0.9, y1: y - l.size * 0.9 + d.h });
   const order = LBL.map((l, i) => i).sort((a, b) => (LBL[b].fixed - LBL[a].fixed) || (LBL[b].pri - LBL[a].pri) || (LBL[a].y - LBL[b].y) || (LBL[a].x - LBL[b].x));
   for (const i of order) {
     const l = LBL[i], d = size(l);
