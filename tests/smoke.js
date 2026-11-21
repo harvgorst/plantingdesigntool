@@ -928,7 +928,7 @@ test('busy plan: one edge label and one line per species, its code small on its 
   eq(app.errors, [], 'no page errors');
 });
 
-test('large plan: lines come from the nearest side, top or bottom; a species deep inside is labelled on the plan', async open => {
+test('large plan: lines come from the nearest side, top or bottom; a species deep inside still goes to a side column', async open => {
   const seed = sample(); const g = seed['gardens/g1']; Object.assign(g, { underlay: null, width: 40, depth: 25 });
   g.plantings = [['p2', 20, 2, 3], ['p3', 22, 23, 20], ['p0', 20, 12, 6], ['p0', 14, 9, 2], ['p4', 3, 10, 5], ['p1', 12, 1.5, 4], ['p5', 30, 3, 1]].map(([plantId, x, y, qty], i) => ({ id: 'z' + i, plantId, x, y, qty }));
   const app = await open(seed); await app.page.waitForTimeout(300);
@@ -937,7 +937,7 @@ test('large plan: lines come from the nearest side, top or bottom; a species dee
   const ros = one(/Ros oli/), tul = one(/Tul bal/), lav = one(/Lav ang/), ger = one(/Ger roz/);
   ok(ros.t === '3 Ros oli' && ros.y < 0 && Math.abs(ros.x - 20) < 2, 'near the top: in the row along the top, above its plants, got ' + JSON.stringify(ros));
   ok(tul.y > 25 && tul.x > 0 && tul.x < 40, 'near the bottom: in the row along the bottom, got ' + JSON.stringify(tul));
-  ok(lav.t === '8 Lav ang' && Math.hypot(lav.x - 20, lav.y - 12) < 2, 'deep inside: on the plan at its big patch, with its total, got ' + JSON.stringify(lav));
+  ok(lav.t === '8 Lav ang' && (lav.x < 0 || lav.x > 40), 'deep inside: still at the edge (never beside its plants), with its total, got ' + JSON.stringify(lav));
   ok(ger.x < 0, 'near a side: in the side column, got ' + JSON.stringify(ger));
   const top = labs.filter(l => l.y < 0);
   ok(top.every((a, i) => top.every((c, j) => i >= j || a.b.x + a.b.w <= c.b.x || c.b.x + c.b.w <= a.b.x)), 'the top row labels do not overlap');
@@ -963,15 +963,16 @@ test('plan lettering: Drafting table (the default) letters the plan in Plex Sans
   eq(app.errors, [], 'no page errors');
 });
 
-test('large plan: a full row along the top spills onto the plan, nothing overlapping', async open => {
+test('large plan: a full row along the top sends the rest to the side columns, never onto the plan, nothing overlapping', async open => {
   const seed = sample(); const g = seed['gardens/g1']; Object.assign(g, { underlay: null, width: 14, depth: 25 });
   for (let i = 0; i < 12; i++) seed['plants/t' + i] = { common: 'Test ' + i, botanical: 'Testus longnamius' + i, role: 'herbaceous', spread: 0.4, potSpread: 0.15, height: 0.5, cost: 1 };
   g.palette = [...g.palette, ...Array.from({ length: 12 }, (_, i) => 't' + i)];
   g.plantings = Array.from({ length: 12 }, (_, i) => ({ id: 'w' + i, plantId: 't' + i, x: 6.2 + i * 0.15, y: 1 + (i % 3) * 0.6, qty: 3 }));
   const app = await open(seed); await app.page.waitForTimeout(300);
   const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => ({ t: t.textContent, y: +t.getAttribute('y'), x: t.getStartPositionOfChar(0).x, w: t.getComputedTextLength() })));
-  const top = labs.filter(l => l.y < 0), inPlan = labs.filter(l => l.y > 0 && l.y < 25 && l.x > 0 && l.x + l.w < 14);
-  ok(top.length >= 2 && inPlan.length >= 1 && top.length + inPlan.length === 12, `some in the top row, the rest on the plan, got ${top.length} and ${inPlan.length} of ${labs.length}`);
+  const top = labs.filter(l => l.y < 0), side = labs.filter(l => l.y >= 0 && (l.x + l.w <= 1e-3 || l.x >= 14 - 1e-3)), inPlan = labs.filter(l => l.y > 0 && l.y < 25 && l.x > 0 && l.x + l.w < 14);
+  ok(top.length >= 2 && side.length >= 1 && inPlan.length === 0 && top.length + side.length === 12, `some in the top row, the rest in the side columns, got ${top.length}, ${side.length} and ${inPlan.length} on the plan of ${labs.length}`);
+  ok(side.every((a, i) => side.every((c, j) => i >= j || Math.abs(a.x - c.x) > 0.5 || Math.abs(a.y - c.y) > 0.2)), 'the side column labels do not overlap');
   ok(top.every(l => l.x >= -1e-3 && l.x + l.w <= 14 + 1e-3), 'the row stays within the plan width');
   ok(top.every((a, i) => top.every((c, j) => i >= j || a.x + a.w <= c.x + 1e-3 || c.x + c.w <= a.x + 1e-3)), 'the top row labels do not overlap, got ' + JSON.stringify(top));
   eq(app.errors, [], 'no page errors');
