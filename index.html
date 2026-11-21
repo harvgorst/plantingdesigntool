@@ -410,7 +410,7 @@ html[data-skin=drafting] .mapwrap, html[data-skin=drafting] .sheetref { color: #
   --ground: #F3F5F0; --grid: #E2E6DF; --grid-major: #CCD2CA; --label: #1F2B26; }
 /* Drafting table chrome: film and sheet, green-black ink, hairline rules, one 3px radius; layer colour is the only other colour */
 html[data-skin=drafting] {
-  --paper: #ECEEE8; --panel: #F8F9F5; --ink: #1F2B26; --muted: #6B7570; --line: #CCD2CA; --line-soft: #DFE3DC;
+  --paper: #ECEEE8; --panel: #F8F9F5; --ink: #1F2B26; --muted: #5F6964; --line: #CCD2CA; --line-soft: #DFE3DC;
   --accent: #2F5A3C; --accent-ink: #F8F9F5; --accent-soft: #DDE6DC;
   --ground: #F3F5F0; --grid: #E2E6DF; --grid-major: #CCD2CA;
   --warn: #93641A; --crit: #A23A2C; --bar-edge: rgba(31, 43, 38, 0.2); --exist: #6B7570;
@@ -460,6 +460,24 @@ html[data-skin=drafting] .calhead .lbl { display: none; }   /* the underlined ta
 html[data-skin=drafting] .pv-sample { background: #F8F9F5; color: #1F2B26; border-radius: 3px; font-family: var(--f-plan); }
 html[data-skin=drafting] fieldset.pref legend { font-size: 16px; }
 html[data-skin=drafting] fieldset.pref, html[data-skin=drafting] .thopt { border-radius: 4px; }
+/* critique fixes: a thinner hint band, toggles that still read as buttons, quieter library rows, tidier tables */
+html[data-skin=drafting] .props { height: 34px; }
+html[data-skin=drafting] .props:has(.insp:not([hidden])) { height: 48px; }
+html[data-skin=drafting] .hint { font-size: 13px; }
+html[data-skin=drafting] .toolbar > .btn.sm[aria-pressed]::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: -1px; border: 1px solid currentColor; border-radius: 2px; }
+html[data-skin=drafting] .toolbar > .btn.sm[aria-pressed=true]::before { background: var(--ink) linear-gradient(45deg, transparent 0 40%, var(--panel) 40% 55%, transparent 55%); border-color: var(--ink); }
+html[data-skin=drafting] #seasonSel { border-color: transparent; background-color: transparent; color: var(--muted); }
+html[data-skin=drafting] #seasonSel:hover, html[data-skin=drafting] #seasonSel:focus-visible { border-color: var(--line); color: var(--ink); }
+html[data-skin=drafting] .lib li .btn[data-edit] { opacity: 0; }
+html[data-skin=drafting] .lib li:hover .btn[data-edit], html[data-skin=drafting] .lib li:focus-within .btn[data-edit], html[data-skin=drafting] .lib li[aria-selected=true] .btn[data-edit], html[data-skin=drafting] .lib li .btn[data-edit]:focus-visible { opacity: 1; }
+@media (hover: none) { html[data-skin=drafting] .lib li .btn[data-edit] { opacity: 1; } }
+html[data-skin=drafting] .lib .nm .fdot { width: 6px; height: 6px; vertical-align: 1px; }
+html[data-skin=drafting] .libchips button { border-color: transparent; min-height: 26px; }
+html[data-skin=drafting] .libchips button:hover { border-color: var(--line); }
+html[data-skin=drafting] .btn.sm { min-height: 28px; }
+html[data-skin=drafting] .order .cn { margin-left: 6px; }
+html[data-skin=drafting] .sched:has(tfoot) tbody tr:last-child td { border-bottom-color: var(--ink); }
+html[data-skin=drafting] fieldset.pref .note { font-size: 13px; max-width: 60ch; line-height: 1.5; }
 html[data-skin=woodwork] .mapwrap { --panel: #F5ECDC; --paper: #EFE4D0; --line: #6A5440; --ground: #F1E7D5; --grid: #E2D5BF; --grid-major: #CDBB9E; border-color: #5A4634; }
 html[data-skin=woodwork] .modal { background: rgba(10, 7, 4, 0.6); }
 html[data-skin=woodwork] .btn.primary { color: #241B15; }
@@ -10639,7 +10657,13 @@ function renderMap() {
   let px = (M / 900) / S.zoom;
   if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
   S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
-  const ex = edgeEx(pr?.fs ?? M / 55 / S.zoom, pad, false), vw = (W + pad * 2 + ex * 2) / S.zoom, vh = (D + pad * 2) / S.zoom;
+  /* on screen, plant names are never smaller than about 10 px at 100% label size: the margin for edge labels grows with them,
+     which shrinks the drawing a little, so settle the size in a few passes. Prints keep their own sizes. */
+  let lfs = fs;
+  if (!pr) { const bb = svg.getBoundingClientRect(); if (bb.width > 0 && bb.height > 0) for (let i = 0; i < 3; i++) {
+    const e = edgeEx(lfs, pad, false), pp = Math.max((W + pad * 2 + e * 2) / S.zoom / bb.width, (D + pad * 2) / S.zoom / bb.height);
+    lfs = Math.max(fs, 10 * pp / 0.68); } }
+  const ex = edgeEx(lfs, pad, false), vw = (W + pad * 2 + ex * 2) / S.zoom, vh = (D + pad * 2) / S.zoom;
   svg.setAttribute('viewBox', `${S.cx - vw / 2} ${S.cy - vh / 2} ${vw} ${vh}`);
   { const k = svg.getScreenCTM()?.a; if (k > 0) px = 1 / k; }  // metres per screen pixel
   $('zoomLbl').textContent = Math.round(S.zoom * 100) + '%';
@@ -10657,7 +10681,7 @@ function renderMap() {
   if (S.prefs.showRulers) for (let x = 0; x <= W + 1e-6; x += lab) parts.push(`<text x="${x}" y="${-fs * 0.7}" font-size="${fs * 0.9}" text-anchor="middle" style="fill:var(--muted)" pointer-events="none">${x}</text>`);
   if (S.prefs.showRulers) for (let y = lab; y <= D + 1e-6; y += lab) parts.push(`<text x="${-fs * 0.6}" y="${y + fs * 0.3}" font-size="${fs * 0.9}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${y}</text>`);
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
-  const ls = fs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
+  const ls = lfs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
   const NUM = ls * 0.62, NAME = ls * 0.68;   // every number on the plan is one size, and every name another
   if (aerialOn()) parts.push(`<text x="${W}" y="${D + fs * 1.25}" font-size="${fs * 0.5}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${esc(ESRI_ATTR)}</text>`);
   if (S.sun.on && !pr) parts.push(sunLayer(W, D, M, pad, fs, px, halo));
@@ -10892,7 +10916,7 @@ function renderMap() {
     if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, sb.straight ? 0 : BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
-  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, fs, NAME, NUM, sbEnd: showScale ? (M > 20 ? 5 : 2) + fs * 3 : 0 } : null);
+  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, fs: lfs, NAME, NUM, sbEnd: showScale ? (M > 20 ? 5 : 2) + fs * 3 : 0 } : null);
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
 }
 
