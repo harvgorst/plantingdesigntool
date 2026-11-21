@@ -188,7 +188,7 @@ test('season view colours the plan by month', async open => {
   eq((await fill('b'))[1], '0.04', 'salvia, not yet in flower, is faint');
   ok(/^April: 2 of 7 species in flower/.test(await app.page.textContent('#hint')), 'summary line, got: ' + await app.page.textContent('#hint'));
   await app.page.selectOption('#seasonSel', '0');
-  const back = await fill('a'); ok(['0.55', '1'].includes(back[1]) && back[0] !== 'rgb(94, 138, 78)', 'back to its own species colour and pattern, got ' + JSON.stringify(back));
+  const back = await fill('a'); ok(['0.6', '1'].includes(back[1]) && back[0] !== 'rgb(94, 138, 78)', 'back to its own species colour and pattern, got ' + JSON.stringify(back));
 });
 
 test('sun study: sun position for a place, date and time', async open => {
@@ -359,8 +359,35 @@ test('one plan, three layers: structure placed freely, planting on the grid, bul
   const order = await app.page.evaluate(ids => { const all = [...document.querySelectorAll('#map [data-kind=planting]')].map(g => g.dataset.id); return ids.map(id => all.indexOf(id)); }, [rose.id, sid, bulbs[0].id]);
   ok(order[0] < order[1] && order[1] < order[2], 'drawn structure, then planting, then bulbs, got ' + order);
   const cols = (await app.store('gardens/g1')).colors; ok(cols.p1 === 0 && cols.p4 === 1 && cols.p2 != null && cols.ex1 != null && new Set(Object.values(cols)).size === Object.keys(cols).length, 'every species its own colour, trees and shrubs too, got ' + JSON.stringify(cols));
-  const dots = await app.page.evaluate(id => document.querySelectorAll(`#map [data-kind=planting][data-id="${id}"] circle`).length, rose.id);
-  ok(dots >= 2, 'the rose keeps its centre dot');
+  const ctr = await app.page.evaluate(id => document.querySelectorAll(`#map [data-kind=planting][data-id="${id}"] path.ctr`).length, rose.id);
+  ok(ctr === 1, 'the rose is marked at its centre with a cross');
+});
+
+test('drawing style: flat colours, open trees with a cross, one line through a run of shrubs, no decorative textures', async open => {
+  const seed = sample(), g = seed['gardens/g1'];
+  g.underlay = null;
+  g.plantings.push({ id: 'r1', plantId: 'p2', x: 2, y: 7, qty: 1 }, { id: 'r2', plantId: 'p2', x: 2.9, y: 7.3, qty: 1 }, { id: 'r3', plantId: 'p2', x: 3.9, y: 7, qty: 1 });
+  g.beds = [{ id: 'bWd', pts: [[6, 5.5], [9, 5.5], [9, 8], [6, 8]], ox: 7.5, oy: 6.7, wood: { h: 12 } },
+    { id: 'bPond', kind: 'water', pts: [[10, 6], [11.5, 6], [11.5, 8], [10, 8]] }, { id: 'bLawn', kind: 'path', surface: 'grass', pts: [[0.2, 6], [1.2, 6], [1.2, 8], [0.2, 8]] },
+    { id: 'bHedge', kind: 'hedge', pts: [[4.5, 7.8], [5.8, 7.8], [5.8, 8.4], [4.5, 8.4]] }];
+  const app = await open(seed); await app.page.waitForTimeout(300);
+  const r = await app.page.evaluate(() => {
+    const m = document.querySelector('#map'), html = m.innerHTML;
+    const apple = m.querySelector('[data-kind=planting][data-id="f"] circle');
+    return {
+      speciesPats: [...m.querySelectorAll('pattern')].map(p => p.id).filter(id => id.startsWith('pat-')),
+      appleOp: +apple.getAttribute('fill-opacity'), appleCross: !!m.querySelector('[data-kind=planting][data-id="f"] path.ctr'),
+      drifts: [...m.querySelectorAll('path.drift')].map(p => (p.getAttribute('d').match(/M/g) || []).length),
+      texts: [...m.querySelectorAll('text')].map(t => t.textContent),
+      arcs: [...m.querySelectorAll('[data-kind=bed] path')].some(p => /A/.test(p.getAttribute('d') || '')),
+      water: html.includes('apat-water'), grass: html.includes('apat-grass'), hedge: html.includes('apat-hedge'), wood: html.includes('woodpat')
+    };
+  });
+  eq(r.speciesPats, [], 'no automatic hatching while colours remain');
+  ok(r.appleOp < 0.25 && r.appleCross, 'the apple tree is an open crown with a cross, got ' + r.appleOp);
+  ok(r.drifts.includes(2), 'the three roses are joined by one two-segment line, got ' + JSON.stringify(r.drifts));
+  ok(!r.arcs, 'woodland drawn with its plain outline');
+  ok(!r.water && !r.grass && !r.hedge && !r.wood, 'no water, lawn, hedge or woodland textures');
 });
 
 test('Oudolf mode: areas that share borders, counted from plants per square metre', async open => {
@@ -908,7 +935,7 @@ test('large plan: a full row along the top spills onto the plan, nothing overlap
   eq(app.errors, [], 'no page errors');
 });
 
-test('existing woodland: a bed set as woodland is drawn with a crown edge, casts canopy shade, and is listed but never counted', async open => {
+test('existing woodland: a bed set as woodland is drawn with its plain outline, casts canopy shade, and is listed but never counted', async open => {
   const seed = sample(); Object.assign(seed['gardens/g1'], { north: 0, lat: 51.5072, lon: -0.1276, underlay: null });
   seed['gardens/g1'].plantings = seed['gardens/g1'].plantings.filter(q => q.plantId !== 'ex1');
   seed['gardens/g1'].beds = [{ id: 'bW', pts: [[0.5, 0.5], [6, 0.5], [6, 3], [0.5, 3]], ox: 3, oy: 1.5 }];
@@ -921,7 +948,7 @@ test('existing woodland: a bed set as woodland is drawn with a crown edge, casts
   const b = (await app.store('gardens/g1')).beds[0];
   eq(b.wood, { h: 15, dens: 'dense', leaf: 'deciduous' }, 'saved as woodland');
   ok(/OAK COPSE/.test(await app.page.textContent('#map')) && /canopy c\. 15 m, dense, deciduous/.test(await app.page.textContent('#map')), 'named on the plan with its canopy');
-  ok(/A[\d.]+ [\d.]+ 0 0 [01]/.test(await app.page.$eval('#map [data-kind=bed] path', p => p.getAttribute('d'))), 'a crown (scalloped) edge');
+  ok(!/A/.test(await app.page.$eval('#map [data-kind=bed] path', p => p.getAttribute('d'))), 'a plain outline, no scalloped crown edge');
   await app.page.click('[data-act=bedOff]').catch(() => {});
   if (process.env.SHOT) await app.page.locator('#map').screenshot({ path: process.env.SHOT });
   // shade: summer noon, the copse shades the ground to its north (up the plan); in winter out of leaf it is lighter
