@@ -408,6 +408,58 @@ html[data-skin=woodwork] body { background: radial-gradient(1200px 600px at 20% 
 html[data-skin=drafting] { --f-plan: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", sans-serif; }
 html[data-skin=drafting] .mapwrap, html[data-skin=drafting] .sheetref { color: #1F2B26; --panel: #F8F9F5; --paper: #ECEEE8; --ink: #1F2B26; --muted: #6B7570; --line: #CCD2CA; --line-soft: #DFE3DC;
   --ground: #F3F5F0; --grid: #E2E6DF; --grid-major: #CCD2CA; --label: #1F2B26; }
+/* Drafting table chrome: film and sheet, green-black ink, hairline rules, one 3px radius; layer colour is the only other colour */
+html[data-skin=drafting] {
+  --paper: #ECEEE8; --panel: #F8F9F5; --ink: #1F2B26; --muted: #6B7570; --line: #CCD2CA; --line-soft: #DFE3DC;
+  --accent: #2F5A3C; --accent-ink: #F8F9F5; --accent-soft: #DDE6DC;
+  --ground: #F3F5F0; --grid: #E2E6DF; --grid-major: #CCD2CA;
+  --warn: #93641A; --crit: #A23A2C; --bar-edge: rgba(31, 43, 38, 0.2); --exist: #6B7570;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", sans-serif; }
+html[data-skin=drafting] body { font-size: 14.5px; font-variant-numeric: tabular-nums; }
+html[data-skin=drafting] h1, html[data-skin=drafting] h2 { letter-spacing: 0; }
+html[data-skin=drafting] h2 { font-size: 18px; }
+html[data-skin=drafting] .modal h2 { font-size: 22px; }
+html[data-skin=drafting] .lbl, html[data-skin=drafting] .pf > span, html[data-skin=drafting] .field > span { font-size: 12.5px; text-transform: none; letter-spacing: 0; }
+html[data-skin=drafting] .lib li.lh, html[data-skin=drafting] .addlist .lh { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); padding: 12px 7px 3px; }
+html[data-skin=drafting] .lib li.lh::before, html[data-skin=drafting] .addlist .lh::before { content: ""; width: 14px; height: 3px; background: var(--lc, var(--muted)); flex: none; }
+html[data-skin=drafting] .ex { font-family: var(--f-body); font-size: 11px; letter-spacing: 0; text-transform: none; border-radius: 2px; }
+/* the mark: seven thin strata in the layer colours, canopy on top */
+html[data-skin=drafting] .top h1 { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 600; }
+html[data-skin=drafting] .top h1::before { content: ""; width: 20px; height: 20px; flex: none;
+  background: linear-gradient(var(--r-canopy) 0 2px, transparent 2px 3px, var(--r-understory) 3px 5px, transparent 5px 6px, var(--r-shrub) 6px 8px, transparent 8px 9px, var(--r-herbaceous) 9px 11px, transparent 11px 12px, var(--r-ground) 12px 14px, transparent 14px 15px, var(--r-tuber) 15px 17px, transparent 17px 18px, var(--r-climber) 18px 20px); }
+html[data-skin=drafting] .top { padding-bottom: 0; }
+html[data-skin=drafting] .tabs button { font-size: 14.5px; padding: 12px 0 10px; }
+html[data-skin=drafting] .tabs button[aria-pressed=true] { border-bottom-color: var(--ink); font-weight: 500; }
+html[data-skin=drafting] #status { font-style: normal; }
+/* controls: one radius, hairlines, no pills */
+html[data-skin=drafting] .btn, html[data-skin=drafting] select, html[data-skin=drafting] input[type=text], html[data-skin=drafting] input[type=number], html[data-skin=drafting] .seg, html[data-skin=drafting] .tool, html[data-skin=drafting] .libchips button { border-radius: 3px; }
+html[data-skin=drafting] .btn.on, html[data-skin=drafting] .btn[aria-pressed=true] { border-color: var(--ink); background: var(--line-soft); }
+html[data-skin=drafting] .card, html[data-skin=drafting] .toolbar, html[data-skin=drafting] .mapwrap { border-radius: 4px; }
+html[data-skin=drafting] .lib li { border-radius: 3px; }
+/* tool strip: the drawing tools as one segmented group, view toggles as quiet text buttons */
+html[data-skin=drafting] .toolbar { padding: 5px 6px; gap: 6px 10px; }
+html[data-skin=drafting] .tools { gap: 0; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); overflow: hidden; }
+html[data-skin=drafting] .tool { border: 0; border-radius: 0; padding: 5px 11px; }
+html[data-skin=drafting] .tool + .tool { border-left: 1px solid var(--line-soft); }
+html[data-skin=drafting] .tool[aria-pressed=true] { background: var(--ink); color: var(--panel); }
+html[data-skin=drafting] .tool[aria-pressed=true] .sw { border-color: var(--panel); }
+html[data-skin=drafting] .toolbar > .btn.sm, html[data-skin=drafting] .toolbar > .menuwrap > .btn.sm { border-color: transparent; background: transparent; color: var(--muted); }
+html[data-skin=drafting] .toolbar > .btn.sm:hover:not(:disabled), html[data-skin=drafting] .toolbar > .menuwrap > .btn.sm:hover { color: var(--ink); background: var(--paper); }
+html[data-skin=drafting] .toolbar > .btn.sm[aria-pressed=true], html[data-skin=drafting] .toolbar > .menuwrap > .btn.sm[aria-expanded=true] { color: var(--ink); background: var(--line-soft); border-color: transparent; }
+html[data-skin=drafting] .seg button[aria-pressed=true] { background: var(--ink); color: var(--panel); }
+html[data-skin=drafting] .hint { font-style: normal; }
+html[data-skin=drafting] .empty { font-style: normal; }
+/* library: botanical names in serif italic, flat chips */
+html[data-skin=drafting] .lib .nm i, html[data-skin=drafting] .addlist i, html[data-skin=drafting] .pv i { font-family: "Source Serif 4", Georgia, serif; font-size: 13px; }
+html[data-skin=drafting] .libchips button { padding: 2px 8px; background: transparent; }
+html[data-skin=drafting] .libchips button[aria-pressed=true] { border-color: var(--ink); background: var(--line-soft); }
+html[data-skin=drafting] .lib li[aria-selected=true] { border-color: var(--ink); background: var(--line-soft); }
+html[data-skin=drafting] .sched th, html[data-skin=drafting] .mapgrid label > span, html[data-skin=drafting] .cal-months span, html[data-skin=drafting] .sunbar .sl > span:first-child, html[data-skin=drafting] .sunbar .loc > span { font-size: 12.5px; text-transform: none; letter-spacing: 0; }
+html[data-skin=drafting] .calhead .lbl { display: none; }   /* the underlined tab already names the page */
+html[data-skin=drafting] .pv-sample { background: #F8F9F5; color: #1F2B26; border-radius: 3px; font-family: var(--f-plan); }
+html[data-skin=drafting] fieldset.pref legend { font-size: 16px; }
+html[data-skin=drafting] fieldset.pref, html[data-skin=drafting] .thopt { border-radius: 4px; }
 html[data-skin=woodwork] .mapwrap { --panel: #F5ECDC; --paper: #EFE4D0; --line: #6A5440; --ground: #F1E7D5; --grid: #E2D5BF; --grid-major: #CDBB9E; border-color: #5A4634; }
 html[data-skin=woodwork] .modal { background: rgba(10, 7, 4, 0.6); }
 html[data-skin=woodwork] .btn.primary { color: #241B15; }
@@ -10137,7 +10189,7 @@ function renderAddPlants() {
   const lib = libIds(), q = AP.q.trim().toLowerCase();
   const all = S.plants.filter(p => !p.existing && !lib.has(p.id)), list = all.filter(p => !q || [p.common, p.botanical, ROLES[layerOf(p.role)]].join(' ').toLowerCase().includes(q))
     .sort((a, b) => (LAYER_ORDER.indexOf(layerOf(a.role)) - LAYER_ORDER.indexOf(layerOf(b.role))) || (a.common || '').localeCompare(b.common || ''));
-  const rows = list.map((p, i) => (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role) ? `<div class="lh">${esc(ROLES[layerOf(p.role)])}</div>` : '')
+  const rows = list.map((p, i) => (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role) ? `<div class="lh" style="--lc:var(--r-${layerOf(p.role)})">${esc(ROLES[layerOf(p.role)])}</div>` : '')
     + `<label><input type="checkbox" data-ap="${p.id}"${AP.sel.has(p.id) ? ' checked' : ''}>${plantSwatch(p)}<span><b>${esc(p.common || 'Unnamed')}</b> <i>${esc(p.botanical || '')}</i></span><span class="pv">${num(p.spread).toFixed(1)} m</span></label>`).join('');
   $('addBody').innerHTML = `<div class="card-h"><h2 id="addH">Add plants to ${esc(S.g?.name || 'this garden')}</h2><button class="btn sm" type="button" data-apx="close">Close</button></div>
     <p class="note" style="margin:0">Tick species from your plant database to use in this design, or make a new one. Plants already in this garden aren’t listed, and plants recorded as existing on another site stay with that garden.</p>
@@ -10926,7 +10978,7 @@ function renderLibrary() {
   if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${q ? `No species match “${esc(S.filter)}”` : 'No species'}${LIBF.layers.size || LIBF.used ? ' with these filters. Click All to see everything.' : '.'}</li>`; return; }
   /* grouped under each layer, so a long library is easy to scan */
   const groups = new Set(list.map(p => layerOf(p.role))).size > 1;
-  $('lib').innerHTML = list.map((p, i) => (groups && (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role)) ? `<li class="lh" aria-hidden="true">${esc(ROLES[layerOf(p.role)])}</li>` : '') + `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || (p.crop ? 'Harvest colour' : 'Flower colour'))}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
+  $('lib').innerHTML = list.map((p, i) => (groups && (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role)) ? `<li class="lh" aria-hidden="true" style="--lc:var(--r-${layerOf(p.role)})">${esc(ROLES[layerOf(p.role)])}</li>` : '') + `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || (p.crop ? 'Harvest colour' : 'Flower colour'))}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
 }
 function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
 function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
