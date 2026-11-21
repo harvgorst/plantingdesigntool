@@ -178,6 +178,26 @@ test('labels can be dragged, with a leader line, and reset', async open => {
 });
 
 
+test('area labels can be dragged too, move with their area, and reset', async open => {
+  const seed = sample(); seed['settings/prefs'] = { labelPlace: 'plan' };
+  seed['gardens/g1'].areas = [{ id: 'ar1', kind: 'drift', plantId: 'p1', pts: [[2, 5], [5, 5], [5, 7.5], [2, 7.5]], density: 5 }];
+  const app = await open(seed);
+  const lbl = app.page.locator('#map rect.lblhit[data-lk=aar1]');
+  eq(await lbl.count(), 1, 'the area label can be grabbed');
+  const h = await lbl.boundingBox(), to = await app.planXY(8.5, 7.8);
+  await app.page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await app.page.mouse.down(); await app.page.mouse.move(to.x, to.y, { steps: 6 }); await app.page.mouse.up();
+  await app.page.waitForTimeout(900);
+  let a = (await app.store('gardens/g1')).areas[0];
+  ok(a.lx > 4 && a.ly > 1, 'label offset stored on the area, got ' + JSON.stringify([a.lx, a.ly]));
+  eq(a.pts[0], [2, 5], 'the area itself has not moved');
+  const x0 = await app.page.$eval('#map text[data-lk=aar1]', t => +t.getAttribute('x'));
+  ok(Math.abs(x0 - (3.5 + a.lx)) < 0.05, 'label drawn where it was dropped, got ' + x0);
+  ok((await app.page.textContent('#inspector')).includes('Reset label'), 'the area is selected, with its label buttons');
+  await app.page.click('[data-act=resetLabel]'); await app.page.waitForTimeout(900);
+  a = (await app.store('gardens/g1')).areas[0];
+  eq([a.lx, a.ly], [undefined, undefined], 'label reset');
+});
+
 test('season view colours the plan by month', async open => {
   const seed = sample(); Object.assign(seed['plants/p0'], { foliage: 'evergreen' });
   const app = await open(seed);

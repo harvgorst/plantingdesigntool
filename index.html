@@ -10534,9 +10534,11 @@ function removeSel() {
    a label's key is 's' + species id for a species' one label (around the edge, or on the plan in full), or 'p' + planting id
    for a planting's own label (its code on the plan, or its label when labels sit on the plan) */
 function lblPlanting(key) { return key?.[0] === 'p' ? S.g?.plantings.find(x => x.id === key.slice(1)) || null : null; }
+function lblArea(key) { return key?.[0] === 'a' ? S.g?.areas.find(x => x.id === key.slice(1)) || null : null; }   // an area's label, 'a' + area id
 function setLabelPos(key, x, y, d) {
   const g = S.g; if (!g) return;
   if (key[0] === 's') { g.labelAt = { ...(g.labelAt || {}), [key.slice(1)]: { x: r2(x), y: r2(y) } }; return; }
+  const ar = lblArea(key); if (ar) { const c = centreOf(ar); ar.lx = r2(x - c.x); ar.ly = r2(y - c.y); return; }   // kept relative to the area, so it moves with it
   const pl = lblPlanting(key); if (!pl) return;
   if (edgeLabels()) { pl.kx = +(x - d.ax).toFixed(3); pl.ky = +(y - d.ay).toFixed(3); }
   else { pl.lx = r2(x - pl.x); pl.ly = r2(y - pl.y); }
@@ -10545,7 +10547,7 @@ function labelState(key, hide) {   // hide or show one label
   const g = S.g; if (!g) return;
   checkpoint();
   if (key[0] === 's') { const h = { ...(g.labelHide || {}) }; if (hide) h[key.slice(1)] = true; else delete h[key.slice(1)]; g.labelHide = Object.keys(h).length ? h : undefined; }
-  else { const pl = lblPlanting(key); if (pl) { if (hide) pl.lhide = true; else delete pl.lhide; } }
+  else { const pl = lblPlanting(key) || lblArea(key); if (pl) { if (hide) pl.lhide = true; else delete pl.lhide; } }
   if (hide) S.lblSel = null;
   saveGarden(); renderInspector(); renderMap();
 }
@@ -10554,14 +10556,15 @@ function resetLabelAt(keys) {   // put labels back where they are placed automat
   checkpoint();
   for (const key of keys) {
     if (key[0] === 's') { if (g.labelAt) { delete g.labelAt[key.slice(1)]; if (!Object.keys(g.labelAt).length) delete g.labelAt; } }
-    else { const pl = lblPlanting(key); if (pl) for (const k of ['lx', 'ly', 'kx', 'ky']) delete pl[k]; }
+    else { const pl = lblPlanting(key) || lblArea(key); if (pl) for (const k of ['lx', 'ly', 'kx', 'ky']) delete pl[k]; }
   }
   saveGarden(); renderInspector(); renderMap();
 }
 function labelCounts() {
   const g = S.g; if (!g) return { moved: 0, hidden: 0 };
-  return { moved: Object.keys(g.labelAt || {}).length + g.plantings.filter(x => x.lx != null || x.kx != null).length,
-    hidden: Object.keys(g.labelHide || {}).length + g.plantings.filter(x => x.lhide).length };
+  const own = [...g.plantings, ...g.areas];
+  return { moved: Object.keys(g.labelAt || {}).length + own.filter(x => x.lx != null || x.kx != null).length,
+    hidden: Object.keys(g.labelHide || {}).length + own.filter(x => x.lhide).length };
 }
 function renderLblActs(show) {
   const el = $('lblActs'); if (!el) return;
@@ -10572,7 +10575,7 @@ function renderLblActs(show) {
 }
 /* the inspector's label buttons for a planting */
 function labelActs(it) {
-  const g = S.g, pid = it.plantId, on = S.lblSel && (S.lblSel.plid === it.id || S.lblSel.key === 's' + pid) ? S.lblSel : null;
+  const g = S.g, pid = it.plantId, on = S.lblSel && (S.lblSel.plid === it.id || S.lblSel.key === 's' + pid || S.lblSel.key === 'a' + it.id) ? S.lblSel : null;
   const moved = it.lx != null || it.kx != null || !!g.labelAt?.[pid], hidden = !!it.lhide || !!g.labelHide?.[pid];
   return (on ? '<button class="btn sm" type="button" data-act="hideLabel" title="Hide this label (Delete). The plant stays.">Hide label</button>' : '')
     + (hidden ? '<button class="btn sm" type="button" data-act="showLabel" title="Show this plant’s hidden label again">Show label</button>' : '')
@@ -10851,7 +10854,7 @@ function renderMap() {
   const halo = (x, y, size, txt, o = {}) => {
     const base = `x="${x}" y="${y}" font-size="${size}" text-anchor="${o.anchor || 'middle'}"`, fw = `font-weight:${o.bold ? PT.bold : PT.name}`;
     const body = PT.sans ? String(txt).replace(/^(\d+) /, `<tspan style="font-weight:${PT.num}">$1</tspan> `) : txt;
-    /* on screen, a plant label can be grabbed and moved (o.key says which label it is: 's' + species, or 'p' + planting) */
+    /* on screen, a plant label can be grabbed and moved (o.key says which label it is: 's' + species, 'p' + planting, or 'a' + area) */
     const lk = o.key && !pr ? ` data-kind="lbl" data-lk="${esc(o.key)}"${o.plid ? ` data-plid="${esc(o.plid)}"` : ''}${o.ax != null ? ` data-ax="${+(+o.ax).toFixed(3)}" data-ay="${+(+o.ay).toFixed(3)}"` : ''}` : '';
     return `<text ${base}${lk} style="fill:var(--label);${fw}" pointer-events="${o.live ? 'auto' : 'none'}">${body}</text>`;   // plain lettering, no outline
   };
@@ -10947,7 +10950,7 @@ function renderMap() {
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
     const ex = !!p?.existing && !onGrid(p), sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : p ? speciesStyle(p).col : 'var(--muted)';
     const dots = planted && !ex ? driftDots(a) : null, potr = potR(p);
-    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL ? tag(c.x, c.y + ls * 0.25, ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true }, { ax: c.x, ay: c.y, pri: 60, pid: p?.id, n: driftQty(a), name: esc(plantLabel(p)) }) : ''}</g>`);
+    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL && !(a.lhide && !edgeLabels()) ? (amv => tag(c.x + (amv ? a.lx : 0), c.y + (amv ? a.ly : ls * 0.25), ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true, key: 'a' + a.id, ax: c.x, ay: c.y }, { ax: c.x, ay: c.y, fixed: amv, pri: 60, pid: p?.id, n: driftQty(a), name: esc(plantLabel(p)) }))(a.lx != null && a.ly != null) : ''}</g>`);
   }
   /* single plants and groups, in three layers: structure under the planting (with its outline and label drawn again on top),
      then the planting, then bulbs; largest first within each. While placing bulbs the rest fades back, and the other way round */
@@ -11381,7 +11384,7 @@ function renderInspector() {
   hint.hidden = !!it; el.hidden = !it;
   renderLblActs(!it);
   if (!it) { el.innerHTML = ''; return; }
-  const acts = (extra = '') => `<span class="acts">${extra}${S.sel.kind === 'planting' ? labelActs(it) : ''}<button class="btn sm" type="button" data-act="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
+  const acts = (extra = '') => `<span class="acts">${extra}${S.sel.kind === 'planting' || S.sel.kind === 'area' ? labelActs(it) : ''}<button class="btn sm" type="button" data-act="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
   if (S.sel.kind === 'planting') {
     const p = plantById(it.plantId);
     const fl = p?.crop ? (flowerMonths(p).length ? 'harvest ' + spanText(flowerMonths(p)) : 'crop') : p?.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : 'no flowers';
@@ -12253,7 +12256,8 @@ function endDrag() {
   if (d.lbl) {
     if (d.moved) saveGarden();
     const pl = d.plid && S.g.plantings.find(x => x.id === d.plid);
-    if (pl) select('planting', pl.id); else select(null);
+    const ar = !pl && lblArea(d.key);
+    if (pl) select('planting', pl.id); else if (ar) select('area', ar.id); else select(null);
     S.lblSel = { key: d.key, plid: pl ? pl.id : null }; renderInspector(); renderMap(); return;
   }
   if (d.pending) {
@@ -13157,11 +13161,11 @@ app.addEventListener('click', async e => {
   if (act === 'bedNoCol') { const b = beds().find(x => x.id === S.bedSel); if (b) { checkpoint(); delete b.color; saveGarden(); renderInspector(); renderMap(); } }
   if (act === 'bedOff') setTool('select');
   if (act === 'blkCancel') setTool('select');
-  if (act === 'resetLabel') { const it = findSel(); if (it) resetLabelAt(['p' + it.id, 's' + it.plantId]); }
+  if (act === 'resetLabel') { const it = findSel(); if (it) resetLabelAt([(S.sel?.kind === 'area' ? 'a' : 'p') + it.id, 's' + it.plantId]); }
   if (act === 'hideLabel' && S.lblSel) labelState(S.lblSel.key, true);
   if (act === 'showLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lhide; if (S.g.labelHide) { delete S.g.labelHide[it.plantId]; if (!Object.keys(S.g.labelHide).length) delete S.g.labelHide; } saveGarden(); renderInspector(); renderMap(); } }
-  if (act === 'showAllLabels' && S.g) { checkpoint(); delete S.g.labelHide; for (const x of S.g.plantings) delete x.lhide; saveGarden(); renderInspector(); renderMap(); }
-  if (act === 'resetAllLabels' && S.g) { checkpoint(); delete S.g.labelAt; for (const x of S.g.plantings) for (const k of ['lx', 'ly', 'kx', 'ky']) delete x[k]; saveGarden(); renderInspector(); renderMap(); }
+  if (act === 'showAllLabels' && S.g) { checkpoint(); delete S.g.labelHide; for (const x of [...S.g.plantings, ...S.g.areas]) delete x.lhide; saveGarden(); renderInspector(); renderMap(); }
+  if (act === 'resetAllLabels' && S.g) { checkpoint(); delete S.g.labelAt; for (const x of [...S.g.plantings, ...S.g.areas]) for (const k of ['lx', 'ly', 'kx', 'ky']) delete x[k]; saveGarden(); renderInspector(); renderMap(); }
   if (act === 'rowCancel') { S.row = null; S.hover = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'measClear') { S.meas = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'bkpGarden') downloadBackup('garden');
