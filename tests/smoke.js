@@ -963,6 +963,23 @@ test('reload: the chosen theme is set before the page is first drawn, so the bas
   eq(app.errors, [], 'no page errors');
 });
 
+test('labels: a tight halo over the photo; on screen they stay one size when zooming, or grow with the plan if chosen', async open => {
+  const sizes = app => app.page.$$eval('#map text[pointer-events=auto]', ts => { const k = document.getElementById('map').getScreenCTM().a; return ts.map(t => +t.getAttribute('font-size') * k); });
+  let app = await open(sample());
+  const halo = await app.page.evaluate(() => { const m = document.getElementById('map'); m.classList.add('over-photo'); const t = m.querySelector('text[pointer-events=auto]'), cs = getComputedStyle(t); const r = parseFloat(cs.strokeWidth) / parseFloat(cs.fontSize); m.classList.remove('over-photo'); return r; });
+  ok(halo > 0 && halo <= 0.12, 'the halo over the photo is tight, got ' + halo.toFixed(3) + ' of the type size');
+  const a = await sizes(app); await app.page.click('#zIn'); await app.page.click('#zIn'); await app.page.waitForTimeout(200); const b = await sizes(app);
+  ok(a.length && Math.abs(Math.min(...a) - 10) < 0.2 && Math.abs(Math.min(...b) - 10) < 0.2, `by default labels stay 10 px on screen, got ${Math.min(...a)} then ${Math.min(...b)}`);
+  await app.close();
+  app = await open({ ...sample(), 'settings/prefs': { labelZoom: 'plan', themeV: 1 } });
+  const c = await sizes(app); await app.page.click('#zIn'); await app.page.click('#zIn'); await app.page.waitForTimeout(200); const d = await sizes(app);
+  ok(Math.abs(Math.min(...c) - 10) < 0.2, 'at 100% they start the same size, got ' + Math.min(...c));
+  ok(Math.abs(Math.min(...d) / Math.min(...c) - 1.96) < 0.05, `grown with the plan, two zoom-ins make them 1.96 times larger, got ${(Math.min(...d) / Math.min(...c)).toFixed(2)}`);
+  await app.page.evaluate(() => { location.hash = '#preferences'; }); await app.page.waitForTimeout(300);
+  eq(await app.page.$eval('#pf-zoom', s => s.value), 'plan', 'the preference shows the choice');
+  eq(app.errors, [], 'no page errors');
+});
+
 test('plan lettering: Drafting table (the default) letters the plan in Plex Sans Condensed, other themes keep Georgia', async open => {
   let app = await open(sample());
   const fam = () => app.page.$eval('#map text[pointer-events=auto]', t => getComputedStyle(t).fontFamily);
