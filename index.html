@@ -179,6 +179,10 @@ table.sched.wide { font-size: 14px; min-width: 640px; }
 .mslider .mlabels { display: grid; grid-template-columns: repeat(12, 1fr); text-align: center; font-size: 10px; color: var(--muted); margin-top: 6px; }
 .mslider .mrow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; font-size: 12.5px; }
 .mslider .mrow label { white-space: nowrap; }
+details.more { border-top: 1px solid var(--line); padding-top: 8px; }
+details.more > summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--muted); padding: 2px 0; }
+details.more > summary:hover { color: var(--ink); }
+details.more .morebody { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .mslider #msl-txt, .mslider #mslc-txt { color: var(--ink); }
 .mslider.crop .mcells span.in { background: var(--harvest); }
 .cbar.hv { height: 9px; border-radius: 5px; margin-top: 3px; background: repeating-linear-gradient(90deg, var(--harvest) 0 7px, color-mix(in srgb, var(--harvest) 70%, white) 7px 9px); }
@@ -592,7 +596,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       </div>
     </div>
     <button class="btn sm" id="vPlanted" type="button" aria-pressed="false" title="Show trees and shrubs at their supplied pot size instead of their mature spread">As planted</button>
-    <button class="btn sm" id="oudolfBtn" type="button" aria-pressed="false" title="Oudolf mode: draw the perennials as areas that share their borders (O)">Oudolf</button>
+    <button class="btn sm" id="oudolfBtn" type="button" aria-pressed="false" title="Oudolf drawing for the selected bed, or every bed: draws the perennials as areas that share their borders (O)">Oudolf</button>
     <button class="btn sm" id="sunBtn" type="button" aria-pressed="false" title="Sun study: shadows through the day and year">Sun</button>
     <select id="seasonSel" aria-label="Colour the plan by month" title="Colour the plan by what is in flower or of interest in a month"></select>
     <div class="spacer"></div>
@@ -645,6 +649,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="calhead"><div><span class="lbl">Plant schedule</span><h2 id="schedH">Plant schedule</h2></div>
       <div class="row"><span class="note" id="schedSum"></span><button class="btn sm" id="copyBtn" type="button" title="Copy as rows you can paste into your spreadsheet">Copy for spreadsheet</button></div></div>
     <div style="overflow-x:auto"><table class="sched wide" id="sched"></table></div>
+    <div id="guildWrap" hidden style="display:flex;flex-direction:column;gap:8px"><h2 style="font-size:20px">Guilds</h2><div style="overflow-x:auto"><table class="sched wide" id="guildT"></table></div></div>
     <div id="existingWrap" hidden style="display:flex;flex-direction:column;gap:8px"><h2 style="font-size:20px">Existing plants</h2><div style="overflow-x:auto"><table class="sched wide" id="existingT"></table></div></div>
     <div id="orderWrap" hidden style="display:flex;flex-direction:column;gap:14px"><div><h2 style="font-size:20px">Order lists by supplier</h2><p class="note" style="margin:2px 0 0;max-width:75ch">One list for each supplier named on your species. Stock is the figure from the supplier’s availability list on the day you added the plant from it.</p></div><div id="orderLists" style="display:flex;flex-direction:column;gap:20px;overflow-x:auto"></div></div>
   </section>
@@ -848,21 +853,42 @@ const BEDPOLY = new Map();
 function bedPoly(b) { const k = JSON.stringify(b.pts) + !!b.straight; let v = BEDPOLY.get(b.id); if (!v || v.k !== k) { v = { k, P: sampled({ pts: b.pts, smooth: !b.straight, k: BED_K }) }; BEDPOLY.set(b.id, v); } return v.P; }
 const BED_K = 1 / 12;   // beds hug their points: corners round off without bulging past a wall or the plot edge
 const bedPath = b => pathD(b.pts, !b.straight, true, BED_K);
-/* an area drawn with the Area tool is a planting bed, existing woodland, a building, a path or water; only beds and woodland take planting */
-const AREA_KINDS = { bed: 'Planting bed', wood: 'Existing woodland', hedge: 'Hedge', building: 'Building', path: 'Path or paving', water: 'Water' };
+/* an area drawn with the Area tool is a border bed, a guild, existing woodland, a hedge, a building, a path or water. Plants can go anywhere;
+   beds (border beds, guilds and woodland) are where the planting grid, tight circles and Oudolf drawing work */
+const AREA_KINDS = { bed: 'Border bed', guild: 'Guild', wood: 'Existing woodland', hedge: 'Hedge', building: 'Building', path: 'Path or paving', water: 'Water' };
 const SURFACES = { paving: ['Paving', '#D8D0C2'], gravel: ['Gravel', '#E2DAC6'], bark: ['Bark', '#B99A78'], grass: ['Grass', '#B7CC92'], decking: ['Decking', '#C7A982'] };
 const WATERS = { pond: 'Pond', lake: 'Lake', river: 'River', stream: 'Stream', rill: 'Rill' };
-const areaKind = b => b?.wood ? 'wood' : ['hedge', 'building', 'path', 'water'].includes(b?.kind) ? b.kind : 'bed';
-const plantable = b => { const k = areaKind(b); return k === 'bed' || k === 'wood'; };
+const areaKind = b => b?.wood ? 'wood' : ['guild', 'hedge', 'building', 'path', 'water'].includes(b?.kind) ? b.kind : 'bed';
+const plantable = b => { const k = areaKind(b); return k === 'bed' || k === 'guild' || k === 'wood'; };
 const pbeds = () => beds().filter(plantable);
 const surfOf = b => SURFACES[b.surf] ? b.surf : 'paving', waterOf = b => WATERS[b.water] ? b.water : 'pond', bhOf = b => clamp(num(b.bh, b.kind === 'hedge' ? 1.8 : 6), 0.3, 100), leafOf = b => b.leaf === 'deciduous' ? 'deciduous' : 'evergreen';
-const blockedAt = (x, y) => beds().some(b => !plantable(b) && pointInPoly(x, y, bedPoly(b)));   // nothing is planted on a building, path or water
 function areaSub(b) {
   const k = areaKind(b), named = !!(b.name || '').trim();   // without a name, the heading already says what it is
   return k === 'wood' ? woodText(b) + ' · retain' : k === 'hedge' ? `${bhOf(b)} m high, ${leafOf(b)}` : k === 'building' ? (named ? 'building, ' : '') + `${bhOf(b)} m high` : k === 'path' ? SURFACES[surfOf(b)][0].toLowerCase() : k === 'water' && named ? WATERS[waterOf(b)].toLowerCase() : '';
 }
-const areaDefault = b => ({ wood: 'Existing woodland', hedge: 'Hedge', building: 'Building', path: 'Path', water: WATERS[waterOf(b)] })[areaKind(b)] || 'Bed';
+const areaDefault = b => areaKind(b) === 'guild' ? guildAuto(b) : ({ wood: 'Existing woodland', hedge: 'Hedge', building: 'Building', path: 'Path', water: WATERS[waterOf(b)] })[areaKind(b)] || 'Border bed';
 const bedFill = b => /^#[0-9a-f]{6}$/i.test(b.color || '') ? b.color : b.wood ? WOOD_COL : ({ hedge: '#8BA676', building: '#BDB5AA', path: SURFACES[surfOf(b)][1], water: '#9EC3D8' })[areaKind(b)] || 'var(--ground)';
+/* a guild is named after its centre plant (the tallest in it), unless you name it */
+function guildAuto(b) {
+  const P = bedPoly(b); let best = null;
+  for (const pl of S.g?.plantings || []) { if (!pointInPoly(pl.x, pl.y, P)) continue; const p = plantById(pl.plantId); if (p && (!best || num(p.height) > num(best.height))) best = p; }
+  return best ? `${best.common || best.botanical || 'Plant'} guild` : 'Guild';
+}
+const guildName = b => (b.name || '').trim() || guildAuto(b);
+/* what each guild holds, listed from the tallest layer down */
+function guildRows() {
+  const gs = beds().filter(b => areaKind(b) === 'guild'); if (!gs.length || !S.g) return [];
+  const od = anyOudolf() ? oudolfRegions() : null;
+  return gs.map(b => {
+    const P = bedPoly(b), m = new Map(), add = (pid, n) => m.set(pid, (m.get(pid) || 0) + n);
+    for (const pl of S.g.plantings) if (!(od && od.inc.has(pl.id)) && pointInPoly(pl.x, pl.y, P)) add(pl.plantId, pl.qty || 1);
+    if (od) { for (const r of od.regions) if (r.bed === b.id) add(r.pid, r.qty); for (const c of od.singles) if (pointInPoly(c.x, c.y, P)) add(c.pid, 1); }
+    for (const a of S.g.areas || []) if (a.kind === 'drift' && a.plantId && a.pts?.length) { const cx = a.pts.reduce((t, q) => t + q[0], 0) / a.pts.length, cy = a.pts.reduce((t, q) => t + q[1], 0) / a.pts.length; if (pointInPoly(cx, cy, P)) add(a.plantId, driftQty(a)); }
+    const items = [...m].map(([pid, qty]) => ({ p: plantById(pid), qty })).filter(r => r.p)
+      .sort((x, y) => LAYER_ORDER.indexOf(layerOf(x.p.role)) - LAYER_ORDER.indexOf(layerOf(y.p.role)) || num(y.p.height) - num(x.p.height) || (x.p.botanical || x.p.common || '').localeCompare(y.p.botanical || y.p.common || ''));
+    return { b, name: guildName(b), items, total: items.reduce((t, r) => t + r.qty, 0) };
+  });
+}
 /* the texture drawn over each kind of area, in plan metres, scaled up on large sites so it never turns to noise */
 function areaPattern(id, sc) {
   const T = (w, h, body, rot) => `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${w}" height="${h}" patternTransform="${rot ? 'rotate(45) ' : ''}scale(${sc})"><g style="stroke:var(--ink);fill:var(--ink)" stroke-opacity="0.35" fill-opacity="0.35" stroke-width="0.025" stroke-linecap="round">${body}</g></pattern>`;
@@ -947,7 +973,14 @@ function radiusOf(pl) { const p = plantById(pl.plantId); if (onGrid(p)) { const 
 function defaultDensity(p) { const s = num(p?.spread, 0.5); return Math.round((1 / (s * s)) * 10) / 10; }
 
 /* ---------- Oudolf mode: the planting drawn as areas that share their borders ---------- */
-const oudolf = () => !!S.prefs.oudolf;
+/* each bed has its own drawing: tight circles or Oudolf. Beds from before this was a per-bed choice follow the old app-wide setting;
+   with no beds drawn at all, the garden has one setting for the whole plan */
+const odBed = b => !!b && plantable(b) && (b.oudolf ?? !!S.prefs.oudolf);
+const oudolfAt = (x, y) => pbeds().length ? odBed(bedAt(x, y)) : !!(S.g?.oudolf ?? S.prefs.oudolf);
+const anyOudolf = () => !!S.g && (pbeds().length ? pbeds().some(odBed) : !!(S.g.oudolf ?? S.prefs.oudolf));
+/* the toolbar button and the O key work on the bed selected in the Area tool, or on every bed */
+function odScope() { if (!S.g) return null; const sb = S.tool === 'bed' ? pbeds().find(b => b.id === S.bedSel) : null; return sb ? [sb] : pbeds().length ? pbeds() : null; }
+function oudolfOn() { if (!S.g) return false; const sc = odScope(); return sc ? sc.every(odBed) : !!(S.g.oudolf ?? S.prefs.oudolf); }
 function densityOf(p) { return num(p?.density) > 0 ? clamp(num(p.density), 0.1, 200) : defaultDensity(p); }
 const cellArea = s => s * s * Math.sqrt(3) / 2;
 function latticeIdx(x, y, s, f) { const q = latticeSnap(x, y, s, f), ox = f.ox - (f.id ? s / 4 : 0); return [q.i, q.j, ox + q.i * s + ((q.j & 1) ? s / 2 : 0), f.oy + q.j * s * Math.sqrt(3) / 2]; }   // exact centres, so neighbouring cells share their corners
@@ -957,8 +990,8 @@ let REG = { key: '', val: null };
    points where three areas meet fixed) bends neighbouring areas together and they never gap or overlap. */
 function oudolfRegions() {
   const g = S.g, s = gridSpace();
-  const field = g.plantings.filter(pl => kindOf(plantById(pl.plantId)) === 'field');
-  const key = s + '|' + JSON.stringify(beds()) + '|' + field.map(pl => pl.id + ':' + pl.plantId + ':' + pl.x + ':' + pl.y + ':' + (pl.qty || 1)).join(';');
+  const field = g.plantings.filter(pl => kindOf(plantById(pl.plantId)) === 'field' && oudolfAt(pl.x, pl.y));   // only the planting in beds drawn the Oudolf way
+  const key = s + '|' + !!(g.oudolf ?? S.prefs.oudolf) + '|' + !!S.prefs.oudolf + '|' + JSON.stringify(beds()) + '|' + field.map(pl => pl.id + ':' + pl.plantId + ':' + pl.x + ':' + pl.y + ':' + (pl.qty || 1)).join(';');
   const counted = v => { for (const r of v.regions) r.qty = Math.max(1, Math.round(r.area * densityOf(plantById(r.pid)))); return v; };   // counts follow the current plants per m²
   if (REG.key === key && REG.g === g.id) return counted(REG.val);
   if (S.drag?.bed && REG.val && REG.g === g.id) return counted(REG.val);   // while a bed is dragged, keep the areas as they were (moved along with it), and redo them on release
@@ -1054,7 +1087,7 @@ function oudolfRegions() {
     regions.push({ pid: mine[0].pid, bed: mine[0].f.id, ids: [...new Set(mine.map(c => c.id))], cells: mine.length, area, qty: Math.max(1, Math.round(area * densityOf(p))),
       d: loops.map(l => 'M' + l.map(([x, y]) => f3(x) + ' ' + f3(y)).join('L') + 'Z').join(''), lx: lab.x, ly: lab.y });
   }
-  REG = { key, g: g.id, val: { regions, singles } };
+  REG = { key, g: g.id, val: { regions, singles, inc: new Set(field.map(pl => pl.id)) } };
   return counted(REG.val);
 }
 
@@ -1652,7 +1685,7 @@ function renderMap() {
      then the planting, then bulbs; largest first within each. While placing bulbs the rest fades back, and the other way round */
   const pls = [...g.plantings].sort((a, b) => radiusOf(b) - radiusOf(a));
   const f3m = v => +v.toFixed(3);
-  const L = { under: [], field: [], bulb: [], over: [] }, act = S.tool === 'plant' && !pr ? kindOf(plantById(S.activePlant)) : null, od = oudolf() ? oudolfRegions() : null;
+  const L = { under: [], field: [], bulb: [], over: [] }, act = S.tool === 'plant' && !pr ? kindOf(plantById(S.activePlant)) : null, od = anyOudolf() ? oudolfRegions() : null;
   if (od) {
     for (const r of od.regions) {
       const p = plantById(r.pid); if (!isVisible(p)) continue;
@@ -1674,7 +1707,7 @@ function renderMap() {
     const p = plantById(pl.plantId);
     if (!isVisible(p)) continue;
     const kind = kindOf(p), grid = kind === 'field' || kind === 'bulb';
-    if (od && kind === 'field') continue;
+    if (od && od.inc.has(pl.id)) continue;   // drawn as part of an Oudolf area
     const ex = !!p?.existing, st = pl.status || 'retain', qty = Math.max(1, pl.qty || 1);
     const se = S.season && !pr ? seasonOf(p, S.season) : null;
     const lk = p ? look(p, se) : { fill: 'var(--muted)', op: 0.3, line: 'var(--muted)', dash: false }, spf = !se && kind !== 'bulb' && p ? lk : null;
@@ -1745,14 +1778,14 @@ function renderMap() {
   }
   const fade = on => on ? ' opacity="0.4"' : '';
   const bedNames = showL ? beds().filter(b => areaKind(b) !== 'bed' || (b.name || '').trim()).map(b => { const P = bedPoly(b);
-    if (areaKind(b) !== 'bed') {   // woodland, buildings, paths and water are named in their middle, with what they are beneath
+    if (areaKind(b) !== 'bed' && areaKind(b) !== 'guild') {   // woodland, buildings, paths and water are named in their middle, with what they are beneath
       const cx = +(P.reduce((t, q) => t + q[0], 0) / P.length).toFixed(3), cy = +(P.reduce((t, q) => t + q[1], 0) / P.length).toFixed(3), nm = ((b.name || '').trim() || areaDefault(b)).toUpperCase(), sub = areaSub(b), s1 = ls * 0.85, s2 = ls * 0.62;
       if (areaKind(b) === 'hedge') { const t2 = nm + '  ' + sub; return tag(cx, +(cy + s2 * 0.35).toFixed(3), s2, '', {}, { fixed: true, wk: 0.62, len: t2.length, raw: `<text x="${cx}" y="${+(cy + s2 * 0.35).toFixed(3)}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label)" pointer-events="none"><tspan style="letter-spacing:0.08em">${esc(nm)}</tspan>  <tspan style="font-style:italic">${esc(sub)}</tspan></text>` }); }
       return tag(cx, cy, s1, '', {}, { fixed: true, wk: 0.7, len: nm.length, raw: `<text x="${cx}" y="${cy}" font-size="${+s1.toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>` })
         + (sub ? tag(cx, +(cy + s2 * 1.5).toFixed(3), s2, '', {}, { fixed: true, wk: 0.5, len: sub.length, raw: `<text x="${cx}" y="${+(cy + s2 * 1.5).toFixed(3)}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label);font-style:italic" pointer-events="none">${esc(sub)}</text>` }) : '');
     }
     const top = P.reduce((m, q) => q[1] < m[1] ? q : m, P[0]), xs = P.map(q => q[0]);
-    const x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3), y = +(top[1] - ls * 0.35).toFixed(3), nm = b.name.trim().toUpperCase();
+    const x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3), y = +(top[1] - ls * 0.35).toFixed(3), nm = (areaKind(b) === 'guild' ? guildName(b) : b.name.trim()).toUpperCase();
     return tag(x, y, ls * 0.85, '', {}, { fixed: true, wk: 0.7, raw: `<text x="${x}" y="${y}" font-size="${+(ls * 0.85).toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>`, len: nm.length }); }).join('') : '';
   const psc = +Math.max(1, M / 30).toFixed(3), apats = new Set();
   const hardAreas = beds().filter(b => !plantable(b)).map(b => {
@@ -1761,7 +1794,7 @@ function renderMap() {
     return `<g data-kind="bed" data-id="${b.id}"${S.tool === 'bed' && !pr ? ' style="cursor:move"' : ' pointer-events="none"'}><path d="${d}" style="fill:${bedFill(b)};stroke:${sel ? 'var(--accent)' : k === 'water' ? '#4F7F9C' : k === 'hedge' ? '#4E6B44' : 'var(--ink)'}" fill-opacity="${k === 'hedge' ? 0.8 : 0.92}" stroke-width="${sel ? 2.5 : k === 'building' ? 2.2 : k === 'hedge' ? 1 : 1.3}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${d}" fill="url(#${pid})" pointer-events="none"/></g>`;
   }).join('');
   const bedLines = beds().filter(plantable).map(b => `<path d="${b.wood ? woodEdge(b) : bedPath(b)}" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : b.wood ? 1 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
-  parts.push(`<g${fade(act === 'bulb')}>${L.under.join('')}${L.field.join('')}${hardAreas}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, '\u0002', `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
+  parts.push(`<g${fade(act === 'bulb')}>${hardAreas}${L.under.join('')}${L.field.join('')}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, '\u0002', `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
   if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
   // handles for the selected curve
   const sa = S.sel?.kind === 'area' ? findSel() : null;
@@ -1773,9 +1806,9 @@ function renderMap() {
     for (const q of [S.cal.a, S.cal.b].filter(Boolean)) parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${px * 5}" style="fill:var(--panel);stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
   if (S.tool === 'plant' && gridOn() && S.hover && !S.hoverShift && !pr && !S.drag) {
-    const p = plantById(S.activePlant), q = latticeSnap(S.hover.x, S.hover.y, latticeOf(p)), outside = (pbeds().length && !bedAt(S.hover.x, S.hover.y)) || blockedAt(S.hover.x, S.hover.y);
-    if (outside) {} else
-    if (oudolf() && kindOf(p) === 'field') { const R = gridSpace() / Math.sqrt(3); parts.push(`<path d="M${[0, 1, 2, 3, 4, 5].map(k => { const a = (30 + 60 * k) * Math.PI / 180; return +(q.x + R * Math.cos(a)).toFixed(3) + ' ' + +(q.y + R * Math.sin(a)).toFixed(3); }).join('L')}Z" style="fill:${speciesStyle(p).col};stroke:var(--accent)" fill-opacity="0.35" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>`); } else
+    const p = plantById(S.activePlant), q = latticeSnap(S.hover.x, S.hover.y, latticeOf(p)), outside = pbeds().length && !bedAt(S.hover.x, S.hover.y);
+    if (outside) parts.push(`<circle cx="${S.hover.x}" cy="${S.hover.y}" r="${spacingOf(p) * (kindOf(p) === 'bulb' ? 0.3 : 0.5)}" fill="none" style="stroke:var(--accent)" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>`); else
+    if (kindOf(p) === 'field' && oudolfAt(q.x, q.y)) { const R = gridSpace() / Math.sqrt(3); parts.push(`<path d="M${[0, 1, 2, 3, 4, 5].map(k => { const a = (30 + 60 * k) * Math.PI / 180; return +(q.x + R * Math.cos(a)).toFixed(3) + ' ' + +(q.y + R * Math.sin(a)).toFixed(3); }).join('L')}Z" style="fill:${speciesStyle(p).col};stroke:var(--accent)" fill-opacity="0.35" stroke-width="1.5" vector-effect="non-scaling-stroke" pointer-events="none"/>`); } else
     parts.push(`<circle cx="${q.x}" cy="${q.y}" r="${spacingOf(p) * (kindOf(p) === 'bulb' ? 0.3 : 0.5)}" fill="none" style="stroke:var(--accent)" stroke-width="1.5" stroke-dasharray="3 2" vector-effect="non-scaling-stroke" pointer-events="none"/>`);
   }
   if (S.tool === 'row' && !pr) for (const r of rowsLive()) {
@@ -1842,7 +1875,7 @@ function renderTools() {
   const ap = plantById(S.activePlant)?.common || '';
   let h = HINTS[S.tool] || '';
   if (needSp) h = 'Pick a species in the plant library first.';
-  else if (S.tool === 'plant') h = `Placing ${ap}. Click the plan to drop one; set the quantity for a group.`;
+  else if (S.tool === 'plant') h = `Placing ${ap}. Click the plan to drop one anywhere; set the quantity for a group.`;
   else if (S.tool === 'row' && S.row?.a) h = 'Now click where the row ends. Hold Shift to keep it level, upright or at 45°. Esc cancels.';
   else if (S.tool === 'measure' && S.meas?.a && !S.meas.b) h = 'Now click the second point.';
   else if (S.tool === 'scale' && S.cal?.a && !S.cal.b) h = 'Now click the second point.';
@@ -1914,6 +1947,7 @@ function renderLibrary() {
 function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
 function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
 function renderInspector() {
+  paintOudolfBtn();
   const el = $('inspector'), hint = $('hint');
   if (S.confirm === 'underlay') {
     hint.hidden = true; el.hidden = false;
@@ -1947,8 +1981,9 @@ function renderInspector() {
           <label class="pf"><span>Canopy</span><select id="wood-dens" aria-label="Canopy density">${Object.entries(WOOD_DENS).map(([k, [l]]) => `<option value="${k}"${w.dens === k ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="pf"><span>Leaf</span><select id="wood-leaf" aria-label="Deciduous or evergreen"><option value="deciduous">Deciduous</option><option value="evergreen"${w.leaf === 'evergreen' ? ' selected' : ''}>Evergreen</option></select></label>`)(woodOf(sb)) : ''}
           <label class="pf"><span>Colour</span><input id="bed-col" type="color" value="${/^#[0-9a-f]{6}$/i.test(sb.color || '') ? sb.color : /^#/.test(bedFill(sb)) ? bedFill(sb) : '#E9E1D2'}" aria-label="Area colour" style="width:34px;height:24px;padding:1px"></label>${sb.color ? '<button class="btn sm" type="button" data-act="bedNoCol">No colour</button>' : ''}
+          ${plantable(sb) ? `<label class="pf"><span>Drawing</span><select id="area-draw" aria-label="How the planting in this bed is drawn"><option value="circles">Tight circles</option><option value="oudolf"${odBed(sb) ? ' selected' : ''}>Oudolf</option></select></label>` : ''}
           <label class="checks"><input type="checkbox" id="area-straight"${sb.straight ? ' checked' : ''}> Straight edges</label>
-          <span class="pv">${({ wood: `${bedAreaOf(sb).toFixed(0)} m² of existing woodland, kept. Its canopy casts shade in the Sun view, and shade plants can go beneath it as in any bed. `, building: 'A building: it casts shade in the Sun view at its height, and nothing is planted on it. ', hedge: 'A hedge: it casts shade in the Sun view at its height (lighter when a deciduous hedge is bare), and nothing else is planted in it. Draw it as a strip along its line. ', path: 'A path or hard surface: nothing is planted on it. ', water: 'Water: nothing is planted in it; marginal plants can go in a bed drawn along its edge. ' })[areaKind(sb)] || ''}${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-click a point to remove it. The planting grid is centred on the bed, and Oudolf areas stop at its edge.</span>
+          <span class="pv">${({ wood: `${bedAreaOf(sb).toFixed(0)} m² of existing woodland, kept. Its canopy casts shade in the Sun view, and shade plants can go beneath it as in any bed. `, building: 'A building: it casts shade in the Sun view at its height. Plants can still go on it, for a green roof. ', hedge: 'A hedge: it casts shade in the Sun view at its height (lighter when a deciduous hedge is bare), Draw it as a strip along its line. ', path: 'A path or hard surface. ', water: 'Water: aquatic and marginal plants can go in it or along its edge. ', guild: 'A guild: a group of plants that support each other, named after its tallest plant unless you name it, and listed together in the schedule and presentation. ', bed: 'A border bed. ' })[areaKind(sb)] || ''}${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-click a point to remove it.${plantable(sb) ? ' The planting grid is centred on the bed, and Oudolf areas stop at its edge.' : ''}</span>
         <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove area</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
       return;
     }
@@ -1974,9 +2009,9 @@ function renderInspector() {
     const p = plantById(S.activePlant);
     hint.hidden = true; el.hidden = false;
     el.innerHTML = `<span class="pk">${plantSwatch(p, 14)}${esc(p?.common || 'Plant')}</span>
-      ${kindOf(p) === 'field' && oudolf() ? `<label class="pf"><span>Plants per m²</span><input id="pt-dens" class="n" type="number" min="0.1" max="200" step="0.5" value="${+densityOf(p).toFixed(1)}"></label>` : ''}
+      ${kindOf(p) === 'field' && anyOudolf() ? `<label class="pf"><span>Plants per m²</span><input id="pt-dens" class="n" type="number" min="0.1" max="200" step="0.5" value="${+densityOf(p).toFixed(1)}"></label>` : ''}
       ${kindOf(p) === 'field' ? `<label class="pf"><span>Grid</span><input id="pg-space" class="n" type="number" min="0.05" max="2" step="0.05" value="${gridSpace()}"><span class="pv">m</span></label>` : ''}
-      <span class="pv">${{ field: oudolf() ? 'Paint this plant’s area; painting over a neighbour moves the border between them. Alt-drag rubs out.' : `Click or drag to paint onto the planting grid; Alt-drag rubs out. Hold Shift to place one off the grid.`,
+      <span class="pv">${{ field: (anyOudolf() ? 'In an Oudolf bed, paint this plant’s area; painting over a neighbour moves the border between them. In other beds, click or drag to paint onto the grid. ' : 'In a bed, click or drag to paint onto the planting grid; hold Shift to place one off the grid. ') + 'Outside the beds, each click places one plant. Alt-drag rubs out.',
         bulb: `Bulbs are their own layer, planned over the planting: paint them on a ${Math.round(spacingOf(p) * 100)} cm grid among the perennials. Alt-drag rubs out bulbs only.`,
         structure: 'Trees, shrubs and climbers go exactly where you click, drawn at their own size under the planting.',
         existing: 'Existing plants go exactly where you click, drawn at their measured size.' }[kindOf(p)]}</span>`;
@@ -2000,7 +2035,7 @@ function renderInspector() {
   }
   if (S.multi.length) {
     const items = selectedItems();
-    const rp = oudolf() && items.length > 1 && items.every(m => m.kind === 'planting' && m.it.plantId === items[0].it.plantId && kindOf(plantById(m.it.plantId)) === 'field') ? plantById(items[0].it.plantId) : null;
+    const rp = anyOudolf() && items.length > 1 && items.every(m => m.kind === 'planting' && m.it.plantId === items[0].it.plantId && oudolfRegions().inc.has(m.id)) ? plantById(items[0].it.plantId) : null;
     if (rp) {
       hint.hidden = true; el.hidden = false;
       const set = new Set(items.map(m => m.id)), regs = oudolfRegions().regions.filter(r => r.ids.some(id => set.has(id))), area = regs.reduce((t, r) => t + r.area, 0), qty = regs.reduce((t, r) => t + r.qty, 0);
@@ -2090,15 +2125,13 @@ function paintMonthSlider() {
 }
 function renderPlantEditor(el) {
   const p = S.editPlant;
-  const mo = v => `<option value="">None</option>` + MONTHS.map((m, i) => `<option value="${i + 1}"${+v === i + 1 ? ' selected' : ''}>${m}</option>`).join('');
+    const mo = v => `<option value="">None</option>` + MONTHS.map((m, i) => `<option value="${i + 1}"${+v === i + 1 ? ' selected' : ''}>${m}</option>`).join('');
   const cb = (map, arr, f) => Object.entries(map).map(([k, l]) => `<label><input type="checkbox" id="sp-${f}-${k}" data-arr="${f}" value="${k}"${(arr || []).includes(k) ? ' checked' : ''}> ${l}</label>`).join('');
   const used = gardensUsing(p.id).length > 0;
   el.innerHTML = `<div class="card-h"><h2 style="font-size:17px">${p._new ? 'New species' : 'Edit species'}</h2>${p.example ? '<span class="ex">Example</span>' : ''}</div>
-    <label class="field"><span>Common name</span><input id="sp-common" type="text" data-p="common" value="${esc(p.common)}"></label>
     <label class="field"><span>Botanical</span><input id="sp-bot" type="text" data-p="botanical" value="${esc(p.botanical)}"></label>
-    <div class="field"><span>On site</span><label class="checks"><input type="checkbox" id="sp-existing" data-pb="existing"${p.existing ? ' checked' : ''}> Existing plant, already in the garden</label></div>
+    <label class="field"><span>Common name</span><input id="sp-common" type="text" data-p="common" value="${esc(p.common)}"></label>
     <label class="field"><span>Layer</span><select id="sp-role" data-p="role">${opt(ROLES, p.role)}</select></label>
-    <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
     <div class="field" style="align-items:start"><span style="padding-top:4px">In season</span><div style="display:flex;flex-direction:column;gap:6px;flex:1">
       <div class="row" role="radiogroup" aria-label="Flowers or crop"><label class="checks"><input type="radio" name="sp-kind" id="sp-kind-fl" value="flowers"${p.crop ? '' : ' checked'}> Flowers</label><label class="checks"><input type="radio" name="sp-kind" id="sp-crop" value="crop"${p.crop ? ' checked' : ''}> Crop (harvest)</label></div>
       ${monthSlider(p)}</div></div>
@@ -2107,30 +2140,35 @@ function renderPlantEditor(el) {
       <div class="swatches" role="group" aria-label="${p.crop ? 'Crop colour' : 'Flower colour'}">${FLOWER_COLOURS.map(([n, h]) => `<button type="button" data-color="${h}" data-cname="${n}" title="${n}" aria-label="${n}" aria-pressed="${(showCol(p) || '').toLowerCase() === h.toLowerCase()}" style="background:${h}"></button>`).join('')}</div>
       <div class="colrow"><label style="display:inline-flex;gap:6px;align-items:center">Custom <input type="color" id="sp-col" data-p="flowerColor" value="${showCol(p) || '#c9a7d9'}"></label><span id="colName">${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}"></span>${esc(showColName(p) || 'Custom colour')}` : 'No colour chosen'}</span>${showCol(p) ? '<button class="btn sm" type="button" data-act="clearColour">Clear</button>' : ''}</div>
     </div></div>
+    <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
+    <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label><button class="btn sm" type="button" data-act="findPhotoEdit">Find a photo online</button>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div>${p.photoCredit && p.photoId ? `<span class="note">${esc(photoCreditText(p.photoCredit))}</span>` : ''}</div>
+    <details class="more" id="sp-more"${S.moreOpen || p.existing ? ' open' : ''}><summary>More details</summary><div class="morebody">
+    <div class="field"><span>On site</span><label class="checks"><input type="checkbox" id="sp-existing" data-pb="existing"${p.existing ? ' checked' : ''}> Existing plant, already in the garden</label></div>
+    <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
     <label class="field"><span>Foliage</span><select id="sp-fol" data-p="foliage"><option value="">Not set</option>${opt(FOLIAGE, p.foliage)}</select></label>
     ${'' ? `<div class="field" style="align-items:start"><span style="padding-top:4px">Other interest</span><div style="display:flex;flex-direction:column;gap:6px">
       ${(p.interest || []).map((it, i) => `<div class="irow"><select data-ii="${i}" data-if="kind" aria-label="Kind of interest">${Object.entries(INTEREST).map(([k, v]) => `<option value="${k}"${it.kind === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select><select data-ii="${i}" data-if="from" aria-label="From month">${mo(it.from).replace('<option value="">None</option>', '')}</select><span class="pv">to</span><select data-ii="${i}" data-if="to" aria-label="To month">${mo(it.to).replace('<option value="">None</option>', '')}</select><input type="color" data-ii="${i}" data-if="color" value="${esc(it.color || '#C92F2F')}" aria-label="Colour"><button class="btn sm" type="button" data-idel="${i}" aria-label="Remove">×</button></div>`).join('')}
       <button class="btn sm" type="button" data-act="addInterest" style="align-self:flex-start">Add berries, autumn colour, stems…</button>
     </div></div>` : ''}
-    <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
     ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>`}
     ${p.existing && !onGrid(p) ? '' : `<label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>`}
     ${`<div class="field"><span>Plan colour</span><div class="row pcrow">${plantSwatch({ ...p, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
     ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
-    <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label><button class="btn sm" type="button" data-act="findPhotoEdit">Find a photo online</button>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div>${p.photoCredit && p.photoId ? `<span class="note">${esc(photoCreditText(p.photoCredit))}</span>` : ''}</div>
+    </div></details>
     <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing trees and shrubs are drawn dashed at that size; existing perennials, ground cover and bulbs are painted on the grid like new ones. Existing plants are left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets the plant’s size on the plan and the starting spacing for a row.'}</p>
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new && S.g && getPage() !== 'database' && libIds().has(p.id) ? `<button class="btn" type="button" data-act="unLibrary"${usedHere().has(p.id) ? ' disabled title="It’s on the plan: take it off the plan first"' : ''}>Remove from this garden</button>` : ''}${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
     ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants from the plan first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
     <p class="note" id="plantErr" style="margin:0;color:var(--crit)"></p>`;
   paintMonthSlider();
+  const mo2 = $('sp-more'); if (mo2) mo2.addEventListener('toggle', () => { S.moreOpen = mo2.open; });
 }
 function scheduleRows() {
   const m = new Map();
   const isEx = id => !!plantById(id)?.existing;
-  const od = S.g && oudolf();   // in Oudolf mode the planting is counted from the size of its areas
-  for (const pl of S.g?.plantings || []) if (!isEx(pl.plantId) && !(od && kindOf(plantById(pl.plantId)) === 'field')) m.set(pl.plantId, (m.get(pl.plantId) || 0) + (pl.qty || 1));
+  const od = S.g && anyOudolf(), inc = od ? oudolfRegions().inc : null;   // in Oudolf beds the planting is counted from the size of its areas
+  for (const pl of S.g?.plantings || []) if (!isEx(pl.plantId) && !(inc && inc.has(pl.id))) m.set(pl.plantId, (m.get(pl.plantId) || 0) + (pl.qty || 1));
   if (od) { const o = oudolfRegions(); for (const r of o.regions) if (!isEx(r.pid)) m.set(r.pid, (m.get(r.pid) || 0) + r.qty); for (const c of o.singles) if (!isEx(c.pid)) m.set(c.pid, (m.get(c.pid) || 0) + 1); }
   for (const a of S.g?.areas || []) if (a.kind === 'drift' && a.plantId && !isEx(a.plantId)) m.set(a.plantId, (m.get(a.plantId) || 0) + driftQty(a));
   return [...m.entries()].map(([id, qty]) => ({ p: plantById(id), id, qty })).sort((a, b) => (a.p?.common || '').localeCompare(b.p?.common || ''));
@@ -2145,7 +2183,9 @@ function existingRows() {
 function renderSchedule() {
   const rows = scheduleRows(), exRows = existingRows();
   $('schedH').textContent = S.g ? S.g.name + (S.g.client ? ' · ' + S.g.client : '') : 'Plant schedule';
-  const woods = woodRows();
+  const woods = woodRows(), guilds = guildRows();
+  $('guildWrap').hidden = !guilds.length;
+  $('guildT').innerHTML = guilds.length ? `<thead><tr><th>Guild</th><th>Layer</th><th>Plant</th><th class="n">Qty</th></tr></thead><tbody>${guilds.map(gd => gd.items.length ? gd.items.map((r, i) => `<tr><td>${i ? '' : `<b>${esc(gd.name)}</b>`}</td><td>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td><i>${esc(r.p.botanical || '')}</i> ${esc(r.p.common || '')}${r.p.existing ? ' <span class="note">existing</span>' : ''}</td><td class="n">${r.qty}</td></tr>`).join('') : `<tr><td><b>${esc(gd.name)}</b></td><td colspan="3" class="note">Nothing planted in it yet</td></tr>`).join('')}</tbody>` : '';
   $('existingWrap').hidden = !exRows.length && !woods.length;
   $('existingT').innerHTML = exRows.length || woods.length ? `<thead><tr><th>Species</th><th>Botanical name</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th><th>Notes</th></tr></thead><tbody>${exRows.map(r => `<tr><td>${esc(r.p?.common || '')}</td><td><i>${esc(r.p?.botanical || '')}</i></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n"${r.remove ? ' style="color:var(--crit)"' : ''}>${r.remove || '–'}</td><td>${esc([...r.notes].join('; '))}</td></tr>`).join('')}${woods.map(w => `<tr><td>${esc(w.name)}</td><td><i>Existing woodland, ${esc(w.desc)}</i></td><td class="n">${Math.round(w.area)} m²</td><td class="n">–</td><td class="n">–</td><td>Kept; not counted as plants</td></tr>`).join('')}</tbody>` : '';
   const t = $('sched');
@@ -2308,8 +2348,7 @@ function renderPrefs() {
         <p class="note" style="margin:0">Aerial photos under the plan come from Esri World Imagery and need your own free key. Sign up for an ArcGIS Location Platform account at location.arcgis.com, create an API key with the Basemaps privilege, and paste it here. The free allowance (2 million map tiles a month) is far more than one designer uses. The key stays on this computer and is left out of backups.</p>
       </fieldset>
       <fieldset class="pref"><legend>Planting style</legend>
-        ${chk('pf-oudolf', 'oudolf', 'Oudolf mode')}
-        <p class="note" style="margin:0">Draws the perennials and ground cover as areas that share their borders, in the manner of Piet Oudolf’s and Henk Gerritsen’s plans, keeping each plant’s colour and pattern. You still paint them onto the grid; each area is labelled with its count, worked out from its size and the plant’s number per square metre, which you set in the bar under the toolbar.</p>
+        <p class="note" style="margin:0">Oudolf drawing is set for each bed: select a bed with the Area tool and choose its drawing, or use the Oudolf button (O), which switches the selected bed, or every bed when none is selected. It draws the perennials and ground cover as areas that share their borders, in the manner of Piet Oudolf’s and Henk Gerritsen’s plans, keeping each plant’s colour and pattern. You still paint them onto the grid; each area is labelled with its count, worked out from its size and the plant’s number per square metre, which you set in the bar under the toolbar.</p>
       </fieldset>
       <fieldset class="pref"><legend>Placing plants</legend>
         <label class="field"><span>Snap to</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-snap" data-pref="snap" min="0.05" max="1" step="0.05" value="${clamp(num(P.snap, 0.1), 0.05, 1)}" style="flex:1;accent-color:var(--accent)"><output id="pf-snap-v" style="min-width:3.5em;text-align:right">${snapText(P.snap)}</output></span></label>
@@ -2400,8 +2439,14 @@ function applyPage() {
   if (pg === 'flowering') renderCalendar(); else if (pg === 'schedule') renderSchedule(); else if (pg === 'preferences') renderPrefs(); else if (pg === 'presentation') renderPresentation(true); else if (pg === 'database') { showDbView(); if (S.editPlant) renderLibrary(); } else { renderMap(); renderInspector(); if (!S.editPlant) renderLibrary(); }
 }
 /* Oudolf mode, from the toolbar, the O key or Preferences: one shared setting, never switched in the middle of a drag */
-function setOudolf(on) { if (S.drag) return; setPref('oudolf', !!on); }
-function renderAll() { const ob = $('oudolfBtn'); if (ob) { ob.setAttribute('aria-pressed', String(oudolf())); ob.classList.toggle('on', oudolf()); ob.disabled = !S.g; } renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); $('vPlanted').classList.toggle('on', S.view === 'planted'); }
+function setOudolf(on) {   // only the drawing and counts change; no plant is moved
+  if (S.drag || !S.g) return;
+  checkpoint(); const sc = odScope();
+  if (sc) for (const b of sc) b.oudolf = !!on; else S.g.oudolf = !!on;
+  saveGarden(); renderAll();
+}
+function paintOudolfBtn() { const ob = $('oudolfBtn'); if (!ob) return; const on = oudolfOn(), one = S.tool === 'bed' && !!pbeds().find(b => b.id === S.bedSel); ob.setAttribute('aria-pressed', String(on)); ob.classList.toggle('on', on); ob.disabled = !S.g; ob.title = `Oudolf drawing ${on ? 'on' : 'off'} for ${one ? 'this bed' : pbeds().length ? 'every bed' : 'the plan'}: draws the perennials as areas that share their borders (O)`; }
+function renderAll() { paintOudolfBtn(); renderLayers(); if (getPage() === 'presentation') renderPresentation(); if (getPage() === 'flowering') renderCalendar(); if (getPage() === 'database') renderDatabase(); renderGardenFields(); renderTools(); renderLibrary(); renderPicker(); renderMap(); renderInspector(); renderSchedule(); renderOverlay(); renderSunBar(); $('seasonSel').disabled = !S.g; $('vPlanted').setAttribute('aria-pressed', S.view === 'planted'); $('vPlanted').classList.toggle('on', S.view === 'planted'); }
 function updateClear() { $('clearBtn').disabled = !S.g || !(S.g.plantings.length || S.g.areas.length); }
 function refreshDerived() { renderMap(); renderSchedule(); updateClear(); if (!S.editPlant) renderLibChips(); if (LIBF.used && !S.editPlant) renderLibrary(); }
 
@@ -2630,7 +2675,7 @@ function trackHover(e) {
 function paintAt(d, p) {
   if (!S.g || !(p.x >= 0 && p.y >= 0 && p.x <= S.g.width && p.y <= S.g.depth)) return;
   const np = plantById(S.activePlant), kind = kindOf(np), s = latticeOf(np), q = latticeSnap(p.x, p.y, s);
-  if ((pbeds().length && !(bedAt(p.x, p.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(p.x, p.y))))) || blockedAt(q.x, q.y)) return;   // with beds drawn, planting stays inside them
+  if (pbeds().length && !(bedAt(p.x, p.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(p.x, p.y))))) return;   // painting is for the beds; outside them plants go one at a time
   /* each layer only ever touches its own kind: bulbs go in among the planting, the planting ignores the bulbs and the trees above it */
   if (d.erase) {
     const keep = S.g.plantings.filter(x => !((x.qty || 1) === 1 && kindOf(plantById(x.plantId)) === kind && Math.hypot(x.x - p.x, x.y - p.y) < s * 0.55));
@@ -2638,7 +2683,7 @@ function paintAt(d, p) {
     if (!d.changed) { pushHistory(d.before); d.changed = true; }
     S.g.plantings = keep; renderMapSoon(); return;
   }
-  if (oudolf() && kind === 'field') {
+  if (kind === 'field' && oudolfAt(q.x, q.y)) {
     const here = S.g.plantings.filter(x => (x.qty || 1) === 1 && kindOf(plantById(x.plantId)) === 'field' && Math.hypot(x.x - q.x, x.y - q.y) < s * 0.55);
     if (here.some(x => x.plantId === S.activePlant)) return;
     if (!d.changed) { pushHistory(d.before); d.changed = true; }
@@ -2737,10 +2782,10 @@ svg.addEventListener('pointerdown', e => {
   if (hit?.dataset.kind === 'lblh') { const pl = S.g.plantings.find(x => x.id === hit.dataset.id); if (pl) S.drag = { label: true, pl, start: p, moved: false, before: JSON.stringify(S.g), orig: { x: num(hit.dataset.lx), y: num(hit.dataset.ly) } }; return; }
   /* in Oudolf mode Shift never drops a plant off the grid (it would cut a hole in an area); Shift-click on an area adds it to the selection or takes it out */
   if (e.shiftKey && hit?.dataset.kind === 'region') { for (const id of hit.dataset.ids.split(',')) toggleSelect('planting', id); return; }
-  const offGrid = e.shiftKey && !(oudolf() && kindOf(plantById(S.activePlant)) === 'field');
+  const offGrid = e.shiftKey && !(kindOf(plantById(S.activePlant)) === 'field' && oudolfAt(p.x, p.y));
   if (tool === 'plant' && S.activePlant && gridOn() && !offGrid && hit?.dataset.kind !== 'handle') {
     S.sel = null; S.multi = [];
-    const d = { paint: true, erase: e.altKey, last: p, before: JSON.stringify(S.g), changed: false };
+    const d = { paint: true, erase: e.altKey, last: p, start: p, out: !!(pbeds().length && !bedAt(p.x, p.y)), before: JSON.stringify(S.g), changed: false };
     S.drag = d; paintAt(d, p); renderInspector(); return;
   }
   if (hit?.dataset.kind === 'region' && (tool === 'select' || !S.activePlant)) {
@@ -2850,7 +2895,11 @@ svg.addEventListener('pointermove', e => {
 function endDrag() {
   const d = S.drag; if (!d) return;
   S.drag = null;
-  if (d.paint) { if (d.changed) saveGarden(); renderInspector(); refreshDerived(); return; }
+  if (d.paint) {
+    /* a click outside the beds places one plant just there; a drag only ever paints inside them */
+    if (d.out && !d.erase && !d.changed && Math.hypot(d.last.x - d.start.x, d.last.y - d.start.y) < 0.15) { toolClick('plant', d.start); return; }
+    if (d.changed) saveGarden(); renderInspector(); refreshDerived(); return;
+  }
   if (d.bed) { if (d.moved) { saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }
   if (d.rowBend) { if (d.moved) { S.sel = null; S.multi = S.g.plantings.filter(p => p.row === d.rowBend).map(p => ({ kind: 'planting', id: p.id })); saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }   // the whole bent row stays selected, plants added included   // S.drag is cleared first, so the areas are worked out afresh
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
@@ -2874,15 +2923,15 @@ function endDrag() {
   refreshDerived();
 }
 /* after a move, planting on the grid behaves as if painted there: it sits on its bed's grid, takes the spot from any
-   plant of its own kind already there (as painting over a neighbour does), and anything that lands outside the beds is left off */
+   plant of its own kind already there (as painting over a neighbour does); anything moved out of the beds stays where it was put */
 function settleMoved(ids) {
   if (!S.g || !ids.length) return;
   const moved = new Set(ids), mine = S.g.plantings.filter(pl => moved.has(pl.id) && (pl.qty || 1) === 1 && onGrid(plantById(pl.plantId)));
   if (!mine.length) return;
-  const key = (pl, q) => kindOf(plantById(pl.plantId)) + ':' + q.x + ',' + q.y, taken = new Map(), drop = new Set(); let outside = 0, over = 0;
+  const key = (pl, q) => kindOf(plantById(pl.plantId)) + ':' + q.x + ',' + q.y, taken = new Map(), drop = new Set(); let over = 0;
   for (const pl of mine) {
     const q = latticeSnap(pl.x, pl.y, latticeOf(plantById(pl.plantId)));
-    if ((pbeds().length && !(bedAt(q.x, q.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(q.x, q.y))))) || blockedAt(q.x, q.y)) { drop.add(pl.id); outside++; continue; }
+    if (pbeds().length && !(bedAt(q.x, q.y) && pointInPoly(q.x, q.y, bedPoly(bedAt(q.x, q.y))))) continue;   // moved out of the beds: it stays just where it was put
     pl.x = q.x; pl.y = q.y; taken.set(key(pl, q), pl.id);
   }
   for (const pl of S.g.plantings) {
@@ -2893,7 +2942,7 @@ function settleMoved(ids) {
   if (!drop.size) return;
   S.g.plantings = S.g.plantings.filter(pl => !drop.has(pl.id));
   S.multi = S.multi.filter(m => !drop.has(m.id));
-  S.note = [over && `Moved over ${plural(over, 'plant')} of a neighbour, as painting would`, outside && `${plural(outside, 'plant')} left off outside the bed`].filter(Boolean).join('; ') + ' · Undo puts them back';   // shown once the move is saved
+  S.note = `Moved over ${plural(over, 'plant')} of a neighbour, as painting would · Undo puts them back`;   // shown once the move is saved
 }
 function onUp(e) { ptrs.delete(e.pointerId); if (S.pinch) { if (ptrs.size < 2) S.pinch = null; return; } endDrag(); }
 svg.addEventListener('pointerup', onUp);
@@ -2927,7 +2976,7 @@ $('lib').addEventListener('click', e => {
 });
 /* ---------- presentation booklet ---------- */
 const BK_DEFAULT = () => ({ subtitle: 'Planting proposal', designer: '', site: '', date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), intro: '',
-  pages: { cover: true, plan: true, palette: true, schedule: true, calendar: true, pricing: true }, numberPlan: true,
+  pages: { cover: true, plan: true, palette: true, guilds: true, schedule: true, calendar: true, pricing: true }, numberPlan: true,
   includeSupply: true, lines: [{ label: 'Planting design fee', amount: 0 }], vat: 0, notes: 'Plant prices are indicative and subject to availability at the time of ordering.' });
 const BK = { planImg: null, planKey: '', timer: null, busy: false, localPhotos: {}, localLogo: null };
 const PAPER = { A4: [297, 210], A3: [420, 297], A2: [594, 420], A1: [841, 594] }, SCALES = [10, 20, 25, 50, 100, 200, 250, 500, 1000];
@@ -3096,7 +3145,7 @@ function bookletInput(t) {
 }
 async function planImage(numbered) {
   if (aerialOn()) await aerialReady(S.g.aerial).p;
-  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, aerialOn(), [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
+  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, aerialOn(), [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.g.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
   S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = {};
@@ -3141,6 +3190,11 @@ function bookletPages(planImg, forExport) {
   }
   if (b.pages.palette && pal.length) chunk(pal, 12).forEach((part, i, all) => pages.push({ html: `${head('Plant palette')}<h3>Plant palette${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Numbered to match the planting plan and schedule</p>
       <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<span class="add"><label style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label> · <u data-findphoto="${r.id}">Find photo</u></span>`}`}${u && r.p.photoCredit ? `<div class="cr">${esc(photoCreditText(r.p.photoCredit))}</div>` : ''}<div class="num">${r.n}</div></div><div class="bn">${esc(r.p.botanical || r.p.common)}</div><div class="cn">${esc(r.p.common && r.p.botanical ? r.p.common : '')}${r.p.common && r.p.botanical ? ' · ' : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
+  if (b.pages.guilds) {
+    const gr = guildRows().filter(gd => gd.items.length), rows = gr.flatMap(gd => gd.items.map((r, i) => `<tr${i ? '' : ' class="gstart"'}><td>${i ? '' : `<b>${esc(gd.name)}</b>`}</td><td>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${paletteNumber(r.p.id) ? `<span style="color:#8A8073;margin-right:6px">${paletteNumber(r.p.id)}</span>` : ''}<i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}${r.p.existing ? ' · existing' : ''}</span></td><td class="n">${r.qty}</td></tr>`));
+    chunk(rows, 16).forEach((part, i, all) => pages.push({ html: `${head('Guilds')}<h3>Guilds${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Groups of plants that support each other, from the tallest layer down</p>
+      <table class="btable"><thead><tr><th>Guild</th><th>Layer</th><th>Plant</th><th class="n">Qty</th></tr></thead><tbody>${part.join('')}</tbody></table>` }));
+  }
   if (b.pages.schedule && (pal.length || exRows.length)) {
     const rows = pal.map(r => `<tr><td class="no">${r.n}</td><td><i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}</span></td><td>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${esc(r.p.supply || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td></tr>`);
     const total = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
@@ -3186,7 +3240,7 @@ function renderPresSettings() {
     <label class="field"><span>Date</span><input type="text" data-bk="date" value="${esc(b.date)}"></label>
     <div class="field"><span>Logo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${logoUrl() ? `<img src="${esc(logoUrl())}" alt="Your logo" style="max-width:96px;max-height:40px;object-fit:contain">` : ''}<label class="btn sm" style="cursor:pointer">${logoUrl() ? 'Replace' : 'Add your logo'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" data-logo hidden></label>${logoUrl() ? '<button class="btn sm" type="button" data-logodel>Remove</button>' : ''}</div></div>
     <label style="display:flex;flex-direction:column;gap:4px"><span class="lbl">Introduction (cover)</span><textarea rows="3" data-bk="intro" placeholder="A short note about the planting concept">${esc(b.intro)}</textarea></label>
-    <fieldset><legend>Pages</legend><div class="pageopts">${pg('cover', 'Cover')}${pg('plan', 'Planting plan')}${pg('palette', 'Plant palette')}${pg('schedule', 'Plant schedule')}${pg('calendar', 'Interest calendar')}${pg('pricing', 'Pricing')}</div>
+    <fieldset><legend>Pages</legend><div class="pageopts">${pg('cover', 'Cover')}${pg('plan', 'Planting plan')}${pg('palette', 'Plant palette')}${pg('guilds', 'Guilds')}${pg('schedule', 'Plant schedule')}${pg('calendar', 'Interest calendar')}${pg('pricing', 'Pricing')}</div>
       <label class="checks"><input type="checkbox" data-bk="numberPlan"${b.numberPlan ? ' checked' : ''}> Number plants on the plan</label></fieldset>
     <fieldset><legend>Pricing</legend>
       <label class="checks"><input type="checkbox" data-bk="includeSupply"${b.includeSupply ? ' checked' : ''}> Include plant supply from the schedule</label>
@@ -3547,15 +3601,16 @@ const app = document.body;
 let fieldCheckpointed = false;
 app.addEventListener('focusin', () => { fieldCheckpointed = false; });
 app.addEventListener('input', e => {
-  if (['bed-type', 'wood-h', 'wood-dens', 'wood-leaf', 'area-bh', 'area-surf', 'area-water', 'area-straight', 'area-leaf'].includes(e.target.id)) {
+  if (['bed-type', 'wood-h', 'wood-dens', 'wood-leaf', 'area-bh', 'area-surf', 'area-water', 'area-straight', 'area-leaf', 'area-draw'].includes(e.target.id)) {
     const b = beds().find(x => x.id === S.bedSel), id = e.target.id, v = e.target.value; if (!b) return;
     if (!fieldCheckpointed) { checkpoint(); fieldCheckpointed = true; }
     if (id === 'bed-type') {
-      const wood = b.wood; delete b.wood; delete b.kind;
+      const wood = b.wood, od = odBed(b); delete b.wood; delete b.kind; b.oudolf = od;
       if (v === 'wood') b.wood = wood || { h: 12, dens: 'light', leaf: 'deciduous' };
       else if (AREA_KINDS[v] && v !== 'bed') { b.kind = v; if ((v === 'building' || v === 'hedge') && b.straight == null) b.straight = true; }
-      saveGarden(); renderInspector(); renderMapSoon(); return;
+      saveGarden(); renderAll(); return;
     }
+    if (id === 'area-draw') { b.oudolf = v === 'oudolf'; saveGarden(); renderAll(); return; }
     if (id === 'area-leaf') { b.leaf = v === 'deciduous' ? 'deciduous' : 'evergreen'; saveGarden(); renderMapSoon(); return; }
     if (id === 'area-bh') { b.bh = clamp(num(v, bhOf(b)), 0.3, 100); saveGarden(); renderMapSoon(); return; }
     if (id === 'area-surf' || id === 'area-water') { b[id === 'area-surf' ? 'surf' : 'water'] = v; saveGarden(); renderInspector(); renderMapSoon(); return; }
@@ -3866,7 +3921,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && S.tool === 'bed') { e.preventDefault(); finishBed(); return; }
   if (e.key === 'Escape' && S.tool === 'bed' && S.bedDraw?.pts.length) { S.bedDraw = { pts: [] }; renderInspector(); renderMap(); return; }
   if (e.key === 'Escape') { setTool('select'); select(null); return; }
-  if (e.key.toLowerCase() === 'o' && getPage() === 'plan') { setOudolf(!oudolf()); return; }
+  if (e.key.toLowerCase() === 'o' && getPage() === 'plan') { setOudolf(!oudolfOn()); return; }
   const t = TOOLS.find(x => x.key.toLowerCase().split(' or ').includes(e.key.toLowerCase())); if (t) setTool(t.id);
 });
 
@@ -3882,7 +3937,7 @@ function normGarden(id, d) {
     beds: Array.isArray(d.beds) ? d.beds.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 3) : undefined,
     aerial: d.aerial && Number.isFinite(d.aerial.lat) && Number.isFinite(d.aerial.lon) ? d.aerial : undefined,
     rows: Array.isArray(d.rows) ? d.rows.filter(r => r && Array.isArray(r.a) && Array.isArray(r.b) && Array.isArray(r.c)) : undefined,
-    palette: Array.isArray(d.palette) ? d.palette.filter(x => typeof x === 'string') : undefined };
+    palette: Array.isArray(d.palette) ? d.palette.filter(x => typeof x === 'string') : undefined, oudolf: typeof d.oudolf === 'boolean' ? d.oudolf : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -4488,7 +4543,7 @@ function bedSnap(x, y, bedId, skip) {
 function finishBed() {
   const b = S.bedDraw; if (!b || b.pts.length < 3 || !S.g) return;
   checkpoint();
-  const rec = { id: uid(), pts: b.pts }; [rec.ox, rec.oy] = bedCentre(rec);
+  const rec = { id: uid(), pts: b.pts, oudolf: false }; [rec.ox, rec.oy] = bedCentre(rec);
   S.g.beds = [...beds(), rec]; S.bedDraw = { pts: [] }; S.bedSel = rec.id; S.hover = null;
   saveGarden(); renderInspector(); renderMap();
 }
@@ -4504,7 +4559,7 @@ function sunToggle(on) {
 $('seasonSel').innerHTML = '<option value="0">Season: all year</option>' + MONTH_NAMES.map((m, i) => `<option value="${i + 1}">Plan in ${m}</option>`).join('');
 $('seasonSel').addEventListener('change', e => { S.season = clamp(Math.round(num(e.target.value, 0)), 0, 12); e.target.classList.toggle('on', !!S.season); renderTools(); renderMap(); });
 $('sunBtn').addEventListener('click', () => sunToggle(!S.sun.on));
-$('oudolfBtn').addEventListener('click', () => setOudolf(!oudolf()));
+$('oudolfBtn').addEventListener('click', () => setOudolf(!oudolfOn()));
 $('sunBar').addEventListener('input', e => {
   const t = e.target, s = S.sun;
   if (t.id === 'sunDoy') s.doy = clamp(Math.round(num(t.value, 172)), 1, 365);
@@ -4593,11 +4648,12 @@ function cleanGarden(d) {
   if (d.colors && typeof d.colors === 'object') { const c = {}; for (const [k, v] of Object.entries(d.colors)) if (safeId(k) && Number.isInteger(v) && v >= 0 && v < 1000) c[k] = v; g.colors = c; }
   if (d.sheet && typeof d.sheet === 'object') g.sheet = { paper: PAPER[d.sheet.paper] ? d.sheet.paper : 'A3', scale: SCALES.includes(+d.sheet.scale) ? +d.sheet.scale : 0, numbered: !!d.sheet.numbered, orient: ['landscape', 'portrait'].includes(d.sheet.orient) ? d.sheet.orient : 'auto' };
   if (d.example) g.example = true;
-  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {}, b?.name ? { name: str(b.name, 60) } : {}, hexOrNull(b?.color) ? { color: b.color } : {}, ['hedge', 'building', 'path', 'water'].includes(b?.kind) ? { kind: b.kind } : {}, b?.leaf === 'deciduous' || b?.leaf === 'evergreen' ? { leaf: b.leaf } : {}, b?.straight === true || b?.straight === false ? { straight: b.straight } : {}, Number.isFinite(b?.bh) ? { bh: clamp(b.bh, 0.3, 100) } : {}, SURFACES[b?.surf] ? { surf: b.surf } : {}, WATERS[b?.water] ? { water: b.water } : {}, b?.wood && typeof b.wood === 'object' ? { wood: { h: clamp(numOrNull(b.wood.h) ?? 12, 1, 60), dens: WOOD_DENS[b.wood.dens] ? b.wood.dens : 'light', leaf: b.wood.leaf === 'evergreen' ? 'evergreen' : 'deciduous' } } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
+  if (Array.isArray(d.beds)) { const beds = d.beds.map(b => Object.assign({ id: safeId(b?.id) || uid(), pts: (Array.isArray(b?.pts) ? b.pts : []).filter(q => Array.isArray(q)).slice(0, 400).map(([x, y]) => [r2(clamp(numOrNull(x) ?? 0, -1000, 2000)), r2(clamp(numOrNull(y) ?? 0, -1000, 2000))]) }, Number.isFinite(b?.ox) && Number.isFinite(b?.oy) ? { ox: r2(clamp(b.ox, -1000, 2000)), oy: r2(clamp(b.oy, -1000, 2000)) } : {}, b?.name ? { name: str(b.name, 60) } : {}, hexOrNull(b?.color) ? { color: b.color } : {}, ['guild', 'hedge', 'building', 'path', 'water'].includes(b?.kind) ? { kind: b.kind } : {}, typeof b?.oudolf === 'boolean' ? { oudolf: b.oudolf } : {}, b?.leaf === 'deciduous' || b?.leaf === 'evergreen' ? { leaf: b.leaf } : {}, b?.straight === true || b?.straight === false ? { straight: b.straight } : {}, Number.isFinite(b?.bh) ? { bh: clamp(b.bh, 0.3, 100) } : {}, SURFACES[b?.surf] ? { surf: b.surf } : {}, WATERS[b?.water] ? { water: b.water } : {}, b?.wood && typeof b.wood === 'object' ? { wood: { h: clamp(numOrNull(b.wood.h) ?? 12, 1, 60), dens: WOOD_DENS[b.wood.dens] ? b.wood.dens : 'light', leaf: b.wood.leaf === 'evergreen' ? 'evergreen' : 'deciduous' } } : {})).filter(b => b.pts.length >= 3); if (beds.length) g.beds = beds; }
   if (d.aerial && Number.isFinite(+d.aerial.lat) && Number.isFinite(+d.aerial.lon) && Math.abs(d.aerial.lat) < 85 && Math.abs(d.aerial.lon) <= 180) g.aerial = { lat: +d.aerial.lat, lon: +d.aerial.lon, opacity: clamp(numOrNull(d.aerial.opacity) ?? 0.9, 0.1, 1) };
   if (Array.isArray(d.rows)) { const pt = v => Array.isArray(v) ? [r2(clamp(numOrNull(v[0]) ?? 0, -1000, 2000)), r2(clamp(numOrNull(v[1]) ?? 0, -1000, 2000))] : null;
     const rows = d.rows.slice(0, 500).map(r => ({ id: safeId(r?.id), a: pt(r?.a), b: pt(r?.b), c: pt(r?.c), gap: clamp(numOrNull(r?.gap) ?? 0.3, 0.05, 20) })).filter(r => r.id && r.a && r.b && r.c); if (rows.length) g.rows = rows; }
   if (Array.isArray(d.palette)) g.palette = [...new Set(d.palette.map(safeId).filter(Boolean))].slice(0, 2000);
+  if (typeof d.oudolf === 'boolean') g.oudolf = d.oudolf;
   return g;
 }
 const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });

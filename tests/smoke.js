@@ -418,6 +418,9 @@ test('beds: drawn with the Bed tool, the grid centred on them, planting kept ins
   for (const [x, y] of [[1, 1], [6.2, 1], [6.2, 3.1], [1, 3.1], [1, 1]]) await app.clickPlan(x, y);
   let g = await app.store('gardens/g1'); await app.page.waitForTimeout(900); g = await app.store('gardens/g1');
   eq(g.beds?.length, 1, 'one bed saved'); eq(g.beds[0].pts.length, 4, 'with four corners');
+  eq(await app.page.inputValue('#area-draw'), 'circles', 'a new bed starts with tight circles');
+  await app.page.selectOption('#area-draw', 'oudolf'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).beds[0].oudolf, true, 'set to Oudolf drawing, for this bed');
   // paint across the bed and well beyond it
   await app.page.click('#lib [data-pid=p1]');
   for (let y = 0.6; y < 3.6; y += 0.13) await app.dragPlan(0.4, y, 7, y);
@@ -555,7 +558,7 @@ test('existing perennials behave like new ones, but are not bought', async open 
   const look = await app.page.evaluate(id => { const c = document.querySelector(`#map [data-kind=planting][data-id="${id}"] circle`); return [c.getAttribute('r'), c.getAttribute('stroke-dasharray'), c.style.fill]; }, pl[0].id);
   eq(look[0], '0.15', 'drawn at its spacing'); eq(look[1], null, 'not dashed'); ok(/url\(#pat-ex2\)|rgb/.test(look[2]), 'in its species colour, got ' + look[2]);
   // Oudolf mode: an area, but not counted as plants to buy
-  await app.go('preferences'); await app.page.check('#pf-oudolf'); await app.go('plan'); await app.page.waitForTimeout(300);
+  await app.page.click('#oudolfBtn'); await app.page.waitForTimeout(300);
   eq(await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=region]').length), 1, 'drawn as an area');
   await app.go('schedule');
   const sched = await app.page.textContent('#sched');
@@ -590,12 +593,10 @@ test('Oudolf mode from the toolbar: flicking back and forth moves nothing', asyn
   await app.page.click('#oudolfBtn');
   await app.page.waitForTimeout(900);
   eq(JSON.stringify((await app.store('gardens/g1')).plantings), before, 'no plant moved, added or lost');
-  // Preferences follows the toolbar, and the other way round
-  await app.go('preferences');
-  eq(await app.page.isChecked('#pf-oudolf'), true, 'Preferences shows it on');
-  await app.page.uncheck('#pf-oudolf'); await app.go('plan');
-  eq(await app.page.getAttribute('#oudolfBtn', 'aria-pressed'), 'false', 'toolbar shows it off');
-  await app.page.waitForTimeout(900); eq((await app.store('settings/prefs')).oudolf, false, 'remembered');
+  // with no beds drawn, the setting is the garden's own, and is remembered with it
+  await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).oudolf, true, 'remembered with the garden');
+  ok(!(await app.page.$('#pf-oudolf')), 'no app-wide switch left in Preferences');
 });
 
 test('booklet PDF: drawn as real text and shapes, photos cropped to their frame, never stretched', async open => {
@@ -752,12 +753,14 @@ test('found in hands-on testing: moved areas never stack or leave a bed; schedul
   await app.page.keyboard.press('v'); await app.clickPlan(2, row(17)); await app.dragPlan(2, row(17), 3.2, row(17)); await app.page.waitForTimeout(900);
   eq(await stacked(), 0, 'no two plants share a spot after moving an area onto its neighbour');
   ok(/Moved over/.test(await app.status()), 'and it says the neighbour gave way, got ' + await app.status());
-  // a bed: moving an area out of it leaves the outside part off
+  // a bed: moving an area out of it keeps every plant, just where it was put
   await app.page.keyboard.press('Control+z'); await app.page.waitForTimeout(400);
   await app.page.keyboard.press('b'); for (const [x, y] of [[0.5, 3.4], [7.5, 3.4], [7.5, 6], [0.5, 6], [0.5, 3.4]]) await app.clickPlan(x, y);
+  await app.page.waitForTimeout(900); const n0 = (await app.store('gardens/g1')).plantings.length;
   await app.page.keyboard.press('v'); await app.clickPlan(5.5, row(18)); await app.dragPlan(5.5, row(18), 5.5, row(18) - 1.4); await app.page.waitForTimeout(900);
-  const g = await app.store('gardens/g1'), inside = await app.page.evaluate(pts => { const path = document.querySelector('#map [data-kind=bed] path'); return pts.every(([x, y]) => path.isPointInFill(new DOMPoint(x, y))); }, g.plantings.map(q => [q.x, q.y]));
-  ok(inside, 'no plant left outside the bed');
+  const g = await app.store('gardens/g1'), outside = await app.page.evaluate(pts => { const path = document.querySelector('#map [data-kind=bed] path'); return pts.filter(([x, y]) => !path.isPointInFill(new DOMPoint(x, y))).length; }, g.plantings.map(q => [q.x, q.y]));
+  eq(g.plantings.length, n0, 'no plant lost');
+  ok(outside > 0, 'the part moved out of the bed stays out');
   // the schedule shows every species without a squashed box
   seed['gardens/g1'].plantings = sample()['gardens/g1'].plantings;
   await app.go('schedule');
@@ -860,7 +863,7 @@ test('existing woodland: a bed set as woodland is drawn with a crown edge, casts
   eq(await app.page.textContent('#schedSum'), before, 'the plant count and cost are unchanged');
 });
 
-test('areas: the Area tool makes beds, buildings, paths and water; nothing is planted on buildings, paths or water; buildings cast shade', async open => {
+test('areas: the Area tool makes beds, buildings, paths and water; plants can go on any of them; buildings cast shade', async open => {
   const seed = sample(); Object.assign(seed['gardens/g1'], { north: 0, lat: 51.5072, lon: -0.1276, underlay: null });
   seed['gardens/g1'].plantings = [];
   seed['gardens/g1'].beds = [
@@ -887,12 +890,12 @@ test('areas: the Area tool makes beds, buildings, paths and water; nothing is pl
   const txt = await app.page.textContent('#map');
   ok(/HOUSE/.test(txt) && /building, 8 m high/.test(txt) && /PATH/.test(txt) && /gravel/.test(txt) && /POND/.test(txt), 'each is named on the plan, got ' + txt.slice(0, 300));
   ok(/^M[\d.]+ [\d.]+ L/.test(await app.page.$eval('#map [data-kind=bed][data-id=bH] path', p => p.getAttribute('d'))), 'drawn with straight edges');
-  // paint across the bed and the path: nothing lands on the path
+  // paint across the bed and the path: plants can go anywhere, paths too
   await app.page.click('[data-tool=select]'); await app.page.click('#lib [data-pid=p1]');
   await app.dragPlan(3, 6.3, 9, 6.3); await app.page.waitForTimeout(900);
   const pl = (await app.store('gardens/g1')).plantings;
   ok(pl.length > 6, 'planted in the bed, got ' + pl.length);
-  ok(pl.every(q => q.x < 5.4 || q.x > 6.6), 'none on the path');
+  ok(pl.some(q => q.x > 5.4 && q.x < 6.6), 'some on the path');
   if (process.env.SHOT) await app.page.locator('#map').screenshot({ path: process.env.SHOT });
   // the house casts shade
   await app.page.click('#sunBtn');
@@ -925,6 +928,61 @@ test('season: each plant is Flowers or Crop, with one set of months and one colo
   eq(await app.page.locator('#calView .ex.crop').count(), 2, 'crops are marked');
   await app.page.click('#navPres'); await app.page.waitForSelector('.bpage');
   eq(await app.page.locator('.bcal .bar.thin, .bcal .bar.ever').count(), 0, 'the booklet shows one bar per plant');
+});
+
+test('beds and guilds: each bed has its own drawing, guilds are named after their tallest plant and listed together, plants go anywhere, a short species form', async open => {
+  const seed = sample(), g0 = seed['gardens/g1']; g0.underlay = null; seed['plants/p5'].height = 4;
+  g0.plantings = [{ id: 'ap', plantId: 'p5', x: 9, y: 5.5, qty: 1 }];
+  g0.beds = [
+    { id: 'bA', pts: [[0.5, 0.5], [5, 0.5], [5, 3.5], [0.5, 3.5]], ox: 2.75, oy: 2, oudolf: true },
+    { id: 'bB', pts: [[0.5, 4.5], [5, 4.5], [5, 8], [0.5, 8]], ox: 2.75, oy: 6.25, oudolf: false },
+    { id: 'gG', kind: 'guild', pts: [[7, 4], [11, 4], [11, 7.5], [7, 7.5]], ox: 9, oy: 5.75 }];
+  const app = await open(seed);
+  // paint the same plant into both beds: Oudolf areas in one, tight circles in the other
+  await app.page.click('#lib [data-pid=p1]');
+  for (const y of [1.5, 1.8, 2.1, 2.4]) await app.dragPlan(1, y, 4.5, y);
+  for (const y of [5.5, 5.8, 6.1, 6.4]) await app.dragPlan(1, y, 4.5, y);
+  // a click outside every bed places one plant just there; a drag outside paints nothing
+  await app.clickPlan(6, 2);
+  await app.dragPlan(5.6, 1, 6.6, 1);
+  await app.page.click('#lib [data-pid=p4]'); for (const y of [6.5, 6.8]) await app.dragPlan(7.5, y, 10.5, y);
+  await app.page.waitForTimeout(900);
+  let g = await app.store('gardens/g1');
+  const inB = g.plantings.filter(q => q.plantId === 'p1' && q.y > 4.5), out = g.plantings.filter(q => q.x > 5.2 && q.x < 6.8 && q.y < 4);
+  ok(inB.length > 20, 'tight circles painted in the second bed, got ' + inB.length);
+  eq(out.length, 1, 'one plant outside the beds, from the click');
+  eq([out[0].x, out[0].y], [6, 2], 'placed exactly where clicked');
+  eq(await app.page.evaluate(() => document.querySelectorAll('#map [data-kind=region]').length > 0), true, 'Oudolf areas in the first bed');
+  eq(await app.page.evaluate(ids => ids.filter(id => document.querySelector(`#map [data-kind=planting][data-id="${id}"] circle`)).length, inB.map(q => q.id)), inB.length, 'circles in the second');
+  // the toolbar button switches the bed selected with the Area tool
+  await app.page.keyboard.press('a'); await app.clickPlan(2.5, 7.5);
+  eq(await app.page.inputValue('#area-draw'), 'circles', 'second bed: tight circles');
+  eq(await app.page.getAttribute('#oudolfBtn', 'aria-pressed'), 'false', 'button shows this bed is off');
+  const spots = JSON.stringify(g.plantings.map(q => [q.x, q.y]).sort());
+  await app.page.click('#oudolfBtn'); await app.page.waitForTimeout(900);
+  g = await app.store('gardens/g1');
+  eq(g.beds.map(b => b.oudolf), [true, true, undefined], 'only the selected bed switched');
+  eq(JSON.stringify(g.plantings.map(q => [q.x, q.y]).sort()), spots, 'nothing moved');
+  await app.page.click('#oudolfBtn'); await app.page.waitForTimeout(300);
+  // the guild: named after its tallest plant, listed by layer
+  await app.clickPlan(10.5, 4.3);
+  eq(await app.page.inputValue('#bed-type'), 'guild', 'a guild');
+  ok((await app.page.textContent('#map')).includes('APPLE GUILD'), 'named on the plan after its apple');
+  await app.go('schedule');
+  const gt = await app.page.textContent('#guildT');
+  ok(/Apple guild/.test(gt) && /Understory/.test(gt) && /Malus/.test(gt) && /Geranium/.test(gt) && gt.indexOf('Malus') < gt.indexOf('Geranium'), 'the schedule lists the guild from the tallest layer down, got ' + gt);
+  await app.go('presentation'); await app.page.waitForSelector('.bpage');
+  ok(/Groups of plants that support each other/.test(await app.page.textContent('#bookletPages, .bpages, body')), 'a Guilds page in the presentation');
+  // a name of its own wins
+  await app.go('plan'); await app.page.keyboard.press('a'); await app.clickPlan(10.5, 4.3); await app.page.fill('#bed-name', 'Orchard corner'); await app.page.waitForTimeout(200);
+  ok((await app.page.textContent('#map')).includes('ORCHARD CORNER'), 'renamed');
+  // the species form: six fields up front, the rest folded away
+  await app.page.click('#lib [data-edit=p0]');
+  for (const id of ['#sp-bot', '#sp-common', '#sp-role', '#sp-kind-fl', '#sp-h', '#sp-s']) ok(await app.page.isVisible(id), id + ' shown');
+  for (const id of ['#sp-cult', '#sp-fol', '#sp-sup', '#sp-cost', '#sp-supp', '#sp-existing']) ok(!(await app.page.isVisible(id)), id + ' folded away');
+  ok(/Photo/.test(await app.page.textContent('#plantEditor, .card, body')), 'photo up front');
+  await app.page.click('#sp-more summary');
+  ok(await app.page.isVisible('#sp-cost'), 'More details opens');
 });
 
 run();
