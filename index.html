@@ -366,7 +366,7 @@ html[data-skin=xp] .pgrid button { border-radius: 0; }
 .bcal { display: grid; grid-template-columns: 310px repeat(12, 1fr); font-size: 12.5px; align-items: center; }
 .bcal .mh { font-size: 11.5px; color: var(--bk-muted); text-align: center; padding-bottom: 6px; border-bottom: 1px solid var(--bk-ink); }
 .bcal .nm { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--bk-soft); line-height: 1.25; overflow-wrap: anywhere; align-self: stretch; display: flex; align-items: center; }
-.bcal .nm .crop { color: #8A5A1E; font-size: 11px; }
+.bcal .nm .crop { color: #8A5A1E; font-size: 11px; margin-left: 0.5em; flex: none; white-space: nowrap; }   /* a flex row drops the space before it */
 .bcal .tr { grid-column: 2 / 14; height: 100%; border-bottom: 1px solid var(--bk-soft); background-image: linear-gradient(to right, var(--bk-soft) 1px, transparent 1px); background-size: calc(100% / 12) 100%; }
 .bcal .bar { height: 12px; border-radius: 2px; margin: 0 3px; border: 1px solid rgba(31, 43, 38, 0.18); box-sizing: border-box; align-self: center; }
 .bcal .bar.thin { height: 4px; border-radius: 2px; align-self: end; margin-bottom: 2px; }
