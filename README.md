@@ -31,23 +31,13 @@ SevenLayers is a single HTML file. Download `index.html` and open it in a browse
 
 Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbaceous, Ground cover, Tubers & bulbs, Climbers.
 
-## root · crop planner
+## See also
 
-root (`allotment/index.html`), the crop planner, is a second, simpler tool for vegetable plots and allotments, built on the same template as SevenLayers: one HTML file, the same five themes, the same layout and the same browser storage. Open `allotment/index.html` the same way.
-
-- **Plan**: set the plot size, draw beds with the Bed tool, and paths, sheds, greenhouses, compost bays and water butts with the Blocks tool, all as rectangles, then drag out blocks of a crop inside a bed. The number of plants comes from the crop's spacing in the row and between rows, and the rows can be turned. A click plants a single plant. Moving a bed moves its crops with it. Undo and redo, arrow-key nudging, Ctrl+D to duplicate, Plant spacing to show where each plant goes, and Last year to show what grew in each bed the year before.
-- **Crop list & rotation**: crops, varieties, beds, rows, plant numbers and area, which copy straight into a spreadsheet. Each bed is compared with the previous year's plan on a four-course rotation (Peas & beans → Brassicas → Potatoes → Roots & onions). A bed that repeats a family is flagged on the plan and in the table, and each bed suggests what comes next.
-- **Sowing calendar**: this month's jobs (sow under cover, sow outside, plant out, harvest) and a year chart for every crop on the plan, or for the whole library.
-- **Crops**: the crop library as a sortable table, searchable and filterable by family, with spacing, months and notes, and a copy for spreadsheets. The library beside the plan has family chips and an On this plan filter.
-- **Next season**: Plot details › Start next year's plan copies the beds, paths and perennials into a new year, so the rotation can be checked.
-- **Preferences**: theme (until one is chosen, it follows the SevenLayers theme), labels, grid, rulers, snap, colours for each crop family, adding back deleted starter crops, and backup and restore.
-
-On first opening it is filled with 31 common crops (typical UK spacings and months, all editable) and an example half plot. It keeps its own data, separate from SevenLayers. Its tests run with `node tests/allotment.js`.
+root, the crop planner for vegetable plots and allotments, is built on the same template and themes. It used to live here in `allotment/` and now has its own repository: https://github.com/harvgorst/root
 
 ## Files
 
 - `index.html`: the whole app (HTML, CSS and JavaScript in one file).
-- `allotment/index.html`: root, the crop planner (one file).
 - `example/example-site-plan.svg`: a made-up site plan used by the tests.
 - `tests/`: automated checks that open the app in a headless browser.
 
@@ -73,12 +63,6 @@ npx playwright install chromium
 
 ```bash
 npm test
-```
-
-root has its own tests:
-
-```bash
-node tests/allotment.js
 ```
 
 To run only some tests, give part of a test's name:

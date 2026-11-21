@@ -33,7 +33,7 @@ async function open(seed = {}, opts = {}) {
     }, [seed, svg, PIXEL.toString('base64')]);
   }
   if (opts.theme) await page.addInitScript(t => { try { localStorage.setItem('gpm.theme', t); } catch {} }, opts.theme);
-  const html = fs.readFileSync(path.join(ROOT, opts.file || 'index.html'), 'utf8');   // opts.file opens another page, such as allotment/index.html
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   await page.route('http://app.test/', r => r.fulfill({ contentType: 'text/html', body: html }));
   await page.route('https://fonts.googleapis.com/**', r => r.fulfill({ body: '', contentType: 'text/css' }));
   // Wikimedia Commons stand-in, in the API's own response format; never the real site

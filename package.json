@@ -3,8 +3,7 @@
   "private": true,
   "description": "A planting-only design tool for garden designers",
   "scripts": {
-    "test": "node tests/smoke.js",
-    "test:allotment": "node tests/allotment.js"
+    "test": "node tests/smoke.js"
   },
   "devDependencies": {
     "playwright": "^1.48.0"
