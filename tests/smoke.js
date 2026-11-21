@@ -985,4 +985,46 @@ test('beds and guilds: each bed has its own drawing, guilds are named after thei
   ok(await app.page.isVisible('#sp-cost'), 'More details opens');
 });
 
+test('Plants For A Future: look up a species as you type, fill only what you have not set, harvest months for crops, add a whole list', async open => {
+  const app = await open(sample());
+  await app.go('database'); await app.page.click('#dbAdd');
+  await app.page.fill('#sp-h', '2.5');   // set by hand first: the lookup must leave it alone
+  await app.page.fill('#sp-bot', 'Ribes nig');
+  ok(await app.page.isVisible('#pfafSug'), 'matches offered');
+  ok(/Ribes nigrum/.test(await app.page.textContent('#pfafSug')) && /Blackcurrant/.test(await app.page.textContent('#pfafSug')), 'blackcurrant among them');
+  await app.page.click('#pfafSug [data-pfaf="0"]');
+  eq(await app.page.inputValue('#sp-bot'), 'Ribes nigrum', 'botanical name filled');
+  eq(await app.page.inputValue('#sp-common'), 'Blackcurrant', 'common name filled');
+  eq(await app.page.inputValue('#sp-role'), 'shrub', 'layer filled');
+  eq(await app.page.inputValue('#sp-h'), '2.5', 'the height typed by hand is kept');
+  ok(/Flowers Apr – May/.test(await app.page.textContent('#msl-txt')), 'flowering months filled, got ' + await app.page.textContent('#msl-txt'));
+  ok(/Plants For A Future/.test(await app.page.textContent('#pfafNote')) && /CC BY 4\.0/.test(await app.page.textContent('#pfafNote')), 'credited');
+  await app.page.check('#sp-crop');
+  ok(/Harvest Jul – Aug/.test(await app.page.textContent('#msl-txt')), 'as a crop: harvest when the fruit ripens, got ' + await app.page.textContent('#msl-txt'));
+  await app.page.check('#sp-kind-fl');
+  ok(/Flowers Apr – May/.test(await app.page.textContent('#msl-txt')), 'and back to flowering');
+  await app.page.check('#sp-crop');
+  await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(300);
+  const saved = (await app.page.evaluate(() => [...window.__mock.store.entries()].filter(([k]) => k.startsWith('plants/')).map(([, v]) => v))).find(v => v.botanical === 'Ribes nigrum');
+  ok(saved && saved.pfaf === true && saved.crop === true && saved.flowerFrom === 7 && saved.flowerTo === 8 && saved.height === 2.5, 'saved as a crop with its harvest, got ' + JSON.stringify(saved));
+  ok(!('_touched' in saved) && !('_pfafGot' in saved), 'nothing temporary saved');
+  // a cultivar keeps its name and takes its species' details
+  await app.page.click('#dbAdd'); await app.page.fill('#sp-bot', "Malus domestica 'Sunset'");
+  await app.page.click('#pfafSug [data-pfaf="0"]');
+  eq(await app.page.inputValue('#sp-bot'), "Malus domestica 'Sunset'", 'cultivar name kept');
+  eq([await app.page.inputValue('#sp-common'), await app.page.inputValue('#sp-role')], ['Apple', 'understory'], 'apple details');
+  await app.page.click('[data-act=cancelPlant]');
+  // add a list
+  await app.page.click('#dbListBtn');
+  await app.page.fill('#dbListText', "Corylus avellana\nSanguisorba 'Red Thunder'\nRibes nigrum\n");
+  await app.page.click('#dbListGo'); await app.page.waitForTimeout(400);
+  const msg = await app.page.textContent('#dbListMsg');
+  ok(/Added 2 species, 1 filled in from Plants For A Future/.test(msg) && /1 already in your database/.test(msg) && /Sanguisorba 'Red Thunder'/.test(msg), 'reports what it did, got ' + msg);
+  const all = await app.page.evaluate(() => [...window.__mock.store.entries()].filter(([k]) => k.startsWith('plants/')).map(([, v]) => v));
+  const hz = all.find(v => v.botanical === 'Corylus avellana'), sv = all.find(v => /Red Thunder/.test(v.botanical || ''));
+  ok(hz && hz.common === 'Common Hazel' && hz.role === 'understory' && hz.height === 6 && hz.spread === 3 && hz.pfaf, 'hazel filled in, got ' + JSON.stringify(hz));
+  ok(sv && !sv.pfaf, 'the sanguisorba added with just its name');
+  ok(/Common Hazel/.test(await app.page.textContent('#dbTable')), 'listed in the database');
+});
+
 run();
