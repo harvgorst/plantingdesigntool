@@ -1027,4 +1027,29 @@ test('Plants For A Future: look up a species as you type, fill only what you hav
   ok(/Common Hazel/.test(await app.page.textContent('#dbTable')), 'listed in the database');
 });
 
+test('plan colour, pattern and size in the bar beside the plant name', async open => {
+  const app = await open(sample());
+  // the plant being placed: colour and pattern
+  await app.page.click('#lib [data-pid=p1]');
+  ok(await app.page.isVisible('#inspector [data-sp=planColor]') && await app.page.isVisible('#inspector [data-sp=planPattern]'), 'colour and pattern offered');
+  await app.page.fill('#inspector [data-sp=planColor]', '#123456'); await app.page.waitForTimeout(300);
+  eq((await app.store('plants/p1')).planColor, '#123456', 'colour kept with the species');
+  ok(/#123456/i.test(await app.page.innerHTML('#map')), 'and drawn on the plan');
+  await app.page.selectOption('#inspector [data-sp=planPattern]', 'dots'); await app.page.waitForTimeout(300);
+  eq((await app.store('plants/p1')).planPattern, 'dots', 'pattern kept');
+  await app.page.click('#undoBtn'); await app.page.waitForTimeout(300);
+  eq((await app.store('plants/p1')).planPattern ?? null, null, 'undone one step at a time');
+  eq((await app.store('plants/p1')).planColor, '#123456', 'the colour stays');
+  await app.page.click('#inspector [data-act=spAutoStyle]'); await app.page.waitForTimeout(300);
+  eq((await app.store('plants/p1')).planColor ?? null, null, 'Automatic puts it back');
+  // a selected tree: spread and height; a bulb: spacing and no pattern
+  await app.page.keyboard.press('v'); await app.clickPlan(10, 4.4);
+  ok(/Apple/.test(await app.page.textContent('#inspector')), 'apple selected');
+  await app.page.fill('#inspector [data-sp=spread]', '3.5'); await app.page.press('#inspector [data-sp=spread]', 'Enter'); await app.page.waitForTimeout(300);
+  eq((await app.store('plants/p5')).spread, 3.5, 'spread kept');
+  await app.page.click('#lib [data-pid=p3]');
+  ok(await app.page.isVisible('#inspector [data-sp=spacing]') && !(await app.page.$('#inspector [data-sp=planPattern]')), 'bulb: spacing, no pattern');
+  eq(app.errors, [], 'no errors');
+});
+
 run();

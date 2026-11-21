@@ -10802,6 +10802,17 @@ function renderLibrary() {
 }
 function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
 function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
+/* the species' own plan settings, in the bar beside its name: colour, pattern and size, kept with the species and undoable */
+function speciesBar(p) {
+  if (!p) return '';
+  const st = speciesStyle(p), k = kindOf(p);
+  return `<label class="pf"><span>Colour</span><input type="color" data-sp="planColor" value="${st.col}" aria-label="Plan colour" style="width:34px;height:24px;padding:1px"></label>
+    ${k === 'bulb' ? '' : `<label class="pf"><span>Pattern</span><select data-sp="planPattern" aria-label="Plan pattern"><option value="">Automatic</option>${opt(PATTERNS, p.planPattern || '')}</select></label>`}
+    ${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="spAutoStyle" title="Go back to the automatic colour and pattern">Automatic</button>' : ''}
+    ${k === 'bulb' ? `<label class="pf"><span>Spacing</span><input class="n" type="number" min="0.05" max="2" step="0.01" data-sp="spacing" value="${+spacingOf(p).toFixed(2)}" aria-label="Bulb spacing in metres"><span class="pv">m</span></label>` : ''}
+    ${k === 'structure' ? `<label class="pf"><span>Spread</span><input class="n" type="number" min="0.05" max="40" step="0.1" data-sp="spread" value="${num(p.spread, 0.5)}" aria-label="Spread in metres"><span class="pv">m</span></label>
+    <label class="pf"><span>Height</span><input class="n" type="number" min="0" max="60" step="0.1" data-sp="height" value="${num(p.height)}" aria-label="Height in metres"><span class="pv">m</span></label>` : ''}`;
+}
 function renderInspector() {
   paintOudolfBtn();
   const el = $('inspector'), hint = $('hint');
@@ -10865,6 +10876,7 @@ function renderInspector() {
     const p = plantById(S.activePlant);
     hint.hidden = true; el.hidden = false;
     el.innerHTML = `<span class="pk">${plantSwatch(p, 14)}${esc(p?.common || 'Plant')}</span>
+      ${speciesBar(p)}
       ${kindOf(p) === 'field' && anyOudolf() ? `<label class="pf"><span>Plants per m²</span><input id="pt-dens" class="n" type="number" min="0.1" max="200" step="0.5" value="${+densityOf(p).toFixed(1)}"></label>` : ''}
       ${kindOf(p) === 'field' ? `<label class="pf"><span>Grid</span><input id="pg-space" class="n" type="number" min="0.05" max="2" step="0.05" value="${gridSpace()}"><span class="pv">m</span></label>` : ''}
       <span class="pv">${{ field: (anyOudolf() ? 'In an Oudolf bed, paint this plant’s area; painting over a neighbour moves the border between them. In other beds, click or drag to paint onto the grid. ' : 'In a bed, click or drag to paint onto the planting grid; hold Shift to place one off the grid. ') + 'Outside the beds, each click places one plant. Alt-drag rubs out.',
@@ -10896,6 +10908,7 @@ function renderInspector() {
       hint.hidden = true; el.hidden = false;
       const set = new Set(items.map(m => m.id)), regs = oudolfRegions().regions.filter(r => r.ids.some(id => set.has(id))), area = regs.reduce((t, r) => t + r.area, 0), qty = regs.reduce((t, r) => t + r.qty, 0);
       el.innerHTML = `<span class="pk">${plantSwatch(rp, 14)}${esc(rp.common || rp.botanical || 'Plant')}</span>
+        ${speciesBar(rp)}
         <label class="pf"><span>Plants per m²</span><input id="rg-dens" class="n" type="number" min="0.1" max="200" step="0.5" value="${+densityOf(rp).toFixed(1)}"></label>
         <span class="pv">${area.toFixed(2)} m² · ${plural(qty, 'plant')} · drag to move the area, Delete removes it</span>
         <span class="acts"><button class="btn sm" type="button" data-act="editSpecies">Edit species</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
@@ -10918,6 +10931,7 @@ function renderInspector() {
     const fl = p?.crop ? (flowerMonths(p).length ? 'harvest ' + spanText(flowerMonths(p)) : 'crop') : p?.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : 'no flowers';
     el.innerHTML = `<span class="pk">${plantSwatch(p, 14)}${esc(p?.common || 'Missing species')}${p?.existing ? '<span class="ex exist">Existing</span>' : ''}</span>
       <label class="pf"><span>Species</span><select id="pl-species" data-f="plantId">${speciesOpts(it.plantId)}</select></label>
+      ${p && !p.existing ? speciesBar(p) : ''}
       <label class="pf"><span>Qty</span><input id="pl-qty" class="n" type="number" min="1" max="500" step="1" data-f="qty" value="${it.qty || 1}"></label>
       ${p?.existing ? `<label class="pf"><span>Status</span><select id="pl-status" data-f="status">${opt(STATUS, it.status || 'retain')}</select></label>
       <span class="pf"><span>Measured</span><input id="pl-h" class="n" aria-label="Height of this plant in metres" type="number" min="0" step="0.1" data-f="height" value="${it.height ?? ''}" placeholder="${num(p.height).toFixed(1)}"><span class="pv">×</span><input id="pl-s" class="n" aria-label="Spread of this plant in metres" type="number" min="0.05" step="0.1" data-f="spread" value="${it.spread ?? ''}" placeholder="${num(p.spread).toFixed(1)}"><span class="pv">m</span></span>
@@ -11969,6 +11983,30 @@ function setDensity(id, v) {
   const before = { ...p }, after = { ...p, density: +clamp(v, 0.1, 200).toFixed(2) }, entry = { plants: [{ id, before, after }] };
   pushHistory(entry); applyPlantChange(entry, 'after').then(() => { renderMap(); renderInspector(); refreshDerived(); });
 }
+/* the species settings in the bar: a colour previews on the plan as it is dragged, and is kept as one undo step when it is let go */
+let spLive = null;
+function barSpecies() { return S.tool === 'plant' && S.activePlant && !S.sel && !S.multi.length ? plantById(S.activePlant) : plantById(S.multi.length ? selectedItems()[0]?.it.plantId : findSel()?.plantId); }
+function setSpeciesFields(id, patch, before) {
+  const p = plantById(id); if (!p) return;
+  before = before || { ...p }; const after = { ...before, ...patch }, entry = { plants: [{ id, before, after }] };
+  if (JSON.stringify(before) === JSON.stringify(after)) return;
+  pushHistory(entry); applyPlantChange(entry, 'after').then(() => { renderMap(); renderInspector(); refreshDerived(); });
+}
+document.body.addEventListener('input', e => {
+  const t = e.target; if (t.dataset.sp !== 'planColor') return;
+  const p = barSpecies(); if (!p) return;
+  if (!spLive || spLive.id !== p.id) spLive = { id: p.id, before: { ...p } };
+  p.planColor = t.value; renderMapSoon();
+});
+document.body.addEventListener('change', e => {
+  const t = e.target, k = t.dataset.sp; if (!k) return;
+  const p = barSpecies(); if (!p) return;
+  const before = spLive?.id === p.id ? spLive.before : null; spLive = null;
+  const v = k === 'planColor' ? t.value : k === 'planPattern' ? (t.value || null)
+    : k === 'spacing' ? +clamp(num(t.value, spacingOf(p)), 0.05, 2).toFixed(2)
+    : k === 'spread' ? +clamp(num(t.value, num(p.spread, 0.5)), 0.05, 40).toFixed(2) : +clamp(num(t.value, num(p.height)), 0, 60).toFixed(2);
+  setSpeciesFields(p.id, { [k]: v }, before);
+});
 document.body.addEventListener('change', e => {
   if (e.target.id === 'pt-dens') setDensity(S.activePlant, num(e.target.value));
   if (e.target.id === 'rg-dens') { const it = selectedItems()[0]?.it; if (it) setDensity(it.plantId, num(e.target.value)); }
@@ -12597,6 +12635,7 @@ app.addEventListener('click', async e => {
   if (act === 'resetRoleCols') { S.prefs.roleColors = {}; applyRoleColours(); savePrefs(); renderPrefs(); }
   if (act === 'addInterest' && S.editPlant) { const used = new Set((S.editPlant.interest || []).map(x => x.kind)), k = Object.keys(INTEREST).find(x => !used.has(x)) || 'berries', v = INTEREST[k]; S.editPlant.interest = [...(S.editPlant.interest || []), { kind: k, from: v[1], to: v[2], color: v[3] }].slice(0, 8); renderLibrary(); }
   if (act === 'autoPlanColour' && S.editPlant) { S.editPlant.planColor = null; S.editPlant.planPattern = null; renderLibrary(); }
+  if (act === 'spAutoStyle') { const p = barSpecies(); if (p) setSpeciesFields(p.id, { planColor: null, planPattern: null }); return; }
   if (act === 'clearColour') { const ck = 'flowerColor'; S.editPlant[ck] = null; S.editPlant[ck + 'Name'] = null; renderLibrary(); }
   if (act === 'editSpecies') { const it = findSel() || selectedItems()[0]?.it; if (it?.plantId) openPlantEditor(it.plantId); }
   if (act === 'calApply') applyScale(num($('cal-m')?.value));
