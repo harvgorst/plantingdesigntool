@@ -826,7 +826,7 @@ test('labels around the edge: one per species, in columns outside the plan, join
   const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => ({ t: t.textContent, x: +t.getAttribute('x'), a: t.getAttribute('text-anchor') })));
   ok(labs.length > 0 && labs.every(l => (l.a === 'end' && l.x < 0) || (l.a === 'start' && l.x > 12)), 'every plant label sits outside the plan, got ' + JSON.stringify(labs));
   eq(labs.filter(l => /Ros oli/.test(l.t)).map(l => l.t), ['3 Ros oli'], 'the three roses on the right share one label with their total');
-  const d = await app.page.$eval('#map g[opacity="0.65"] path', p => p.getAttribute('d'));
+  const d = await app.page.$eval('#map g.leaders path', p => p.getAttribute('d'));
   const segs = d.split('M').filter(Boolean).flatMap(m => { const n = m.split('L').map(q => q.trim().split(' ').map(Number)); return n.slice(1).map((q, i) => [q[0] - n[i][0], q[1] - n[i][1]]); });
   ok(segs.length && segs.every(([dx, dy]) => Math.abs(dx) < 1e-3 || Math.abs(dy) < 1e-3 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 2e-3), 'leader lines only run level, upright or at 45°');
   ok(d.split('M').filter(Boolean).length <= labs.length, `at most one line per edge label, got ${d.split('M').filter(Boolean).length} lines for ${labs.length} labels`);
@@ -847,7 +847,7 @@ test('busy plan: one edge label and one line per species, its code small on its 
   const ros = labs.filter(l => /Ros oli/.test(l.t));
   eq(ros.map(l => l.t), ['13 Ros oli'], 'one edge label for the species, with its whole-plan total');
   ok(ros[0].x > 12, 'on the side of its lead patch (the right)');
-  const lines = await app.page.$eval('#map g[opacity="0.65"] path', p => p.getAttribute('d').split('M').filter(Boolean).map(m => m.split('L').map(q => q.trim().split(' ').map(Number))));
+  const lines = await app.page.$eval('#map g.leaders path', p => p.getAttribute('d').split('M').filter(Boolean).map(m => m.split('L').map(q => q.trim().split(' ').map(Number))));
   ok(lines.length <= labs.length, `one line per edge label at most, got ${lines.length} for ${labs.length}`);
   const ends = lines.map(n => n[n.length - 1]);
   ok(ends.some(([x, y]) => Math.hypot(x - 11.2, y - 7) < 0.6), 'its line goes to the half-size patch near the edge, ends ' + JSON.stringify(ends));
@@ -863,7 +863,7 @@ test('large plan: lines come from the nearest side, top or bottom; a species dee
   const seed = sample(); const g = seed['gardens/g1']; Object.assign(g, { underlay: null, width: 40, depth: 25 });
   g.plantings = [['p2', 20, 2, 3], ['p3', 22, 23, 20], ['p0', 20, 12, 6], ['p0', 14, 9, 2], ['p4', 3, 10, 5], ['p1', 12, 1.5, 4], ['p5', 30, 3, 1]].map(([plantId, x, y, qty], i) => ({ id: 'z' + i, plantId, x, y, qty }));
   const app = await open(seed); await app.page.waitForTimeout(300);
-  const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => { const b = t.getBBox(); return { t: t.textContent, x: +t.getAttribute('x'), y: +t.getAttribute('y'), b: { x: b.x, y: b.y, w: b.width, h: b.height } }; }));
+  const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => { const b = t.getBBox(), w = t.getComputedTextLength(), x0 = t.getStartPositionOfChar(0).x; return { t: t.textContent, x: +t.getAttribute('x'), y: +t.getAttribute('y'), b: { x: x0, y: b.y, w, h: b.height } }; }));
   const one = re => { const m = labs.filter(l => re.test(l.t)); ok(m.length === 1, re + ' labelled once, got ' + JSON.stringify(m)); return m[0]; };
   const ros = one(/Ros oli/), tul = one(/Tul bal/), lav = one(/Lav ang/), ger = one(/Ger roz/);
   ok(ros.t === '3 Ros oli' && ros.y < 0 && Math.abs(ros.x - 20) < 2, 'near the top: in the row along the top, above its plants, got ' + JSON.stringify(ros));
@@ -872,10 +872,25 @@ test('large plan: lines come from the nearest side, top or bottom; a species dee
   ok(ger.x < 0, 'near a side: in the side column, got ' + JSON.stringify(ger));
   const top = labs.filter(l => l.y < 0);
   ok(top.every((a, i) => top.every((c, j) => i >= j || a.b.x + a.b.w <= c.b.x || c.b.x + c.b.w <= a.b.x)), 'the top row labels do not overlap');
-  const d = await app.page.$eval('#map g[opacity="0.65"] path', p => p.getAttribute('d'));
+  const d = await app.page.$eval('#map g.leaders path', p => p.getAttribute('d'));
   const segs = d.split('M').filter(Boolean).flatMap(m => { const n = m.split('L').map(q => q.trim().split(' ').map(Number)); return n.slice(1).map((q, i) => [q[0] - n[i][0], q[1] - n[i][1]]); });
   ok(segs.every(([dx, dy]) => Math.abs(dx) < 1e-3 || Math.abs(dy) < 1e-3 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 2e-3), 'lines only run level, upright or at 45°');
   ok(await app.page.$$eval('#map text:not([pointer-events=auto])', ts => ts.some(t => t.textContent.trim() === 'Lav ang')), 'its other patch carries its code');
+  eq(app.errors, [], 'no page errors');
+});
+
+test('plan lettering: Drafting table (the default) letters the plan in Plex Sans Condensed, other themes keep Georgia', async open => {
+  let app = await open(sample());
+  const fam = () => app.page.$eval('#map text[pointer-events=auto]', t => getComputedStyle(t).fontFamily);
+  ok(/IBM Plex Sans Condensed/.test(await fam()), 'Drafting table: Plex, got ' + await fam());
+  ok(await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.some(t => t.querySelector('tspan')?.style.fontWeight === '500' && getComputedStyle(t).fontWeight === '600')), 'the count in medium, the code in semibold');
+  await app.close();
+  // a saved Eiderdown from before Drafting table existed was only ever the default, so it moves over; one chosen since stays
+  app = await open({ ...sample(), 'settings/prefs': { theme: 'eiderdown' } });
+  ok(/IBM Plex/.test(await fam()), 'an old default Eiderdown moves to Drafting table, got ' + await fam());
+  await app.close();
+  app = await open({ ...sample(), 'settings/prefs': { theme: 'eiderdown', themeV: 1 } });
+  ok(/^Georgia/.test(await fam()), 'Eiderdown chosen: Georgia, got ' + await fam());
   eq(app.errors, [], 'no page errors');
 });
 
@@ -885,7 +900,7 @@ test('large plan: a full row along the top spills onto the plan, nothing overlap
   g.palette = [...g.palette, ...Array.from({ length: 12 }, (_, i) => 't' + i)];
   g.plantings = Array.from({ length: 12 }, (_, i) => ({ id: 'w' + i, plantId: 't' + i, x: 6.2 + i * 0.15, y: 1 + (i % 3) * 0.6, qty: 3 }));
   const app = await open(seed); await app.page.waitForTimeout(300);
-  const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => { const b = t.getBBox(); return { t: t.textContent, y: +t.getAttribute('y'), x: b.x, w: b.width }; }));
+  const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => ({ t: t.textContent, y: +t.getAttribute('y'), x: t.getStartPositionOfChar(0).x, w: t.getComputedTextLength() })));
   const top = labs.filter(l => l.y < 0), inPlan = labs.filter(l => l.y > 0 && l.y < 25 && l.x > 0 && l.x + l.w < 14);
   ok(top.length >= 2 && inPlan.length >= 1 && top.length + inPlan.length === 12, `some in the top row, the rest on the plan, got ${top.length} and ${inPlan.length} of ${labs.length}`);
   ok(top.every(l => l.x >= -1e-3 && l.x + l.w <= 14 + 1e-3), 'the row stays within the plan width');

@@ -20,6 +20,7 @@
   --f-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
   --f-body: "Source Serif 4", "Iowan Old Style", Georgia, serif;
   --f-mono: "Source Serif 4", Georgia, serif;
+  --f-plan: Georgia, "Times New Roman", serif;
 }
 
 
@@ -135,8 +136,8 @@ html[data-skin=xp] .libchips button { border-radius: 0; }
   --label: #000000; --exist: #7B7266; --shade: #1F2A44; }
 #map.panning, #map.panning * { cursor: grabbing !important; }
 #map { flex: 1; width: 100%; min-height: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
-/* one serif for every word on the plan, on screen, in the booklet and in the PDF: a standard font, so all three match */
-#map text { font-family: Georgia, "Times New Roman", serif; text-rendering: geometricPrecision; }
+/* one face for every word on the plan, on screen, in the booklet and in the PDF (which embeds it), so all three match */
+#map text { font-family: var(--f-plan); text-rendering: geometricPrecision; }
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--panel); }
 .overlay .card { max-width: 400px; width: 100%; overflow: visible; }
 
@@ -403,6 +404,10 @@ html[data-skin=woodwork] { color-scheme: dark;
   --ground: #2A2019; --grid: #3A2E24; --grid-major: #4A3A2C;
   --warn: #E0A955; --crit: #E07A62; --bar-edge: rgba(237, 224, 202, 0.25); }
 html[data-skin=woodwork] body { background: radial-gradient(1200px 600px at 20% -10%, #33271D, transparent 70%), var(--paper); }
+/* Drafting table: ink on pale drafting film, lettered in IBM Plex Sans Condensed */
+html[data-skin=drafting] { --f-plan: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", sans-serif; }
+html[data-skin=drafting] .mapwrap, html[data-skin=drafting] .sheetref { color: #1F2B26; --panel: #F8F9F5; --paper: #ECEEE8; --ink: #1F2B26; --muted: #6B7570; --line: #CCD2CA; --line-soft: #DFE3DC;
+  --ground: #F3F5F0; --grid: #E2E6DF; --grid-major: #CCD2CA; --label: #1F2B26; }
 html[data-skin=woodwork] .mapwrap { --panel: #F5ECDC; --paper: #EFE4D0; --line: #6A5440; --ground: #F1E7D5; --grid: #E2D5BF; --grid-major: #CDBB9E; border-color: #5A4634; }
 html[data-skin=woodwork] .modal { background: rgba(10, 7, 4, 0.6); }
 html[data-skin=woodwork] .btn.primary { color: #241B15; }
@@ -9551,16 +9556,56 @@ const HINTS = {
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
-const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'eiderdown', pgridSpace: 0.3, oudolf: false, esriKey: '', labelPlace: 'edge' };
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'drafting', themeV: 1, pgridSpace: 0.3, oudolf: false, esriKey: '', labelPlace: 'edge' };
+/* the lettering on the plan. Each theme names its face in --f-plan; prints set S.print.font. Label widths are measured
+   in that face (falling back to whatever the browser actually has), so labels pack tightly and never overlap */
+const GEORGIA = 'Georgia, "Times New Roman", serif';
+const PLEX = { family: 'IBM Plex Sans Condensed', files: {
+  400: 'https://fonts.gstatic.com/s/ibmplexsanscondensed/v15/Gg8lN4UfRSqiPg7Jn2ZI12V4DCEwkj1E4LVeHbau.ttf',
+  500: 'https://fonts.gstatic.com/s/ibmplexsanscondensed/v15/Gg8gN4UfRSqiPg7Jn2ZI12V4DCEwkj1E4LVeHY5a64vr.ttf',
+  600: 'https://fonts.gstatic.com/s/ibmplexsanscondensed/v15/Gg8gN4UfRSqiPg7Jn2ZI12V4DCEwkj1E4LVeHY527Ivr.ttf' } };
+let PLAN_CSS = null;
+const MW = new Map(), MCTX = document.createElement('canvas').getContext('2d');
+function planFamily() { return S.print?.font || (PLAN_CSS ??= getComputedStyle(document.documentElement).getPropertyValue('--f-plan').trim() || GEORGIA); }
+/* the weights the plan uses: a sans face sets quantities in medium and names in semibold; the serif stays as it was */
+function planType() { const fam = planFamily(), sans = /sans/i.test(fam); return sans ? { fam, sans, num: 500, name: 600, bold: 600 } : { fam, sans, num: 400, name: 400, bold: 700 }; }
+/* the width of txt at font-size 1, in the plan face */
+function textW(txt, weight = 400, fam = planFamily()) {
+  const k = weight + '|' + fam + '|' + txt; let w = MW.get(k);
+  if (w == null) { MCTX.font = `${weight} 100px ${fam}`; w = MCTX.measureText(txt).width / 100; MW.set(k, w); }
+  return w;
+}
+/* how wide the plan face is next to Georgia, for the few places that still count characters (tuned for Georgia) */
+function planWk() { const t = 'Lavandula ang 12 Ger roz', fam = planFamily(); return fam === GEORGIA ? 1 : textW(t, 400, fam) / textW(t, 400, GEORGIA); }
+if (document.fonts) document.fonts.addEventListener('loadingdone', () => { MW.clear(); if (typeof renderMapSoon === 'function' && S.g) renderMapSoon(); });
+/* the plan face's files, for prints: registered with the page (so widths measure right) and kept for the PDF */
+let PLEX_DATA = null;
+async function plexFiles() {
+  if (PLEX_DATA) return PLEX_DATA;
+  try {
+    const out = {};
+    for (const [w, url] of Object.entries(PLEX.files)) {
+      const buf = await (await fetch(url)).arrayBuffer();
+      if (!document.fonts.check(`${w} 12px "${PLEX.family}"`)) { const ff = new FontFace(PLEX.family, buf, { weight: w }); await ff.load(); document.fonts.add(ff); }
+      let bin = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+      out[w] = btoa(bin);
+    }
+    MW.clear(); return (PLEX_DATA = out);
+  } catch { return null; }
+}
+/* the face a print uses: the theme's, if it's Plex and its files load (for the PDF and the booklet picture), else Georgia */
+async function printFont() { return /plex/i.test(planFamily()) && await plexFiles() ? `"${PLEX.family}", sans-serif` : GEORGIA; }
 const THEMES = {
+  drafting: { name: 'Drafting table', note: 'Ink on pale drafting film, with narrow technical lettering.', bar: '#F8F9F5', barInk: '#1F2B26', bg: '#ECEEE8', cols: ['#F8F9F5', '#2F5A3C', '#CCD2CA'], font: '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif' },
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
   woodwork: { name: 'Woodwork', note: 'Dark oak and walnut browns, serif type.', bar: '#2E231B', barInk: '#EDE0CA', bg: '#241B15', cols: ['#F5ECDC', '#C99A5B', '#4A3A2C'], font: '"Cormorant Garamond", Georgia, serif' },
   xp: { name: '98', note: 'A classic grey, bevelled late-90s-style window on a blue desktop.', bar: 'linear-gradient(90deg, #0A246A, #A6CAF0)', barInk: '#FFFFFF', bg: '#3A6EA5', cols: ['#D4D0C8', '#0A246A', '#FFFFFF'], font: 'Tahoma, Verdana, sans-serif' },
   root: { name: 'root', note: 'Two-tone terminal green on black, monospace, with a little Japanese.', bar: '#111410', barInk: '#9BE86A', bg: '#0C0E0B', cols: ['#121610', '#9BE86A', '#263022'], font: '"IBM Plex Mono", monospace', jp: '庭 ' },
 };
-const THEME_FONTS = { root: 'https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Noto+Sans+JP:wght@400;600&display=swap' };
+const THEME_FONTS = { drafting: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap', root: 'https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Noto+Sans+JP:wght@400;600&display=swap' };
 function applyTheme(t) {
-  if (!THEMES[t]) t = 'eiderdown';
+  if (!THEMES[t]) t = 'drafting';
+  PLAN_CSS = null; MW.clear();
   document.documentElement.dataset.skin = t;
   try { localStorage.setItem('gpm.theme', t); } catch {}
   const href = THEME_FONTS[t];
@@ -10344,7 +10389,7 @@ function edgeEx(fs, pad, numbered) {
     const p = plantById(id); if (!p) continue;
     n = Math.max(n, isNum ? String(paletteNumber(p.id) || code(p)).length + (p.existing ? 8 : 0) : (S.prefs.labelQty ? 4 : 0) + plantLabel(p).length + (p.existing ? 8 : 0));
   }
-  return n ? Math.max(0, pad * 0.8 + n * size * 0.52 + fs * 0.6 - pad) : 0;
+  return n ? Math.max(0, pad * 0.8 + n * size * 0.52 * planWk() + fs * 0.6 - pad) : 0;
 }
 /* Labels in a column down each side of the plan, in the order of what they label, each joined to its plants by a fine line
    that runs straight, then at 45°, then straight, like a metro map. A species is labelled once, with its total for the whole
@@ -10429,8 +10474,8 @@ function edgeLayout(LBL, halo, e) {
   /* the rows along the top and bottom: each label as near above (or below) its plants as it can be, within the plan's width
      (clear of the scale bar along the bottom); if a row is full, the species deepest in go on the plan instead */
   for (const r of ['T', 'B']) {
-    const lo = r === 'B' ? Math.min(e.sbEnd || 0, W / 2) : 0, hi = W, gap = NAME * 0.9;
-    let row = rows[r].map(gp => { const size = gp.l.o.bold ? NUM : NAME, txt = qtyTxt(gp.l, gp.n); return { gp, size, txt, w: txt.length * size * 0.72 + gap, c: gp.ax }; });
+    const lo = r === 'B' ? Math.min(e.sbEnd || 0, W / 2) : 0, hi = W, gap = NAME * 0.9, PT = planType();
+    let row = rows[r].map(gp => { const size = gp.l.o.bold ? NUM : NAME, txt = qtyTxt(gp.l, gp.n); return { gp, size, txt, w: textW(plainText(txt), gp.l.o.bold ? PT.bold : PT.name) * size + gap, c: gp.ax }; });
     row.sort((p, q) => p.gp.deep - q.gp.deep);
     while (row.reduce((t, it) => t + it.w, 0) > hi - lo && row.length) { const it = row.pop(); onPlan(it.gp); }
     row.sort((p, q) => p.c - q.c);
@@ -10461,14 +10506,21 @@ function edgeLayout(LBL, halo, e) {
       }
     }
   }
-  return { out, extra, inner, lines: lines.length ? `<g opacity="0.65" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="0.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${lines.filter(d => d.includes('a')).join('')}" style="fill:var(--label)"/></g>` : '' };
+  const sans = planType().sans, dots = lines.filter(d => d.includes('a')).join('');
+  return { out, extra, inner, lines: lines.length ? `<g class="leaders" opacity="${sans ? 0.8 : 0.65}" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="${sans ? 0.7 : 0.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${sans ? `<path d="${dots}" fill="none" style="stroke:var(--panel)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}<path d="${dots}" style="fill:var(--label)"/></g>` : '' };
 }
 /* place labels on the plan so none overlap: each keeps its spot if it can, else the nearest free spot, with a fine
    leader line back to its plant if it moved far; returns the markup for each, in the order given */
+/* a label's text as it reads, without markup or entities, for measuring */
+const plainText = t => String(t ?? '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&\w+;/g, 'x');
 function placeOnPlan(LBL, halo, ls) {
   const out = new Array(LBL.length);
   if (!LBL.length) return out;
-  const size = l => { const n = l.len ?? l.txt.replace(/<[^>]*>/g, '').replace(/&\w+;|&#\d+;/g, 'x').length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52), h: l.size * 1.1 }; };
+  const PT = planType(), wk = planWk();
+  const size = l => {
+    if (l.len == null && !l.wk && l.txt) return { w: Math.max(textW(plainText(l.txt), l.o.bold ? PT.bold : PT.name), 0.3) * l.size, h: l.size * 1.1 };
+    const n = l.len ?? plainText(l.txt).length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52) * wk, h: l.size * 1.1 };
+  };
   const cell = Math.max(ls, 1e-6) * 2.5, H = new Map(), gap = ls * 0.06;
   const cells = (b, f) => { for (let i = Math.floor(b.x0 / cell); i <= Math.floor(b.x1 / cell); i++) for (let j = Math.floor(b.y0 / cell); j <= Math.floor(b.y1 / cell); j++) f(i + ',' + j); };
   const clash = b => { let hit = false; cells(b, k => { if (!hit) for (const o of H.get(k) || []) if (b.x0 < o.x1 + gap && o.x0 < b.x1 + gap && b.y0 < o.y1 + gap && o.y0 < b.y1 + gap) { hit = true; break; } }); return hit; };
@@ -10521,9 +10573,11 @@ function renderMap() {
   const W = g.width, D = g.depth, M = Math.max(W, D);
   const pr = S.print, pad = pr?.pad ?? M * 0.07, fs = pr?.fs ?? M / 55 / S.zoom, showScale = S.prefs.showScale || !!pr?.sheet;
   /* a label with a halo in the sheet colour; the print version draws the halo as its own layer, which PDFs need */
+  const PT = planType();
   const halo = (x, y, size, txt, o = {}) => {
-    const base = `x="${x}" y="${y}" font-size="${size}" text-anchor="${o.anchor || 'middle'}"`, fw = `font-weight:${o.bold ? 700 : 400}`;
-    return `<text ${base} style="fill:var(--label);${fw}" pointer-events="${o.live ? 'auto' : 'none'}">${txt}</text>`;   // plain lettering, no outline
+    const base = `x="${x}" y="${y}" font-size="${size}" text-anchor="${o.anchor || 'middle'}"`, fw = `font-weight:${o.bold ? PT.bold : PT.name}`;
+    const body = PT.sans ? String(txt).replace(/^(\d+) /, `<tspan style="font-weight:${PT.num}">$1</tspan> `) : txt;
+    return `<text ${base} style="fill:var(--label);${fw}" pointer-events="${o.live ? 'auto' : 'none'}">${body}</text>`;   // plain lettering, no outline
   };
   /* plant and bed labels are gathered as the plan is drawn and spread apart at the end so none overlap.
      m.ax/m.ay is what the label belongs to (a leader line runs back to it if the label had to move far);
@@ -10681,9 +10735,9 @@ function renderMap() {
       const isNum = S.prefs.labelMode === 'number', moved = pl.lx != null && pl.ly != null, inside = isNum || grid;
       if (blk > 1) lbl = (S.prefs.labelQty ? blk + ' ' : '') + plantLabel(p);
       /* inside the plant, a label is sized to fit it; a block's one label may spread across its neighbours */
-      const size = /^\d+$/.test(lbl) ? NUM : !moved && !(blk > 1) && inside ? Math.min(NAME, Math.max(ls * 0.2, ringR * 1.8 / Math.max(2, lbl.length * 0.5))) : NAME;   // a name inside a lone plant on the grid still shrinks to fit it
+      const size = /^\d+$/.test(lbl) ? NUM : !moved && !(blk > 1) && inside ? Math.min(NAME, Math.max(ls * 0.2, ringR * 1.8 / Math.max(2, lbl.length * 0.5 * planWk()))) : NAME;   // a name inside a lone plant on the grid still shrinks to fit it
       const bx = pl.x + (moved ? pl.lx : 0), by = pl.y + (moved ? pl.ly : kind === 'bulb' && !isNum ? spacingOf(p) * 0.3 + size * 0.95 : inside ? size * 0.34 : -(planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32));
-      const tw = lbl.length * size * 0.5, cy = by - size * 0.32;
+      const tw = lbl.length * size * 0.5 * planWk(), cy = by - size * 0.32;
       if (moved) {
         const dx = bx - pl.x, dy = cy - pl.y, dist = Math.hypot(dx, dy);
         if (dist > ringR + size * 0.9) {
@@ -11270,7 +11324,7 @@ function renderPrefs() {
       <div class="row"><span class="note">${S.online ? 'Saved automatically and used for every garden.' : 'Not saved in this view.'}</span><button class="btn sm" type="button" data-act="resetPrefs">Reset to defaults</button></div></div>
     <div class="prefgrid">
       <fieldset class="pref" style="grid-column:1/-1"><legend>Theme</legend>
-        <div class="thgrid" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([k, t]) => `<label class="thopt"><input type="radio" name="pf-theme" data-pref="theme" value="${k}"${(THEMES[P.theme] ? P.theme : 'eiderdown') === k ? ' checked' : ''}>
+        <div class="thgrid" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([k, t]) => `<label class="thopt"><input type="radio" name="pf-theme" data-pref="theme" value="${k}"${(THEMES[P.theme] ? P.theme : 'drafting') === k ? ' checked' : ''}>
           <span class="thprev" aria-hidden="true" style="background:${t.bg}"><span class="tb" style="background:${t.bar};color:${t.barInk};font-family:${esc(t.font)}">${t.jp || ''}${esc(t.name)}</span><span class="bd">${t.cols.map((c, i) => `<i style="background:${c};flex:${i ? 1 : 3}"></i>`).join('')}</span></span>
           <b>${esc(t.name)}</b><small>${esc(t.note)}</small></label>`).join('')}</div>
         <p class="note" style="margin:0">The client booklet always uses the Eiderdown look, whichever theme you work in.</p>
@@ -12115,10 +12169,11 @@ function bookletInput(t) {
 }
 async function planImage(numbered) {
   if (aerialOn()) await aerialReady(S.g.aerial).p;
-  const key = JSON.stringify([S.g.id, S.g.updatedAt, numbered, S.view, aerialOn(), [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.g.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
+  const font = await printFont();
+  const key = JSON.stringify([font, S.g.id, S.g.updatedAt, numbered, S.view, aerialOn(), [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.g.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
-  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = {};
+  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { font };
   if (numbered) { S.prefs.labelMode = 'number'; S.prefs.labelQty = false; S.prefs.labelSize = Math.max(num(save.size, 1), 1.5); }
   let markup;
   try { renderMap(); markup = svg.innerHTML; var vb = svg.getAttribute('viewBox'); }
@@ -12131,7 +12186,9 @@ async function planImage(numbered) {
   }
   const [, , vw, vh] = vb.split(' ').map(Number);
   const W = 2600, H = Math.round(W * vh / vw);
-  const doc = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vb}" width="${W}" height="${H}" font-family="Georgia, 'Times New Roman', serif" text-rendering="geometricPrecision">${markup}</svg>`;
+  /* a picture can't reach the page's fonts, so it carries the plan face with it */
+  const faces = font === GEORGIA ? '' : `<defs><style>${Object.entries(PLEX_DATA).map(([w, b]) => `@font-face{font-family:"${PLEX.family}";font-weight:${w};src:url(data:font/ttf;base64,${b}) format("truetype")}`).join('')}</style></defs>`;
+  const doc = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vb}" width="${W}" height="${H}" font-family='${font}' text-rendering="geometricPrecision">${faces}${markup}</svg>`;
   const url = URL.createObjectURL(new Blob([doc], { type: 'image/svg+xml' }));
   try {
     const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
@@ -12259,6 +12316,16 @@ async function loadPdfLibs() {
   if (!window.jspdf.jsPDF.API.svg) { try { await loadScript('https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.4/dist/svg2pdf.umd.min.js'); } catch {} }
   return !!window.jspdf.jsPDF.API.svg;
 }
+/* the plan face, embedded in a PDF (once per document): 400, 500 and 600, with 600 also standing in for bold */
+function pdfPlex(pdf) {
+  if (!PLEX_DATA) return false;
+  if (pdf.__plex) return true;
+  try {
+    for (const [w, b] of Object.entries(PLEX_DATA)) { pdf.addFileToVFS(`plex-${w}.ttf`, b); pdf.addFont(`plex-${w}.ttf`, 'plexcond', 'normal', +w); }
+    pdf.addFont('plex-600.ttf', 'plexcond', 'bold'); pdf.addFont('plex-400.ttf', 'plexcond', 'normal');
+    return (pdf.__plex = true);
+  } catch { return false; }
+}
 /* on screen, line weights are in pixels whatever the zoom; in a PDF they have to be real widths, so convert them. lw is the plan length that one screen pixel of line should print as */
 function vectorise(markup, lw) {
   return markup.replace(/<title>[^<]*<\/title>/g, '').replace(/<circle[^>]*fill="transparent"[^>]*>(<\/circle>)?/g, '')
@@ -12277,8 +12344,9 @@ async function underlayPicture(u, bg) {
 }
 async function planVectorMarkup(o) {
   if (aerialOn()) await aerialReady(S.g.aerial).p;
+  const font = await printFont();
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
-  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { vector: true, fs: o.fs, pad: o.pad, sheet: o.sheet, noEdge: o.noEdge };
+  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { vector: true, fs: o.fs, pad: o.pad, sheet: o.sheet, noEdge: o.noEdge, font };
   if (o.numbered) { S.prefs.labelMode = 'number'; S.prefs.labelQty = false; S.prefs.labelSize = Math.max(num(save.size, 1), 1.5); }
   let markup, vb;
   try { renderMap(); markup = svg.innerHTML; vb = svg.getAttribute('viewBox').split(' ').map(Number); }
@@ -12290,10 +12358,11 @@ async function planVectorMarkup(o) {
   }
   const tag = markup.match(/<image class="ul"[^>]*>(<\/image>)?/);
   if (tag) { let data = null; try { data = await underlayPicture(S.g.underlay, bg); } catch {} markup = markup.replace(tag[0], data ? tag[0].replace(/href="[^"]*"/, `href="${data}"`).replace(/\sopacity="[^"]*"/, '') : ''); }
-  return { markup, vb };
+  return { markup, vb, font };
 }
 async function drawPlanVector(pdf, v, x, y, w, h) {
-  const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${v.vb.join(' ')}" font-family="times">${v.markup}</svg>`, 'image/svg+xml');
+  const fam = v.font && v.font !== GEORGIA && pdfPlex(pdf) ? 'plexcond' : 'times';
+  const doc = new DOMParser().parseFromString(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${v.vb.join(' ')}" font-family="${fam}">${v.markup}</svg>`, 'image/svg+xml');
   if (doc.querySelector('parsererror')) throw new Error('the plan could not be drawn');
   await pdf.svg(doc.documentElement, { x, y, width: w, height: h });
 }
@@ -12941,6 +13010,7 @@ async function init() {
     if (prefTimer) return;
     const first = !S.prefsLoaded; S.prefsLoaded = true; S.prefsExist = !!snap.exists;
     S.prefs = { ...PREF_DEFAULTS, ...(snap.exists ? snap.data() : {}) };
+    if (snap.exists && !snap.data().themeV && S.prefs.theme === 'eiderdown') S.prefs.theme = 'drafting';   // saved before Drafting table existed, when Eiderdown was simply the default
     applyRoleColours(); applyTheme(S.prefs.theme);
     if (getPage() === 'preferences' && !document.activeElement?.dataset?.pref) renderPrefs();
     if (S.loaded) renderAll();
@@ -13744,7 +13814,7 @@ async function restoreBackup(file) {
       const p = data.prefs, rc = {}; for (const k of Object.keys(ROLE_DEFAULTS)) if (hexOrNull(p.roleColors?.[k])) rc[k] = p.roleColors[k];
       S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false,
         showGrid: p.showGrid !== false, gridStep: ['auto', '0.5', '1', '2', '5'].includes(String(p.gridStep)) ? String(p.gridStep) : 'auto', showRulers: p.showRulers !== false, showScale: p.showScale !== false, snap: clamp(numOrNull(p.snap) ?? 0.1, 0.05, 1),
-        currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'eiderdown',
+        currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'drafting', themeV: 1,
         pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2), oudolf: p.oudolf === true, esriKey: S.prefs.esriKey || '', labelPlace: p.labelPlace === 'plan' ? 'plan' : 'edge' };
       const logo = await asset(p.logoId); if (logo) S.prefs.logoId = logo;
       applyRoleColours(); applyTheme(S.prefs.theme); savePrefs();
