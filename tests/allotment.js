@@ -1,4 +1,4 @@
-// Checks for root planner (allotment/index.html), using the same stand-in runtime as SevenLayers.
+// Checks for root, the crop planner (allotment/index.html), using the same stand-in runtime as SevenLayers.
 // Run with:  node tests/allotment.js            (all tests)
 //            node tests/allotment.js rotation   (only tests whose name contains "rotation")
 const { open: openPage, test, ok, eq, run } = require('./harness');
@@ -94,7 +94,7 @@ test('follows the SevenLayers theme until one is chosen', async open => {
 test('backup round trip', async open => {
   const app = await openNow(open, { hash: '#preferences' });
   await app.page.click('[data-act=bkpAll]'); await app.page.waitForTimeout(200);
-  const saved = await app.saved(); eq(saved.length, 1, 'one file'); ok(/^root planner backup - everything - /.test(saved[0].filename), 'file name');
+  const saved = await app.saved(); eq(saved.length, 1, 'one file'); ok(/^root backup - everything - /.test(saved[0].filename), 'file name');
   const json = (await app.savedBytes(0)).toString();
   const data = JSON.parse(json); eq([data.plots.length, data.crops.length], [2, 3], 'plans and crops in the file');
   await app.page.setInputFiles('[data-restore]', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(json) }); await app.page.waitForTimeout(400);
