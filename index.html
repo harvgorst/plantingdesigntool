@@ -88,7 +88,7 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 .pf input.n { width: 5em; }
 .pv { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .pv i { color: var(--ink); }
-.insp .acts { display: flex; gap: 6px; margin-left: auto; padding-left: 8px; }
+.insp .acts { display: flex; gap: 6px; margin-left: auto; padding-left: 8px; position: sticky; right: 0; background: var(--paper); box-shadow: -14px 0 10px -4px var(--paper); }   /* the actions stay in reach when the fields run past the edge */
 .insp .confirm-inline { flex-wrap: nowrap; }
 
 /* work area */
@@ -294,9 +294,10 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .bsheet .key { flex: 1; min-height: 0; overflow: hidden; padding: 16px 16px 10px; display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; }
 .bsheet .t, .bsheet .k { font-size: 10.5px; color: var(--bk-muted); }
 .bsheet .key .t { margin-bottom: 3px; }
-.bsheet .kr { display: grid; grid-template-columns: 15px 46px minmax(0, 1fr) auto; align-items: center; gap: 0 4px; line-height: 1.25; }
+.bsheet .kr { display: grid; grid-template-columns: 15px minmax(14px, max-content) minmax(0, 1fr) auto; align-items: baseline; gap: 0 6px; line-height: 1.2; }
+.bsheet .kr > :first-child { align-self: center; }
 .bsheet .kr .kn { font-weight: 600; white-space: nowrap; }
-.bsheet .kr i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bsheet .kr i { overflow-wrap: anywhere; }
 .bsheet .kr .q { text-align: right; padding-left: 6px; }
 .bsheet .key .tot { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--bk-soft); color: var(--bk-muted); }
 .bsheet .key .kex { display: flex; align-items: center; gap: 6px; color: var(--bk-muted); }
@@ -362,9 +363,9 @@ html[data-skin=xp] .pgrid button { border-radius: 0; }
 .btable tbody tr:last-child td { border-bottom-color: var(--bk-ink); }
 .btable tfoot td { border-bottom: 0; font-weight: 600; padding-top: 9px; }
 .btable tr.total td { font-family: var(--f-display); font-size: 22px; font-weight: 600; border-top: 1px solid var(--bk-ink); padding-top: 10px; }
-.bcal { display: grid; grid-template-columns: 230px repeat(12, 1fr); font-size: 12.5px; align-items: center; }
+.bcal { display: grid; grid-template-columns: 310px repeat(12, 1fr); font-size: 12.5px; align-items: center; }
 .bcal .mh { font-size: 11.5px; color: var(--bk-muted); text-align: center; padding-bottom: 6px; border-bottom: 1px solid var(--bk-ink); }
-.bcal .nm { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--bk-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bcal .nm { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--bk-soft); line-height: 1.25; overflow-wrap: anywhere; align-self: stretch; display: flex; align-items: center; }
 .bcal .nm .crop { color: #8A5A1E; font-size: 11px; }
 .bcal .tr { grid-column: 2 / 14; height: 100%; border-bottom: 1px solid var(--bk-soft); background-image: linear-gradient(to right, var(--bk-soft) 1px, transparent 1px); background-size: calc(100% / 12) 100%; }
 .bcal .bar { height: 12px; border-radius: 2px; margin: 0 3px; border: 1px solid rgba(31, 43, 38, 0.18); box-sizing: border-box; align-self: center; }
@@ -9786,7 +9787,8 @@ const snap = v => { const st = clamp(num(S.prefs.snap, 0.1), 0.05, 1); return st
 const r2 = v => Math.round(v * 100) / 100;
 const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const money = v => (S.prefs.currency || '£') + (Math.round(v * 100) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const moneyFmt = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });   // made once: toLocaleString builds a formatter on every call
+const money = v => (S.prefs.currency || '£') + moneyFmt.format(Math.round(v * 100) / 100);
 let plantIndex = null, plantIndexOf = null;
 const plantById = id => { if (plantIndexOf !== S.plants) { plantIndex = new Map(S.plants.map(p => [p.id, p])); plantIndexOf = S.plants; } return plantIndex.get(id); };
 const upsertPlant = rec => { S.plants = [...S.plants.filter(x => x.id !== rec.id), rec]; };
@@ -9877,7 +9879,12 @@ function guildAuto(b) {
   for (const pl of S.g?.plantings || []) { if (!pointInPoly(pl.x, pl.y, P)) continue; const p = plantById(pl.plantId); if (p && (!best || num(p.height) > num(best.height))) best = p; }
   return best ? `${best.common || best.botanical || 'Plant'} guild` : 'Guild';
 }
-const guildName = b => (b.name || '').trim() || guildAuto(b);
+/* two unnamed guilds round the same kind of tree are told apart by number: Plum guild 1, Plum guild 2 */
+function guildName(b) {
+  if ((b.name || '').trim()) return b.name.trim();
+  const auto = guildAuto(b), same = beds().filter(o => areaKind(o) === 'guild' && !(o.name || '').trim() && guildAuto(o) === auto);
+  return same.length > 1 ? `${auto} ${same.indexOf(b) + 1}` : auto;
+}
 /* what each guild holds, listed from the tallest layer down */
 function guildRows() {
   const gs = beds().filter(b => areaKind(b) === 'guild'); if (!gs.length || !S.g) return [];
@@ -10748,6 +10755,8 @@ function metroPath(sx, sy, ax, ay, hFirst, f) {
    leader line back to its plant if it moved far; returns the markup for each, in the order given */
 /* a label's text as it reads, without markup or entities, for measuring */
 const plainText = t => String(t ?? '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#(\d+);/g, (m, n) => String.fromCharCode(+n)).replace(/&\w+;/g, 'x');
+/* the spots tried round a label that clashes: nine rings, 8 more spots on each ring out (sin, cos, ring) */
+const RINGS = []; for (let r = 1; r <= 9; r++) for (let a = 0; a < 8 * r; a++) { const t = a / (8 * r) * Math.PI * 2; RINGS.push([Math.sin(t), Math.cos(t), r]); }
 function placeOnPlan(LBL, halo, ls) {
   const out = new Array(LBL.length);
   if (!LBL.length) return out;
@@ -10758,7 +10767,7 @@ function placeOnPlan(LBL, halo, ls) {
     const n = l.len ?? plainText(l.txt).length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52) * wk, h: l.size * 1.2 };
   };
   const cell = Math.max(ls, 1e-6) * 2.5, H = new Map(), gap = ls * 0.16;
-  const cells = (b, f) => { for (let i = Math.floor(b.x0 / cell); i <= Math.floor(b.x1 / cell); i++) for (let j = Math.floor(b.y0 / cell); j <= Math.floor(b.y1 / cell); j++) f(i + ',' + j); };
+  const cells = (b, f) => { const j0 = Math.floor(b.y0 / cell), j1 = Math.floor(b.y1 / cell); for (let i = Math.floor(b.x0 / cell), i1 = Math.floor(b.x1 / cell); i <= i1; i++) for (let j = j0; j <= j1; j++) f(i * 1048576 + j); };   // numeric cell keys: no string per lookup
   const clash = b => { let hit = false; cells(b, k => { if (!hit) for (const o of H.get(k) || []) if (b.x0 < o.x1 + gap && o.x0 < b.x1 + gap && b.y0 < o.y1 + gap && o.y0 < b.y1 + gap) { hit = true; break; } }); return hit; };
   const overlap = b => { let a = 0; const seen = new Set(); cells(b, k => { for (const o of H.get(k) || []) if (!seen.has(o)) { seen.add(o); a += Math.max(0, Math.min(b.x1, o.x1 + gap) - Math.max(b.x0, o.x0 - gap)) * Math.max(0, Math.min(b.y1, o.y1 + gap) - Math.max(b.y0, o.y0 - gap)); } }); return a; };
   const keep = b => cells(b, k => { if (!H.has(k)) H.set(k, []); H.get(k).push(b); });
@@ -10768,9 +10777,9 @@ function placeOnPlan(LBL, halo, ls) {
     const l = LBL[i], d = size(l);
     let x = l.x, y = l.y, b = boxAt(l, x, y, d);
     if (!l.fixed && clash(b)) {
-      const tries = [];
-      for (let r = 1; r <= 9; r++) for (let a = 0; a < 8 * r; a++) { const t = a / (8 * r) * Math.PI * 2; tries.push([Math.sin(t) * r * (d.w * 0.55 + d.h * 0.3), -Math.cos(t) * r * d.h * 1.0]); }
-      tries.sort((p, q) => Math.hypot(p[0] / d.w, p[1] / d.h) - Math.hypot(q[0] / d.w, q[1] / d.h));
+      const tries = [], sx = d.w * 0.55 + d.h * 0.3, sy = d.h;
+      for (const [s, c, r] of RINGS) tries.push([s * r * sx, -c * r * sy, (s * r * sx / d.w) ** 2 + (c * r * sy / d.h) ** 2]);
+      tries.sort((p, q) => p[2] - q[2]);   // nearest first, measured in label widths and heights
       let found = false;
       for (const [dx, dy] of tries) { const c = boxAt(l, l.x + dx, l.y + dy, d); if (!clash(c)) { x = l.x + dx; y = l.y + dy; b = c; found = true; break; } }
       if (!found) {   // nowhere clear nearby: the spot (in the nearer half of the search) where it covers the least of the others
@@ -11036,8 +11045,10 @@ function renderMap() {
       return areaTag(cx, cy, nm, s1, sub, s2, [cx, cy]);
     }
     const top = P.reduce((m, q) => q[1] < m[1] ? q : m, P[0]), xs = P.map(q => q[0]);
-    const x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3), y = +(top[1] - ls * 0.35).toFixed(3), nm = (areaKind(b) === 'guild' ? guildName(b) : b.name.trim()).toUpperCase();
-    return areaTag(x, y, nm, ls * 0.85, '', 0, [x, top[1]]); }).join('') : '';
+    const s1 = ls * 0.85, x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3);
+    // above the bed, unless that would run into the rulers over the drawing: then just inside its top edge
+    const y = +(top[1] - ls * 0.35 - s1 * 0.8 < 0 ? top[1] + s1 * 1.15 : top[1] - ls * 0.35).toFixed(3), nm = (areaKind(b) === 'guild' ? guildName(b) : b.name.trim()).toUpperCase();
+    return areaTag(x, y, nm, s1, '', 0, [x, top[1]]); }).join('') : '';
   const psc = +Math.max(1, M / 30).toFixed(3), apats = new Set();
   const hardAreas = beds().filter(b => !plantable(b)).map(b => {
     const k = areaKind(b), d = bedPath(b), sel = S.tool === 'bed' && !pr && S.bedSel === b.id, pid = 'apat-' + (k === 'path' ? surfOf(b) : k);
@@ -12531,7 +12542,10 @@ function bookletPages(planImg, forExport) {
     const barM = ppm ? [100, 50, 20, 10, 5, 2, 1, 0.5].find(m => m * ppm <= 150) || 0.5 : 0, barW = barM * ppm;
     const scaleBar = ppm ? `<div class="sb"><svg width="${barW.toFixed(1)}" height="6" viewBox="0 0 ${barW.toFixed(1)} 6"><rect x="0.5" y="0.5" width="${(barW - 1).toFixed(1)}" height="5" fill="none" stroke="#1F2B26" stroke-width="1"/>${[0, 2].map(q => `<rect x="${(q * barW / 4).toFixed(1)}" y="0" width="${(barW / 4).toFixed(1)}" height="6" fill="#1F2B26"/>`).join('')}</svg><div class="sbl" style="width:${barW.toFixed(1)}px"><span>0</span><span>${barM} m</span></div></div>` : '';
     const north = `<div class="na"><svg width="26" height="26" viewBox="-13 -13 26 26"><circle r="12" fill="none" stroke="#1F2B26" stroke-width="1"/><g transform="rotate(${num(g.north, 0)})"><path d="M0,-10 L4.5,6 L0,3 L-4.5,6 Z" fill="#1F2B26"/></g></svg><span>N</span></div>`;
-    const keyN = pal.length > 16 ? 15 : 16, meta = [['Client', g.client], ['Site', b.site]].filter(([, v]) => v);
+    // as many key rows as fit the title block: a long name wraps onto a second line, which takes most of a row's height
+    const keyRows = n => pal.slice(0, n).reduce((t, r) => t + ((r.p.botanical || r.p.common || '').length > 30 ? 1.75 : 1), 0);
+    let keyN = Math.min(pal.length, 18); while (keyN > 1 && keyRows(keyN) > (pal.length > keyN ? 17.5 : 18.5)) keyN--;
+    const meta = [['Client', g.client], ['Site', b.site]].filter(([, v]) => v);
     pages.push({ cls: 'bsheet', foot: false, html: `<div class="frame"><div class="bplan">${planImg ? `<img data-plan src="${planImg}" alt="Planting plan">` : ''}</div>
       <div class="tb"><div class="key"><div class="t">Plant key${b.numberPlan ? ', numbered as in the plant palette' : ''}</div>
       ${pal.slice(0, keyN).map(r => `<div class="kr">${plantSwatch(r.p, 11)}<span class="kn">${b.numberPlan ? r.n : esc(code(r.p))}</span><i>${esc(r.p.botanical || r.p.common)}</i><span class="q">${r.qty}</span></div>`).join('')}
@@ -12547,17 +12561,23 @@ function bookletPages(planImg, forExport) {
       <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<span class="add"><label style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label> · <u data-findphoto="${r.id}">Find photo</u></span>`}`}${u && r.p.photoCredit ? `<div class="cr">${esc(photoCreditText(r.p.photoCredit))}</div>` : ''}<div class="num">${r.n}</div></div><div class="bn" style="--lc:${lc(r.p)}">${esc(r.p.botanical || r.p.common)}</div><div class="cn">${esc(r.p.common && r.p.botanical ? r.p.common : '')}${r.p.common && r.p.botanical ? ' · ' : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
   if (b.pages.guilds) {
     const gr = guildRows().filter(gd => gd.items.length), rows = gr.flatMap(gd => gd.items.map((r, i) => `<tr${i ? '' : ' class="gstart"'}><td>${i ? '' : `<b>${esc(gd.name)}</b>`}</td><td><span class="lr" style="background:${lc(r.p)}"></span>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${paletteNumber(r.p.id) ? `<span class="lnum">${paletteNumber(r.p.id)}</span>` : ''}<i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}${r.p.existing ? ' · existing' : ''}</span></td><td class="n">${r.qty}</td></tr>`));
-    chunk(rows, 16).forEach((part, i, all) => pages.push({ html: `${head('Guilds')}<h3>Guilds${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Groups of plants that support each other, from the tallest layer down</p>
+    // a guild carried over onto the next page gets its name again there
+    const owner = gr.flatMap(gd => gd.items.map(() => gd.name)), cont = (part, i) => part.map((r, j) => i && !j && r.startsWith('<tr>') ? r.replace('<td></td>', `<td><b>${esc(owner[i * 16])}</b> <span class="cmn">cont.</span></td>`) : r);
+    chunk(rows, 16).map((part, i) => cont(part, i)).forEach((part, i, all) => pages.push({ html: `${head('Guilds')}<h3>Guilds${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Groups of plants that support each other, from the tallest layer down</p>
       <table class="btable"><thead><tr><th>Guild</th><th>Layer</th><th>Plant</th><th class="n">Qty</th></tr></thead><tbody>${part.join('')}</tbody></table>` }));
   }
   if (b.pages.schedule && (pal.length || exRows.length)) {
     const rows = pal.map(r => `<tr><td class="no">${r.n}</td><td class="cd">${esc(code(r.p))}</td><td>${plantSwatch(r.p, 11)}<i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}</span></td><td><span class="lr" style="background:${lc(r.p)}"></span>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${esc(r.p.supply || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td></tr>`);
     const total = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
     const parts = chunk(rows, 15); if (!parts.length) parts.push([]);
+    const exN = exRows.length || woods.length ? existingRows().length + woods.length : 0, exTable = exN ? `<p class="bsub" style="margin:22px 0 8px">Existing plants</p><table class="btable"><thead><tr><th>Plant</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th></tr></thead><tbody>${existingRows().map(r => `<tr><td><i>${esc(r.p?.botanical || '')}</i> <span class="cmn">${esc(r.p?.common || '')}</span></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n">${r.remove || '–'}</td></tr>`).join('')}${woods.map(w => `<tr><td><i>Existing woodland</i> <span class="cmn">${esc(w.name)}, ${esc(w.desc)}</span></td><td class="n">${Math.round(w.area)} m²</td><td class="n">–</td><td class="n">–</td></tr>`).join('')}</tbody></table>` : '';
+    const exFits = exN && parts[parts.length - 1].length + exN + 4 <= 16;
     parts.forEach((part, i) => pages.push({ html: `${head('Plant schedule')}<h3>Plant schedule${parts.length > 1 ? ` <span class="pg">${i + 1} / ${parts.length}</span>` : ''}</h3><p class="bsub">New planting</p>
       <table class="btable"><thead><tr><th class="no">No.</th><th>Code</th><th>Plant</th><th>Layer</th><th>Supply</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${part.join('')}</tbody>
       ${i === parts.length - 1 && pal.length ? `<tfoot><tr><td></td><td colspan="4">Plant supply</td><td class="n">${count}</td><td></td><td class="n">${money(total)}</td></tr></tfoot>` : ''}</table>
-      ${i === parts.length - 1 && (exRows.length || woods.length) ? `<p class="bsub" style="margin:22px 0 8px">Existing plants</p><table class="btable"><thead><tr><th>Plant</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th></tr></thead><tbody>${existingRows().map(r => `<tr><td><i>${esc(r.p?.botanical || '')}</i> <span class="cmn">${esc(r.p?.common || '')}</span></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n">${r.remove || '–'}</td></tr>`).join('')}${woods.map(w => `<tr><td><i>Existing woodland</i> <span class="cmn">${esc(w.name)}, ${esc(w.desc)}</span></td><td class="n">${Math.round(w.area)} m²</td><td class="n">–</td><td class="n">–</td></tr>`).join('')}</tbody></table>` : ''}` }));
+      ${i === parts.length - 1 && exFits ? exTable : ''}` }));
+    // the existing plants go under the last part of the schedule when they fit there, or on a page of their own
+    if (exTable && !exFits) pages.push({ html: `${head('Plant schedule')}<h3>Plant schedule</h3>${exTable.replace('margin:22px 0 8px', 'margin:0 0 22px')}` });
   }
   if (b.pages.calendar) {
     const firstM = p => showMonths(p)[0] || 99;

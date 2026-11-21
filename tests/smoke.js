@@ -1060,6 +1060,44 @@ test('beds and guilds: each bed has its own drawing, guilds are named after thei
   ok(await app.page.isVisible('#sp-cost'), 'More details opens');
 });
 
+test('busy booklet: two guilds round the same tree are numbered, long names wrap instead of clipping, nothing runs off a page', async open => {
+  const seed = sample(), g0 = seed['gardens/g1']; g0.underlay = null; seed['plants/p5'].height = 4;
+  // a species with a long botanical name, and enough existing plants to need their own page
+  seed['plants/lng'] = { common: 'Long-named sage', botanical: "Salvia nemorosa 'Caradonna' × superba 'Rose Queen' Improved Selection", role: 'matrix', spread: 0.4, height: 0.5, flowerMonths: [5, 6, 7], flowerColor: '#ffffff' };
+  g0.palette.push('lng');
+  for (let i = 0; i < 14; i++) { seed['plants/ex' + i] = { common: 'Old shrub ' + i, botanical: 'Viburnum tinus ' + i, role: 'shrub', existing: true, spread: 1, height: 1.5 }; g0.palette.push('ex' + i); }
+  g0.plantings = [{ id: 'a1', plantId: 'p5', x: 3, y: 3, qty: 1 }, { id: 'a2', plantId: 'p5', x: 9, y: 5.5, qty: 1 },
+    ...Array.from({ length: 12 }, (_, i) => ({ id: 'l' + i, plantId: 'lng', x: 1 + (i % 6) * 0.4, y: 7 + Math.floor(i / 6) * 0.4, qty: 1 })),
+    ...Array.from({ length: 14 }, (_, i) => ({ id: 'x' + i, plantId: 'ex' + i, x: 6 + (i % 7), y: 1 + Math.floor(i / 7), qty: 1 }))];
+  g0.beds = [{ id: 'g1', kind: 'guild', pts: [[1.5, 1.5], [4.5, 1.5], [4.5, 4.5], [1.5, 4.5]], ox: 3, oy: 3 },
+    { id: 'g2', kind: 'guild', pts: [[7.5, 4], [10.5, 4], [10.5, 7], [7.5, 7]], ox: 9, oy: 5.5 }];
+  const app = await open(seed);
+  const map = await app.page.textContent('#map');
+  ok(map.includes('APPLE GUILD 1') && map.includes('APPLE GUILD 2'), 'two apple guilds told apart on the plan');
+  await app.go('schedule');
+  const gt = await app.page.textContent('#guildT');
+  ok(/Apple guild 1/.test(gt) && /Apple guild 2/.test(gt), 'and in the schedule, got ' + gt);
+  await app.go('presentation'); await app.page.waitForSelector('.bpage'); await app.page.waitForTimeout(500);
+  const bad = await app.page.evaluate(() => {
+    const out = [];
+    document.querySelectorAll('.bpage').forEach((pg, i) => {
+      const pb = pg.getBoundingClientRect();
+      pg.querySelectorAll('h2, h3, p, td, th, .kr, .kr i, .bcal .nm, .bf').forEach(el => {
+        const b = el.getBoundingClientRect(); if (!b.width) return;
+        if (b.bottom > pb.bottom + 1 || b.right > pb.right + 1) out.push(`page ${i + 1}: ${el.tagName} ${el.textContent.trim().slice(0, 40)} runs off the page`);
+        const cs = getComputedStyle(el); if (el.scrollWidth > el.clientWidth + 1 && cs.overflow !== 'visible') out.push(`page ${i + 1}: ${el.textContent.trim().slice(0, 40)} clipped`);
+      });
+      const foot = pg.querySelector('.bf'); if (foot) { const fb = foot.getBoundingClientRect(); pg.querySelectorAll('table').forEach(t => { if (t.getBoundingClientRect().bottom > fb.top + 1) out.push(`page ${i + 1}: a table runs into the footer`); }); }
+    });
+    return out;
+  });
+  eq(bad, [], 'nothing clipped or off the page');
+  const txt = await app.page.textContent('body');
+  ok(txt.includes("Improved Selection"), 'the long name is written out in full');
+  ok(/Existing plants/.test(txt) && txt.includes('Viburnum tinus 13'), 'every existing plant listed');
+  eq(app.errors, [], 'no page errors');
+});
+
 test('Plants For A Future: look up a species as you type, fill only what you have not set, harvest months for crops, add a whole list', async open => {
   const app = await open(sample());
   await app.go('database'); await app.page.click('#dbAdd');
