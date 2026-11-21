@@ -257,36 +257,77 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .pwrap { flex: none; box-shadow: 0 6px 24px rgba(20, 18, 15, 0.14); border-radius: 2px; overflow: hidden; }
 .pwrap > .bpage { transform-origin: 0 0; }
 /* booklet page: A4 landscape at 96 dpi */
-.bpage { --f-display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif; --f-body: "Source Serif 4", "Iowan Old Style", Georgia, serif; width: 1123px; height: 794px; background: #F8F4EC; color: #2F2B25; font-family: var(--f-body); position: relative; overflow: hidden; box-sizing: border-box; padding: 54px 64px 60px; display: flex; flex-direction: column; }
-.pdfhost .bpage { --f-display: "Times New Roman", Tinos, "Liberation Serif", Times, serif; --f-body: "Times New Roman", Tinos, "Liberation Serif", Times, serif; }
-.bpage .bh { display: flex; justify-content: space-between; align-items: baseline; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: #8A8073; border-bottom: 1px solid #DDD3C2; padding-bottom: 10px; margin-bottom: 26px; }
-.bpage .bf { position: absolute; left: 64px; right: 64px; bottom: 26px; display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #A39888; }
-.bpage h3 { font-family: var(--f-display); font-weight: 500; font-size: 40px; line-height: 1; margin: 0 0 6px; letter-spacing: -0.01em; color: #2F2B25; }
-.bpage .bsub { font-size: 13px; color: #7B7266; margin: 0 0 22px; }
+/* the client booklet: Drafting table, whatever theme the app is in. Sheet paper, green-black ink, hairline rules,
+   Plex Sans Condensed for words and figures, Source Serif italic for botanical names, the seven layers as the one colour */
+.bpage { --bk-sheet: #F8F9F5; --bk-film: #ECEEE8; --bk-ink: #1F2B26; --bk-muted: #5F6964; --bk-line: #CCD2CA; --bk-soft: #DFE3DC; --bk-accent: #2F5A3C;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif; --f-body: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif; --f-bot: "Source Serif 4", Georgia, serif;
+  width: 1123px; height: 794px; background: var(--bk-sheet); color: var(--bk-ink); font-family: var(--f-body); font-variant-numeric: tabular-nums; position: relative; overflow: hidden; box-sizing: border-box; padding: 50px 60px 60px; display: flex; flex-direction: column; }
+.bpage i, .bpage .bn { font-family: var(--f-bot); font-style: italic; }
+.pdfhost .bpage { --f-bot: "Times New Roman", Tinos, "Liberation Serif", Times, serif; }
+.pdfhost.noplex .bpage { --f-display: Helvetica, Arimo, "Liberation Sans", Arial, sans-serif; --f-body: Helvetica, Arimo, "Liberation Sans", Arial, sans-serif; }
+.bpage .bh { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--bk-muted); border-bottom: 1px solid var(--bk-line); padding-bottom: 9px; margin-bottom: 26px; }
+.bpage .bf { position: absolute; left: 60px; right: 60px; bottom: 26px; display: flex; justify-content: space-between; font-size: 11px; color: var(--bk-muted); }
+.bpage h3 { font-family: var(--f-display); font-weight: 600; font-size: 34px; line-height: 1; margin: 0 0 6px; letter-spacing: -0.01em; color: var(--bk-ink); }
+.bpage h3 .pg { font-size: 18px; font-weight: 400; color: var(--bk-muted); letter-spacing: 0; }
+.bpage .bsub { font-size: 13.5px; color: var(--bk-muted); margin: 0 0 22px; }
 .bpage .bbody { flex: 1; min-height: 0; display: flex; gap: 32px; }
+.bpage .lnum { color: var(--bk-muted); margin-right: 6px; }
+/* cover: the seven layers as a full-height stripe, the name large, the plan on the sheet */
 .bcover { padding: 0; flex-direction: row; }
-.bcover .cl { width: 40%; padding: 64px 48px 64px 64px; display: flex; flex-direction: column; justify-content: space-between; background: #EFE8DB; }
-.bcover .cl .eb { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: #667D5E; }
-.bcover .cl h1 { font-family: var(--f-display); font-weight: 500; font-size: 62px; line-height: 0.98; margin: 18px 0 0; letter-spacing: -0.015em; color: #2F2B25; }
-.bcover .meta { display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; font-size: 13.5px; }
-.bcover .meta span:nth-child(odd) { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8073; padding-top: 3px; }
-.bcover .intro { font-size: 13.5px; line-height: 1.6; color: #4A443B; max-width: 34ch; white-space: pre-line; }
-.bcover .cr { flex: 1; display: flex; align-items: center; justify-content: center; padding: 48px; }
+.bcover .strata { width: 16px; flex: none; display: flex; flex-direction: column; }
+.bcover .strata > div { flex: 1; }
+.bcover .cl { width: 38%; flex: none; box-sizing: border-box; padding: 60px 44px 56px 48px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid var(--bk-line); }
+.bcover .cl .eb { font-size: 15px; color: var(--bk-muted); }
+.bcover .cl h1 { font-family: var(--f-display); font-weight: 600; font-size: 64px; line-height: 0.96; margin: 14px 0 0; letter-spacing: -0.02em; color: var(--bk-ink); overflow-wrap: break-word; }
+.bcover .meta { display: grid; grid-template-columns: auto 1fr; gap: 7px 20px; font-size: 14px; border-top: 1px solid var(--bk-ink); padding-top: 14px; }
+.bcover .meta span:nth-child(odd) { font-size: 12px; color: var(--bk-muted); padding-top: 2px; }
+.bcover .intro { font-size: 14.5px; line-height: 1.55; color: var(--bk-ink); max-width: 36ch; white-space: pre-line; }
+.bcover .cr { flex: 1; display: flex; align-items: center; justify-content: center; padding: 44px; }
 .bcover .cr img, .bplan img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-.bplan { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; background: #FFFDF8; border: 1px solid #E4DBCB; padding: 14px; }
-.blegend { width: 190px; flex: none; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; }
-.blegend .t { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8073; margin-bottom: 4px; }
+/* the planting plan as a drawing sheet: a ruled frame, the plan, and a title block with the plant key down the right */
+.bsheet { padding: 28px; }
+.bsheet .frame { flex: 1; min-height: 0; display: flex; border: 1px solid var(--bk-ink); }
+.bsheet .bplan { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 22px; }
+.bsheet .tb { width: 268px; flex: none; box-sizing: border-box; border-left: 1px solid var(--bk-ink); display: flex; flex-direction: column; min-height: 0; }
+.bsheet .key { flex: 1; min-height: 0; overflow: hidden; padding: 16px 16px 10px; display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; }
+.bsheet .t, .bsheet .k { font-size: 10.5px; color: var(--bk-muted); }
+.bsheet .key .t { margin-bottom: 3px; }
+.bsheet .kr { display: grid; grid-template-columns: 15px 46px minmax(0, 1fr) auto; align-items: center; gap: 0 4px; line-height: 1.25; }
+.bsheet .kr .kn { font-weight: 600; white-space: nowrap; }
+.bsheet .kr i { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bsheet .kr .q { text-align: right; padding-left: 6px; }
+.bsheet .key .tot { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--bk-soft); color: var(--bk-muted); }
+.bsheet .key .kex { display: flex; align-items: center; gap: 6px; color: var(--bk-muted); }
+.bsheet .key .kex .d { width: 10px; height: 10px; border: 1.5px dashed var(--bk-ink); border-radius: 50%; flex: none; box-sizing: border-box; }
+.bsheet .tblock { border-top: 1px solid var(--bk-ink); flex: none; font-size: 12px; }
+.bsheet .tblock > div { padding: 8px 16px; border-bottom: 1px solid var(--bk-line); display: flex; flex-direction: column; gap: 2px; }
+.bsheet .tblock > div:last-child { border-bottom: 0; }
+.bsheet .tblock .brand { flex-direction: row; align-items: center; gap: 10px; min-height: 30px; }
+.bsheet .tblock .brand img { max-width: 150px; max-height: 30px; object-fit: contain; display: block; }
+.bsheet .tblock .mark { width: 22px; height: 21px; display: flex; flex-direction: column; justify-content: space-between; flex: none; }
+.bsheet .tblock .mark > div { height: 2px; }
+.bsheet .tblock .proj b { font-size: 18px; font-weight: 600; line-height: 1.1; }
+.bsheet .tblock .cells { flex-direction: row; padding: 0; gap: 0; }
+.bsheet .tblock .cells > div { flex: 1 1 0; min-width: 0; padding: 8px 10px 8px 16px; display: flex; flex-direction: column; gap: 2px; }
+.bsheet .tblock .cells > div + div { border-left: 1px solid var(--bk-line); padding-left: 10px; }
+.bsheet .tblock .cells > div:nth-child(2) { flex-grow: 1.6; }
+.bsheet .tblock .cells > div:nth-child(3) { flex-grow: 0.8; }
+.bsheet .tblock .nb { flex-direction: row; align-items: flex-end; justify-content: space-between; padding-top: 10px; padding-bottom: 10px; }
+.bsheet .na { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 10.5px; font-weight: 600; }
+.bsheet .sb { display: flex; flex-direction: column; gap: 3px; }
+.bsheet .sb .sbl { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--bk-muted); }
+.bplan { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; }
 .blegend .d { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 8px; vertical-align: -1px; }
 .bgrid { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 18px 22px; min-height: 0; }
 .bcard { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
-.bcard .ph { position: relative; flex: 1; min-height: 0; border-radius: 3px; overflow: hidden; background: #E9E1D2; }
+.bcard .ph { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--bk-film); }
 .bcard .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.bcard .ph .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--f-display); font-size: 34px; color: #B4A893; font-style: italic; }
-.bcard .ph .add { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 11px; color: #8A8073; }
-.bcard .num { position: absolute; left: 8px; top: 8px; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 13px; background: #F8F4EC; color: #2F2B25; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
-.bcard .bn { font-style: italic; font-size: 13.5px; line-height: 1.25; color: #2F2B25; }
-.bcard .cn { font-size: 11.5px; color: #7B7266; }
-.bcard .cr { position: absolute; right: 0; bottom: 0; max-width: 100%; padding: 2px 5px; font-size: 7.5px; line-height: 1.25; color: #F8F4EC; background: rgba(30, 27, 22, 0.55); border-top-left-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bcard .ph .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--f-bot); font-size: 34px; color: #A3ABA6; font-style: italic; }
+.bcard .ph .add { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 12px; color: var(--bk-muted); }
+.bcard .num { position: absolute; left: 0; top: 0; min-width: 26px; height: 24px; padding: 0 7px; box-sizing: border-box; background: var(--bk-sheet); color: var(--bk-ink); font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+.bcard .bn { font-size: 14px; line-height: 1.25; color: var(--bk-ink); border-left: 3px solid var(--lc, var(--bk-line)); padding-left: 7px; }
+.bcard .cn { font-size: 12px; color: var(--bk-muted); padding-left: 10px; }
+.bcard .cr { position: absolute; right: 0; bottom: 0; max-width: 100%; padding: 2px 5px; font-size: 7.5px; line-height: 1.25; color: #F8F9F5; background: rgba(31, 43, 38, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bcard .ph .add u { cursor: pointer; }
 .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: min(56vh, 520px); overflow: auto; padding: 2px; }
 .pgrid button { display: flex; flex-direction: column; gap: 4px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; text-align: left; overflow: hidden; color: var(--ink); font: inherit; }
@@ -307,22 +348,27 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .addlist .lh { padding: 8px 7px 2px; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .pgroup { margin: 4px 0 6px; font-size: 12px; color: var(--muted); }
 html[data-skin=xp] .pgrid button { border-radius: 0; }
-.btable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.btable th { text-align: left; font-weight: 400; font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase; color: #8A8073; border-bottom: 1px solid #CFC4B1; padding: 0 8px 7px; }
-.btable td { border-bottom: 1px solid #E6DECF; padding: 7px 8px; vertical-align: top; }
+.btable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.btable th { text-align: left; font-weight: 400; font-size: 11.5px; color: var(--bk-muted); border-bottom: 1px solid var(--bk-ink); padding: 0 8px 6px; }
+.btable td { border-bottom: 1px solid var(--bk-soft); padding: 6px 8px; vertical-align: top; }
 .btable .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.btable .no { width: 34px; color: #8A8073; }
-.btable i { color: #2F2B25; } .btable .cmn { color: #7B7266; }
-.btable tfoot td { border-bottom: 0; font-weight: 600; padding-top: 10px; }
-.btable tr.total td { font-family: var(--f-display); font-size: 22px; font-weight: 600; border-top: 1px solid #2F2B25; padding-top: 10px; }
-.bcal { display: grid; grid-template-columns: 230px repeat(12, 1fr); font-size: 12px; align-items: center; }
-.bcal .mh { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8073; text-align: center; padding-bottom: 6px; border-bottom: 1px solid #CFC4B1; }
-.bcal .nm { padding: 6px 8px 6px 0; border-bottom: 1px solid #E6DECF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.bcal .tr { grid-column: 2 / 14; height: 100%; border-bottom: 1px solid #E6DECF; background-image: linear-gradient(to right, #EAE2D4 1px, transparent 1px); background-size: calc(100% / 12) 100%; }
-.bcal .bar { height: 14px; border-radius: 7px; margin: 0 3px; border: 1px solid rgba(47, 43, 37, 0.18); box-sizing: border-box; align-self: center; }
+.btable .no { width: 28px; color: var(--bk-muted); }
+.btable .cd { width: 62px; font-weight: 600; white-space: nowrap; }
+.btable .swv { margin-right: 7px; vertical-align: -1px; }
+.btable .lr { display: inline-block; width: 12px; height: 3px; margin-right: 7px; vertical-align: 3px; }
+.btable i { color: var(--bk-ink); } .btable .cmn { color: var(--bk-muted); }
+.btable tbody tr:last-child td { border-bottom-color: var(--bk-ink); }
+.btable tfoot td { border-bottom: 0; font-weight: 600; padding-top: 9px; }
+.btable tr.total td { font-family: var(--f-display); font-size: 22px; font-weight: 600; border-top: 1px solid var(--bk-ink); padding-top: 10px; }
+.bcal { display: grid; grid-template-columns: 230px repeat(12, 1fr); font-size: 12.5px; align-items: center; }
+.bcal .mh { font-size: 11.5px; color: var(--bk-muted); text-align: center; padding-bottom: 6px; border-bottom: 1px solid var(--bk-ink); }
+.bcal .nm { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--bk-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bcal .nm .crop { color: #8A5A1E; font-size: 11px; }
+.bcal .tr { grid-column: 2 / 14; height: 100%; border-bottom: 1px solid var(--bk-soft); background-image: linear-gradient(to right, var(--bk-soft) 1px, transparent 1px); background-size: calc(100% / 12) 100%; }
+.bcal .bar { height: 12px; border-radius: 2px; margin: 0 3px; border: 1px solid rgba(31, 43, 38, 0.18); box-sizing: border-box; align-self: center; }
 .bcal .bar.thin { height: 4px; border-radius: 2px; align-self: end; margin-bottom: 2px; }
 .bcal .bar.ever { height: 2px; border-radius: 1px; align-self: start; margin-top: 2px; background: #5E8A4E; border: 0; }
-.bnotes { font-size: 12px; color: #6B6257; line-height: 1.6; white-space: pre-line; max-width: 70ch; }
+.bnotes { font-size: 13px; color: var(--bk-muted); line-height: 1.6; white-space: pre-line; max-width: 62ch; }
 .rolecols { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px 12px; }
 .rolecol { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
 .rolecol input[type=color] { width: 34px; height: 26px; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); flex: none; }
@@ -354,7 +400,7 @@ fieldset.pref .field { grid-template-columns: 110px 1fr; }
 .order h3 { font-family: var(--f-display); font-weight: 600; font-size: 18px; margin: 0; }
 .order .cn { color: var(--muted); }
 .shortn { color: var(--crit); font-size: 12.5px; border: 1px solid currentColor; border-radius: 4px; padding: 0 6px; }
-.bcover .cl .blogo { max-width: 240px; max-height: 76px; object-fit: contain; object-position: left center; display: block; margin-bottom: 26px; }
+.bcover .cl .blogo { max-width: 240px; max-height: 76px; object-fit: contain; object-position: left center; display: block; margin-bottom: 30px; }
 .pcrow { flex-wrap: nowrap; gap: 8px; align-items: center; }
 .pcrow .swv { flex: none; }
 .pcrow input[type=color] { width: 40px; min-width: 40px; height: 28px; flex: none; padding: 1px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
@@ -9663,8 +9709,9 @@ async function plexFiles() {
     MW.clear(); return (PLEX_DATA = out);
   } catch { return null; }
 }
-/* the face a print uses: the theme's, if it's Plex and its files load (for the PDF and the booklet picture), else Georgia */
-async function printFont() { return /plex/i.test(planFamily()) && await plexFiles() ? `"${PLEX.family}", sans-serif` : GEORGIA; }
+/* the face a print uses: the booklet and plan sheet are always in the Drafting table house style, so Plex whatever the
+   app theme, as long as its files load (for the PDF and the booklet picture); else Georgia */
+async function printFont() { return await plexFiles() ? `"${PLEX.family}", sans-serif` : GEORGIA; }
 const THEMES = {
   drafting: { name: 'Drafting table', note: 'Ink on pale drafting film, with narrow technical lettering.', bar: '#F8F9F5', barInk: '#1F2B26', bg: '#ECEEE8', cols: ['#F8F9F5', '#2F5A3C', '#CCD2CA'], font: '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif' },
   eiderdown: { name: 'Eiderdown', note: 'Cream and calm, with serif type.', bar: '#FBF8F1', barInk: '#2F2B25', bg: '#F4EFE4', cols: ['#FBF8F1', '#667D5E', '#E0D7C6'], font: '"Cormorant Garamond", Georgia, serif' },
@@ -11403,7 +11450,7 @@ function renderPrefs() {
         <div class="thgrid" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([k, t]) => `<label class="thopt"><input type="radio" name="pf-theme" data-pref="theme" value="${k}"${(THEMES[P.theme] ? P.theme : 'drafting') === k ? ' checked' : ''}>
           <span class="thprev" aria-hidden="true" style="background:${t.bg}"><span class="tb" style="background:${t.bar};color:${t.barInk};font-family:${esc(t.font)}">${t.jp || ''}${esc(t.name)}</span><span class="bd">${t.cols.map((c, i) => `<i style="background:${c};flex:${i ? 1 : 3}"></i>`).join('')}</span></span>
           <b>${esc(t.name)}</b><small>${esc(t.note)}</small></label>`).join('')}</div>
-        <p class="note" style="margin:0">The client booklet always uses the Eiderdown look, whichever theme you work in.</p>
+        <p class="note" style="margin:0">The client booklet and plan sheet always use the Drafting table look, whichever theme you work in.</p>
       </fieldset>
       <fieldset class="pref"><legend>Plan labels</legend>
         ${chk('pf-show', 'showLabels', 'Show plant labels')}
@@ -12269,8 +12316,8 @@ async function planImage(numbered) {
   try {
     const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
     const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
-    ctx.fillStyle = '#FFFDF8'; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, 0, 0, W, H);
-    BK.planImg = c.toDataURL('image/jpeg', 0.92); BK.planKey = key;
+    ctx.fillStyle = '#F8F9F5'; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, 0, 0, W, H);
+    BK.planImg = c.toDataURL('image/jpeg', 0.92); BK.planKey = key; BK.planVb = [vw, vh];
   } catch { BK.planImg = null; }
   finally { URL.revokeObjectURL(url); }
   return BK.planImg;
@@ -12280,39 +12327,52 @@ function bookletPages(planImg, forExport) {
   const b = bk(), g = S.g, title = g.name || 'Planting plan', pal = paletteRows(), exRows = existingRows().filter(r => r.retain + r.prune > 0), woods = woodRows();
   const pages = [];
   const head = sec => `<div class="bh"><span>${esc(b.subtitle || 'Planting proposal')} · ${esc(title)}</span><span>${esc(sec)}</span></div>`;
-  if (b.pages.cover) pages.push({ cls: 'bcover', html: `<div class="cl"><div>${logoUrl() ? `<img class="blogo" src="${esc(logoUrl())}" alt="">` : ''}<div class="eb">${esc(b.subtitle || 'Planting proposal')}</div><h1>${esc(title)}</h1></div>
+  const lc = p => `var(--r-${layerOf(p.role)})`, bands = LAYER_ORDER.map(k => `<div style="background:var(--r-${k})"></div>`).join('');
+  if (b.pages.cover) pages.push({ cls: 'bcover', html: `<div class="strata">${bands}</div><div class="cl"><div>${logoUrl() ? `<img class="blogo" src="${esc(logoUrl())}" alt="">` : ''}<div class="eb">${esc(b.subtitle || 'Planting proposal')}</div><h1>${esc(title)}</h1></div>
       <div style="display:flex;flex-direction:column;gap:22px">${b.intro ? `<div class="intro">${esc(b.intro)}</div>` : ''}
       <div class="meta">${g.client ? `<span>Client</span><span>${esc(g.client)}</span>` : ''}${b.site ? `<span>Site</span><span>${esc(b.site)}</span>` : ''}${b.designer ? `<span>Designer</span><span>${esc(b.designer)}</span>` : ''}${b.date ? `<span>Date</span><span>${esc(b.date)}</span>` : ''}</div></div></div>
       <div class="cr">${planImg ? `<img data-plan src="${planImg}" alt="">` : ''}</div>`, foot: false });
   if (b.pages.plan) {
-    const used = LAYER_ORDER.filter(k => pal.some(r => layerOf(r.p.role) === k));
-    pages.push({ html: `${head('Planting plan')}<h3>Planting plan</h3><p class="bsub">${g.width} × ${g.depth} m${b.numberPlan ? ' · numbers refer to the plant palette' : ''}</p>
-      <div class="bbody"><div class="bplan">${planImg ? `<img data-plan src="${planImg}" alt="Planting plan">` : ''}</div>
-      <div class="blegend">${`<div class="t">Plants</div>${pal.slice(0, 22).map(r => `<div>${plantSwatch(r.p, 12)}${b.numberPlan ? r.n + '&nbsp; ' : ''}<i>${esc(r.p.botanical || r.p.common)}</i></div>`).join('')}${pal.length > 22 ? `<div>and ${pal.length - 22} more</div>` : ''}`}${exRows.length ? `<div><span class="d" style="border:1.5px dashed var(--ink);background:none"></span>Dashed: existing trees and shrubs</div>` : ''}
-      <div class="t" style="margin-top:14px">Plants</div><div>${pal.reduce((t, r) => t + r.qty, 0)} new plants</div><div>${pal.length} species</div></div></div>` });
+    /* the plan's scale on the A4 page: the picture fills the plan cell of the sheet (796 × 736 px, less 22 px padding) */
+    const vb = planImg && BK.planVb, ppm = vb ? Math.min(752 / vb[0], 692 / vb[1]) : 0, mmPx = 297 / 1123;
+    const ratio = ppm ? 1000 / (ppm * mmPx) : 0, nice = ratio ? (ratio < 100 ? Math.round(ratio / 5) * 5 : Math.round(ratio / 10) * 10) : 0;
+    const barM = ppm ? [100, 50, 20, 10, 5, 2, 1, 0.5].find(m => m * ppm <= 150) || 0.5 : 0, barW = barM * ppm;
+    const scaleBar = ppm ? `<div class="sb"><svg width="${barW.toFixed(1)}" height="6" viewBox="0 0 ${barW.toFixed(1)} 6"><rect x="0.5" y="0.5" width="${(barW - 1).toFixed(1)}" height="5" fill="none" stroke="#1F2B26" stroke-width="1"/>${[0, 2].map(q => `<rect x="${(q * barW / 4).toFixed(1)}" y="0" width="${(barW / 4).toFixed(1)}" height="6" fill="#1F2B26"/>`).join('')}</svg><div class="sbl" style="width:${barW.toFixed(1)}px"><span>0</span><span>${barM} m</span></div></div>` : '';
+    const north = `<div class="na"><svg width="26" height="26" viewBox="-13 -13 26 26"><circle r="12" fill="none" stroke="#1F2B26" stroke-width="1"/><g transform="rotate(${num(g.north, 0)})"><path d="M0,-10 L4.5,6 L0,3 L-4.5,6 Z" fill="#1F2B26"/></g></svg><span>N</span></div>`;
+    const keyN = pal.length > 16 ? 15 : 16, meta = [['Client', g.client], ['Site', b.site]].filter(([, v]) => v);
+    pages.push({ cls: 'bsheet', foot: false, html: `<div class="frame"><div class="bplan">${planImg ? `<img data-plan src="${planImg}" alt="Planting plan">` : ''}</div>
+      <div class="tb"><div class="key"><div class="t">Plant key${b.numberPlan ? ', numbered as in the plant palette' : ''}</div>
+      ${pal.slice(0, keyN).map(r => `<div class="kr">${plantSwatch(r.p, 11)}<span class="kn">${b.numberPlan ? r.n : esc(code(r.p))}</span><i>${esc(r.p.botanical || r.p.common)}</i><span class="q">${r.qty}</span></div>`).join('')}
+      ${pal.length > keyN ? `<div class="t">and ${pal.length - keyN} more in the plant schedule</div>` : ''}${exRows.length ? `<div class="kex"><span class="d"></span>Dashed: existing trees and shrubs</div>` : ''}
+      <div class="tot">${pal.reduce((t, r) => t + r.qty, 0)} new plants, ${pal.length} species</div></div>
+      <div class="tblock"><div class="brand">${logoUrl() ? `<img class="blogo" src="${esc(logoUrl())}" alt="">` : `<div class="mark">${LAYER_ORDER.map(k => `<div style="background:var(--r-${k})"></div>`).join('')}</div><span>${esc(b.designer || '')}</span>`}</div>
+      <div class="proj"><span class="k">Project</span><b>${esc(title)}</b>${meta.map(([k, v]) => `<span>${esc(v)}</span>`).join('')}</div>
+      <div><span class="k">Drawing</span><span>Planting plan${b.numberPlan ? ', numbered' : ''}</span></div>
+      <div class="cells"><div><span class="k">Scale</span><span>${nice ? `About 1:${nice} at A4` : 'See scale bar'}</span></div><div><span class="k">Date</span><span>${esc(b.date || '–')}</span></div><div><span class="k">Sheet</span><span>{{sheet}}</span></div></div>
+      <div class="nb">${north}${scaleBar}</div></div></div></div>` });
   }
-  if (b.pages.palette && pal.length) chunk(pal, 12).forEach((part, i, all) => pages.push({ html: `${head('Plant palette')}<h3>Plant palette${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Numbered to match the planting plan and schedule</p>
-      <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<span class="add"><label style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label> · <u data-findphoto="${r.id}">Find photo</u></span>`}`}${u && r.p.photoCredit ? `<div class="cr">${esc(photoCreditText(r.p.photoCredit))}</div>` : ''}<div class="num">${r.n}</div></div><div class="bn">${esc(r.p.botanical || r.p.common)}</div><div class="cn">${esc(r.p.common && r.p.botanical ? r.p.common : '')}${r.p.common && r.p.botanical ? ' · ' : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
+  if (b.pages.palette && pal.length) chunk(pal, 12).forEach((part, i, all) => pages.push({ html: `${head('Plant palette')}<h3>Plant palette${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Numbered to match the planting plan and schedule</p>
+      <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<span class="add"><label style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label> · <u data-findphoto="${r.id}">Find photo</u></span>`}`}${u && r.p.photoCredit ? `<div class="cr">${esc(photoCreditText(r.p.photoCredit))}</div>` : ''}<div class="num">${r.n}</div></div><div class="bn" style="--lc:${lc(r.p)}">${esc(r.p.botanical || r.p.common)}</div><div class="cn">${esc(r.p.common && r.p.botanical ? r.p.common : '')}${r.p.common && r.p.botanical ? ' · ' : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
   if (b.pages.guilds) {
-    const gr = guildRows().filter(gd => gd.items.length), rows = gr.flatMap(gd => gd.items.map((r, i) => `<tr${i ? '' : ' class="gstart"'}><td>${i ? '' : `<b>${esc(gd.name)}</b>`}</td><td>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${paletteNumber(r.p.id) ? `<span style="color:#8A8073;margin-right:6px">${paletteNumber(r.p.id)}</span>` : ''}<i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}${r.p.existing ? ' · existing' : ''}</span></td><td class="n">${r.qty}</td></tr>`));
-    chunk(rows, 16).forEach((part, i, all) => pages.push({ html: `${head('Guilds')}<h3>Guilds${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Groups of plants that support each other, from the tallest layer down</p>
+    const gr = guildRows().filter(gd => gd.items.length), rows = gr.flatMap(gd => gd.items.map((r, i) => `<tr${i ? '' : ' class="gstart"'}><td>${i ? '' : `<b>${esc(gd.name)}</b>`}</td><td><span class="lr" style="background:${lc(r.p)}"></span>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${paletteNumber(r.p.id) ? `<span class="lnum">${paletteNumber(r.p.id)}</span>` : ''}<i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}${r.p.existing ? ' · existing' : ''}</span></td><td class="n">${r.qty}</td></tr>`));
+    chunk(rows, 16).forEach((part, i, all) => pages.push({ html: `${head('Guilds')}<h3>Guilds${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Groups of plants that support each other, from the tallest layer down</p>
       <table class="btable"><thead><tr><th>Guild</th><th>Layer</th><th>Plant</th><th class="n">Qty</th></tr></thead><tbody>${part.join('')}</tbody></table>` }));
   }
   if (b.pages.schedule && (pal.length || exRows.length)) {
-    const rows = pal.map(r => `<tr><td class="no">${r.n}</td><td><i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}</span></td><td>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${esc(r.p.supply || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td></tr>`);
+    const rows = pal.map(r => `<tr><td class="no">${r.n}</td><td class="cd">${esc(code(r.p))}</td><td>${plantSwatch(r.p, 11)}<i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}</span></td><td><span class="lr" style="background:${lc(r.p)}"></span>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${esc(r.p.supply || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td></tr>`);
     const total = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
     const parts = chunk(rows, 15); if (!parts.length) parts.push([]);
-    parts.forEach((part, i) => pages.push({ html: `${head('Plant schedule')}<h3>Plant schedule${parts.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${parts.length}</span>` : ''}</h3><p class="bsub">New planting</p>
-      <table class="btable"><thead><tr><th class="no">No.</th><th>Plant</th><th>Layer</th><th>Supply</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${part.join('')}</tbody>
-      ${i === parts.length - 1 && pal.length ? `<tfoot><tr><td></td><td colspan="3">Plant supply</td><td class="n">${count}</td><td></td><td class="n">${money(total)}</td></tr></tfoot>` : ''}</table>
+    parts.forEach((part, i) => pages.push({ html: `${head('Plant schedule')}<h3>Plant schedule${parts.length > 1 ? ` <span class="pg">${i + 1} / ${parts.length}</span>` : ''}</h3><p class="bsub">New planting</p>
+      <table class="btable"><thead><tr><th class="no">No.</th><th>Code</th><th>Plant</th><th>Layer</th><th>Supply</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${part.join('')}</tbody>
+      ${i === parts.length - 1 && pal.length ? `<tfoot><tr><td></td><td colspan="4">Plant supply</td><td class="n">${count}</td><td></td><td class="n">${money(total)}</td></tr></tfoot>` : ''}</table>
       ${i === parts.length - 1 && (exRows.length || woods.length) ? `<p class="bsub" style="margin:22px 0 8px">Existing plants</p><table class="btable"><thead><tr><th>Plant</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th></tr></thead><tbody>${existingRows().map(r => `<tr><td><i>${esc(r.p?.botanical || '')}</i> <span class="cmn">${esc(r.p?.common || '')}</span></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n">${r.remove || '–'}</td></tr>`).join('')}${woods.map(w => `<tr><td><i>Existing woodland</i> <span class="cmn">${esc(w.name)}, ${esc(w.desc)}</span></td><td class="n">${Math.round(w.area)} m²</td><td class="n">–</td><td class="n">–</td></tr>`).join('')}</tbody></table>` : ''}` }));
   }
   if (b.pages.calendar) {
     const firstM = p => showMonths(p)[0] || 99;
     const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && flowerMonths(p).length).sort((a, c) => firstM(a) - firstM(c));
-    if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Through the year${all.length > 1 ? ` <span style="font-size:20px;color:#8A8073">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">When each plant flowers, or for crops when they are harvested, in their colour.</p>
+    if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Through the year${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">When each plant flowers, or for crops when they are harvested, in their colour.</p>
       <div class="bcal"><div></div>${MONTHS.map(m => `<div class="mh">${m}</div>`).join('')}
-      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span style="color:#8A8073;margin-right:6px">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i>${p.crop ? ' <span style="color:#8A5A1E;font-size:10px;letter-spacing:0.08em">CROP</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
+      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span class="lnum">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i>${p.crop ? ' <span class="crop">crop</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
   }
   if (b.pages.pricing) {
     const supply = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
@@ -12323,7 +12383,7 @@ function bookletPages(planImg, forExport) {
       <tfoot>${vat ? `<tr><td>Subtotal</td><td class="n">${money(sub)}</td></tr><tr><td style="font-weight:400">VAT at ${num(b.vat)}%</td><td class="n" style="font-weight:400">${money(vat)}</td></tr>` : ''}<tr class="total"><td>Total</td><td class="n">${money(sub + vat)}</td></tr></tfoot></table></div>
       ${b.notes ? `<div class="bnotes" style="flex:1">${esc(b.notes)}</div>` : ''}</div>` });
   }
-  return pages.map((pg, i) => `<div class="bpage ${pg.cls || ''}">${pg.html}${pg.foot === false ? '' : `<div class="bf"><span>${esc([b.designer, b.date].filter(Boolean).join(' · '))}</span><span>${i + 1} / ${pages.length}</span></div>`}</div>`);
+  return pages.map((pg, i) => `<div class="bpage ${pg.cls || ''}">${pg.html.replace('{{sheet}}', `${i + 1} of ${pages.length}`)}${pg.foot === false ? '' : `<div class="bf"><span>${esc([b.designer, b.date].filter(Boolean).join(' · '))}</span><span>${i + 1} / ${pages.length}</span></div>`}</div>`);
 }
 function renderPresentation(full) {
   if (getPage() !== 'presentation') return;
@@ -12379,6 +12439,8 @@ async function renderPages() {
   const gen = ++pagesGen, wrap = $('presPages');
   const img = bk().pages.plan || bk().pages.cover ? await planImage(bk().numberPlan) : null;
   if (gen !== pagesGen) return;
+  await plexFiles();   // the booklet is set in Plex whatever the app theme
+  if (gen !== pagesGen) return;
   const pages = bookletPages(img, false);
   const w = Math.min(wrap.clientWidth - 12, 1123), k = Math.max(0.3, w / 1123);
   wrap.innerHTML = pages.length ? pages.map(h => `<div class="pwrap" style="width:${1123 * k}px;height:${794 * k}px">${h.replace('<div class="bpage', `<div style="transform:scale(${k})" class="bpage`)}</div>`).join('') : '<p class="empty">Turn on at least one page.</p>';
@@ -12398,7 +12460,7 @@ function pdfPlex(pdf) {
   if (pdf.__plex) return true;
   try {
     for (const [w, b] of Object.entries(PLEX_DATA)) { pdf.addFileToVFS(`plex-${w}.ttf`, b); pdf.addFont(`plex-${w}.ttf`, 'plexcond', 'normal', +w); }
-    pdf.addFont('plex-600.ttf', 'plexcond', 'bold'); pdf.addFont('plex-400.ttf', 'plexcond', 'normal');
+    pdf.addFont('plex-600.ttf', 'plexcond', 'bold'); pdf.addFont('plex-400.ttf', 'plexcond', 'normal'); pdf.addFont('plex-500.ttf', 'plexcondmed', 'normal');
     return (pdf.__plex = true);
   } catch { return false; }
 }
@@ -12478,29 +12540,31 @@ async function exportSheet() {
     const pdf = new window.jspdf.jsPDF({ orientation: f.pw > f.ph ? 'landscape' : 'portrait', unit: 'mm', format: lay.o.paper.toLowerCase(), compress: true });
     const mmPerM = 1000 / f.scale, m = lay.m;
     const v = await planVectorMarkup({ numbered: lay.o.numbered, fs: f.fs, pad: f.pad, sheet: true, lw: 0.18 / mmPerM, noEdge: f.noEdge });
+    const F = pdfPlex(pdf) ? 'plexcond' : 'helvetica';   // the house face, if its files loaded
     const w = v.vb[2] * mmPerM, h = v.vb[3] * mmPerM;
     await drawPlanVector(pdf, v, m + (f.availW - w) / 2, m + (f.availH - h) / 2, w, h);
     /* frame and title block: a strip down the right on a landscape sheet, a band along the bottom on a portrait one,
        with the details on the left of the band and the plant key beside them */
     const band = f.band, bandTop = f.ph - m - (f.tbH || 0), infoW = band ? Math.min(95, (f.pw - 2 * m) * 0.36) : lay.tb;
     const tx = band ? m : f.pw - m - lay.tb, x0 = tx + 5, tw = infoW - 10, bottom = f.ph - m;
-    pdf.setDrawColor(40); pdf.setLineWidth(0.35); pdf.rect(m, m, f.pw - 2 * m, f.ph - 2 * m);
+    pdf.setDrawColor(31, 43, 38); pdf.setLineWidth(0.35); pdf.rect(m, m, f.pw - 2 * m, f.ph - 2 * m);
     if (band) { pdf.line(m, bandTop, f.pw - m, bandTop); pdf.line(m + infoW, bandTop, m + infoW, bottom); } else pdf.line(tx, m, tx, bottom);
     let y = band ? bandTop + 7 : m + 7;
-    const rule = () => { pdf.setLineWidth(0.15); pdf.setDrawColor(150); pdf.line(tx, y, tx + infoW, y); y += 5; };
-    const small = t => { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(120); pdf.text(pdfText(t).toUpperCase(), x0, y, { charSpace: 0.25 }); y += 3.6; };
-    const para = (t, size, style = 'normal') => { pdf.setFont('helvetica', style); pdf.setFontSize(size); pdf.setTextColor(25); const lines = pdf.splitTextToSize(pdfText(t), tw); pdf.text(lines, x0, y); y += lines.length * size * 0.42 + 1.6; };
+    const rule = () => { pdf.setLineWidth(0.15); pdf.setDrawColor(204, 210, 202); pdf.line(tx, y, tx + infoW, y); y += 5; };
+    const small = t => { pdf.setFont(F, 'normal'); pdf.setFontSize(6.8); pdf.setTextColor(95, 105, 100); pdf.text(pdfText(t), x0, y); y += 3.6; };
+    const para = (t, size, style = 'normal') => { pdf.setFont(F, style === 'bold' ? 'bold' : 'normal'); pdf.setFontSize(size); pdf.setTextColor(31, 43, 38); const lines = pdf.splitTextToSize(pdfText(t), tw); pdf.text(lines, x0, y); y += lines.length * size * 0.42 + 1.6; };
     if (logoUrl()) { try { const im = await imageData(logoUrl()), k = Math.min(tw / im.w, 18 / im.h); pdf.addImage(im.data, 'PNG', x0, y - 2, im.w * k, im.h * k); y += im.h * k + 5; } catch {} }
-    y += 2; para(g.name || 'Planting plan', 13, 'bold'); if (g.client) para(g.client, 9);
+    { const cs0 = getComputedStyle(document.querySelector('.sheetref')); LAYER_ORDER.forEach((k, i) => { pdf.setFillColor(cs0.getPropertyValue('--r-' + k).trim() || '#999999'); pdf.rect(x0, y - 2.5 + i * 0.85, 6, 0.5, 'F'); }); y += 8; }
+    para(g.name || 'Planting plan', 13, 'bold'); if (g.client) para(g.client, 9);
     para(lay.o.numbered ? 'Planting plan, numbered' : 'Planting plan', 9.5, 'bold'); y += 1; rule();
     const meta = [['Scale', `1:${f.scale} at ${lay.o.paper}`], ['Date', b.date], ['Drawn by', b.designer], ['Site', b.site], ['Plants shown', S.view === 'planted' ? 'Trees and shrubs as planted (pot size)' : 'Trees and shrubs at mature spread']].filter(([, v]) => v);
-    if (band) { for (const [k, val] of meta) { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(120); pdf.text(pdfText(k).toUpperCase(), x0, y, { charSpace: 0.25 }); pdf.setFontSize(8); pdf.setTextColor(25); pdf.text(pdfText(val), x0 + 24, y); y += 4; } }
+    if (band) { for (const [k, val] of meta) { pdf.setFont(F, 'normal'); pdf.setFontSize(6.8); pdf.setTextColor(95, 105, 100); pdf.text(pdfText(k), x0, y); pdf.setFontSize(8); pdf.setTextColor(31, 43, 38); pdf.text(pdfText(val), x0 + 24, y); y += 4; } }
     else { for (const [k, val] of meta) { small(k); para(val, 8.5); y += 0.6; } rule(); }
     // plant key: under the details on a landscape sheet; beside them, in up to two columns, on a portrait one
     const rows = paletteRows(), ex = existingRows().filter(r => r.retain + r.prune > 0), cs = getComputedStyle(document.querySelector('.sheetref'));
     const keyX = band ? m + infoW + 5 : x0, keyW = band ? f.pw - 2 * m - infoW - 10 : tw;
     if (band) y = bandTop + 7;
-    const sm = t => { pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(120); pdf.text(pdfText(t).toUpperCase(), keyX, y, { charSpace: 0.25 }); y += 3.6; };
+    const sm = t => { pdf.setFont(F, 'normal'); pdf.setFontSize(6.8); pdf.setTextColor(95, 105, 100); pdf.text(pdfText(t), keyX, y); y += 3.6; };
     sm(`Plant key · ${rows.reduce((t, r) => t + r.qty, 0)} plants`); y += 1;
     const keyTop = y, noteH = band ? 8 : 16, room = bottom - noteH - y - (ex.length ? 6 : 0), cols = band && rows.length * 3.7 > room ? 2 : 1, colW = (keyW - (cols - 1) * 6) / cols;
     let rh = 3.7, size = 7; if (rows.length * rh > room * cols) { const k = Math.max(0.68, room * cols / (rows.length * rh)); rh *= k; size *= k; }
@@ -12510,13 +12574,13 @@ async function exportSheet() {
       if (ri && ri % perCol === 0) { x0k += colW + 6; y = keyTop; }
       const x0 = x0k, tw = colW;
       { const sw = new DOMParser().parseFromString(plantSwatch(r.p, 12).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 'image/svg+xml').documentElement; const z = size * 0.42; try { await pdf.svg(sw, { x: x0 + 1 - z / 2, y: y - size * 0.12 - z / 2, width: z, height: z }); } catch {} }
-      pdf.setTextColor(25); pdf.setFontSize(size); pdf.setFont('helvetica', 'bold'); pdf.text(pdfText(lay.o.numbered ? String(r.n) : code(r.p)), x0 + 3.2, y);
-      pdf.setFont('helvetica', 'italic'); let name = pdfText(r.p.botanical || r.p.common || ''); const maxW = tw - lblW - 3.2 - 8; while (name.length > 4 && pdf.getTextWidth(name) > maxW) name = name.slice(0, -2); if (name !== pdfText(r.p.botanical || r.p.common || '')) name += '.';
-      pdf.text(name, x0 + 3.2 + lblW, y); pdf.setFont('helvetica', 'normal'); pdf.text(String(r.qty), x0 + tw, y, { align: 'right' }); y += rh;
+      pdf.setTextColor(31, 43, 38); pdf.setFontSize(size); pdf.setFont(F, 'bold'); pdf.text(pdfText(lay.o.numbered ? String(r.n) : code(r.p)), x0 + 3.2, y);
+      pdf.setFont('times', 'italic'); let name = pdfText(r.p.botanical || r.p.common || ''); const maxW = tw - lblW - 3.2 - 8; while (name.length > 4 && pdf.getTextWidth(name) > maxW) name = name.slice(0, -2); if (name !== pdfText(r.p.botanical || r.p.common || '')) name += '.';
+      pdf.text(name, x0 + 3.2 + lblW, y); pdf.setFont(F, 'normal'); pdf.text(String(r.qty), x0 + tw, y, { align: 'right' }); y += rh;
     }
-    if (shown.length < rows.length) { pdf.setFont('helvetica', 'italic'); pdf.setFontSize(size); pdf.text(`and ${rows.length - shown.length} more species: see the plant schedule`, x0k, y); y += rh; }
-    if (ex.length) { y += 1.5; pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(90); pdf.text(`Dashed outlines: ${plural(ex.reduce((t, r) => t + r.retain + r.prune, 0), 'existing plant')} kept`, keyX, y); }
-    pdf.setFont('helvetica', 'normal'); pdf.setFontSize(6.2); pdf.setTextColor(110);
+    if (shown.length < rows.length) { pdf.setFont('times', 'italic'); pdf.setFontSize(size); pdf.text(`and ${rows.length - shown.length} more species: see the plant schedule`, x0k, y); y += rh; }
+    if (ex.length) { y += 1.5; pdf.setFont(F, 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(95, 105, 100); pdf.text(`Dashed outlines: ${plural(ex.reduce((t, r) => t + r.retain + r.prune, 0), 'existing plant')} kept`, keyX, y); }
+    pdf.setFont(F, 'normal'); pdf.setFontSize(6.8); pdf.setTextColor(95, 105, 100);
     pdf.text(pdf.splitTextToSize(`Print at 100% (actual size) on ${lay.o.paper} for the scale to be true. Check all dimensions on site.`, band ? keyW : tw), band ? keyX : x0, bottom - noteH + (band ? 3.5 : 5));
     const blob = pdf.output('blob'), name = `${(g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} - planting plan 1-${f.scale} ${lay.o.paper}.pdf`;
     await saveFile(name, blob);
@@ -12536,8 +12600,10 @@ async function paintPage(pdf, page) {
   const range = document.createRange();
   /* the nearest box that hides what overflows it, for clipped and "…" text */
   const clipOf = el => { for (let a = el; a && a !== page; a = a.parentElement) { const cs = getComputedStyle(a); if (cs.overflow !== 'visible') return { r: a.getBoundingClientRect(), dots: cs.textOverflow === 'ellipsis' }; } return null; };
-  const fontOf = cs => { const ff = cs.fontFamily.replace(/sans-serif/gi, ''); return /serif|times|georgia|garamond/i.test(ff) ? 'times' : 'helvetica'; };
-  const styleOf = cs => ((parseInt(cs.fontWeight, 10) || 400) >= 600 ? 'bold' : '') + (cs.fontStyle === 'italic' ? 'italic' : '') || 'normal';
+  /* Plex is embedded (it has no italic, so italic Plex sets upright; botanical names are in the serif); the rest map to the PDF's own Times and Helvetica */
+  const plex = pdfPlex(pdf), wt = cs => parseInt(cs.fontWeight, 10) || 400;
+  const fontOf = cs => { const ff = cs.fontFamily.replace(/sans-serif/gi, ''); return /plex/i.test(ff) && plex ? (wt(cs) >= 500 && wt(cs) < 600 ? 'plexcondmed' : 'plexcond') : /serif|times|georgia|garamond/i.test(ff) ? 'times' : 'helvetica'; };
+  const styleOf = cs => fontOf(cs).startsWith('plex') ? (wt(cs) >= 600 ? 'bold' : 'normal') : (wt(cs) >= 600 ? 'bold' : '') + (cs.fontStyle === 'italic' ? 'italic' : '') || 'normal';
   function words(node, cs) {
     const size = parseFloat(cs.fontSize) || 12, col = rgba(cs.color); if (!col) return;
     const up = cs.textTransform === 'uppercase', clip = clipOf(node.parentElement);
@@ -12587,7 +12653,7 @@ async function paintPage(pdf, page) {
     const bg = rgba(cs.backgroundColor), rad = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, r.width / 2, r.height / 2) * k;
     if (bg && w > 0 && h > 0) { if (bg.a < 1) opacity(bg.a); pdf.setFillColor(bg.r, bg.g, bg.b); if (rad > 0.15) pdf.roundedRect(X(r.left), Y(r.top), w, h, rad, rad, 'F'); else pdf.rect(X(r.left), Y(r.top), w, h, 'F'); if (bg.a < 1) opacity(1); }
     if (el.classList.contains('tr') && el.parentElement?.classList.contains('bcal')) {   // the month lines of the interest calendar
-      pdf.setDrawColor(234, 226, 212); pdf.setLineWidth(1 * k); for (let i = 0; i < 12; i++) { const x = X(r.left + r.width * i / 12); pdf.line(x, Y(r.top), x, Y(r.bottom)); }
+      pdf.setDrawColor(223, 227, 220); pdf.setLineWidth(1 * k); for (let i = 0; i < 12; i++) { const x = X(r.left + r.width * i / 12); pdf.line(x, Y(r.top), x, Y(r.bottom)); }
     }
     const sides = ['Top', 'Right', 'Bottom', 'Left'].map(sd => ({ sd, w: cs[`border${sd}Style`] === 'none' ? 0 : parseFloat(cs[`border${sd}Width`]) || 0, c: rgba(cs[`border${sd}Color`]) }));
     if (sides.every(b => b.w > 0 && b.c) && rad > 0.15) { const b = sides[0]; if (b.c.a < 1) opacity(b.c.a); pdf.setDrawColor(b.c.r, b.c.g, b.c.b); pdf.setLineWidth(b.w * k); pdf.roundedRect(X(r.left) + b.w * k / 2, Y(r.top) + b.w * k / 2, w - b.w * k, h - b.w * k, rad, rad, 'S'); if (b.c.a < 1) opacity(1); }
@@ -12616,6 +12682,7 @@ async function exportPdf() {
   try {
     const canVector = await loadPdfLibs(false);
     const img = await planImage(bk().numberPlan);
+    if (!(await plexFiles())) host.classList.add('noplex');
     host.innerHTML = bookletPages(img, true).join(''); document.body.appendChild(host);
     await Promise.all([...host.querySelectorAll('img')].map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })));
     await document.fonts?.ready;
@@ -12635,7 +12702,7 @@ async function exportPdf() {
       }
       if (i) pdf.addPage('a4', 'landscape');
       await paintPage(pdf, els[i]);
-      if (spot) { pdf.setFillColor('#FFFDF8'); pdf.rect(spot.x, spot.y, spot.w, spot.h, 'F'); await drawPlanVector(pdf, vec, spot.x, spot.y, spot.w, spot.h); }
+      if (spot) { pdf.setFillColor('#F8F9F5'); pdf.rect(spot.x, spot.y, spot.w, spot.h, 'F'); await drawPlanVector(pdf, vec, spot.x, spot.y, spot.w, spot.h); }
     }
     const blob = pdf.output('blob'), name = `${(S.g.name || 'Planting plan').replace(/[\\/:*?"<>|]+/g, '').trim()} - planting proposal.pdf`;
     await saveFile(name, blob);

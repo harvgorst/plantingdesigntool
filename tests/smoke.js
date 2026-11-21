@@ -294,7 +294,7 @@ test('booklet PDF: searchable text and a vector plan', async open => {
   eq(await app.page.textContent('#presMsg'), 'PDF saved.', 'export finished');
   const pdf = await app.savedBytes(0), text = pdf.toString('latin1');
   eq((text.match(/\/Type \/Page\b/g) || []).length, 6, 'six pages');
-  ok(/\/BaseFont \/Helvetica/.test(text), 'a text layer is embedded');
+  ok(/\/BaseFont \/(Helvetica|IBMPlex|plex)/i.test(text) || /FontFile2/.test(text), "a text layer is embedded");
   let plain = null;
   try { const fs = require('fs'), os = require('os'), path = require('path'), f = path.join(os.tmpdir(), 'sl-booklet-' + process.pid + '.pdf'); fs.writeFileSync(f, pdf); plain = require('child_process').execFileSync('pdftotext', [f, '-'], { encoding: 'utf8' }); fs.unlinkSync(f); } catch {}
   if (plain) ok(plain.includes('Plant schedule') && plain.includes("Lavandula angustifolia 'Hidcote'") && plain.includes('Mr & Mrs Hart'), 'the text can be searched and copied');
