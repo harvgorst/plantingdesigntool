@@ -948,6 +948,21 @@ test('large plan: lines come from the nearest side, top or bottom; a species dee
   eq(app.errors, [], 'no page errors');
 });
 
+test('reload: the chosen theme is set before the page is first drawn, so the base Eiderdown look never flashes', async open => {
+  const early = () => { new MutationObserver((ms, o) => { if (document.body) { window.__skinAtBody = document.documentElement.dataset.skin || ''; window.__fontAtBody = !!document.querySelector('link[data-theme-font]'); o.disconnect(); } }).observe(document, { childList: true, subtree: true }); };
+  let app = await open(sample(), { theme: 'woodwork' });
+  await app.page.addInitScript(early); await app.page.reload(); await app.page.waitForTimeout(300);
+  eq(await app.page.evaluate(() => window.__skinAtBody), 'woodwork', 'the saved theme is on the page before the body is drawn');
+  eq(app.errors, [], 'no page errors');
+  await app.close();
+  app = await open(sample());
+  await app.page.addInitScript(early); await app.page.evaluate(() => localStorage.removeItem('gpm.theme')); await app.page.reload(); await app.page.waitForTimeout(300);
+  eq(await app.page.evaluate(() => window.__skinAtBody), 'drafting', 'with nothing saved, the default Drafting table, never Eiderdown');
+  ok(await app.page.evaluate(() => window.__fontAtBody), 'its font starts loading from the head');
+  eq(await app.page.$$eval('link[data-theme-font]', ls => ls.length), 1, 'the font link is added once');
+  eq(app.errors, [], 'no page errors');
+});
+
 test('plan lettering: Drafting table (the default) letters the plan in Plex Sans Condensed, other themes keep Georgia', async open => {
   let app = await open(sample());
   const fam = () => app.page.$eval('#map text[pointer-events=auto]', t => getComputedStyle(t).fontFamily);

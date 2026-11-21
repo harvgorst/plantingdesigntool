@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+/* set the theme before anything is drawn, so a reload never flashes the base (Eiderdown) look; applyTheme confirms it later */
+(() => { let t = null; try { t = localStorage.getItem('gpm.theme'); } catch {}
+  if (!['drafting', 'eiderdown', 'woodwork', 'xp', 'root'].includes(t)) t = 'drafting';
+  document.documentElement.dataset.skin = t;
+  const f = { drafting: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap', root: 'https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Noto+Sans+JP:wght@400;600&display=swap' }[t];
+  if (f) document.write('<link rel="stylesheet" href="' + f + '" data-theme-font="' + t + '">'); })();
+</script>
 <title>SevenLayers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
