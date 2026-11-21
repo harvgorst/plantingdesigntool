@@ -138,6 +138,8 @@ html[data-skin=xp] .libchips button { border-radius: 0; }
 #map { flex: 1; width: 100%; min-height: 0; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
 /* one face for every word on the plan, on screen, in the booklet and in the PDF (which embeds it), so all three match */
 #map text { font-family: var(--f-plan); text-rendering: geometricPrecision; }
+/* over the aerial photo the lettering gets a soft halo in the sheet colour, so it reads against roofs and trees */
+#map.over-photo text { stroke: var(--ground); stroke-opacity: .85; stroke-width: .22em; stroke-linejoin: round; paint-order: stroke; }
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: var(--panel); }
 .overlay .card { max-width: 400px; width: 100%; overflow: visible; }
 
@@ -10310,6 +10312,17 @@ function centreOf(a) {
 }
 const potR = p => Math.max(0.02, num(p?.potSpread, 0.2) / 2);
 function pointInPoly(x, y, P) { let ins = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, yi] = P[i], [xj, yj] = P[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; } return ins; }
+/* the point inside a shape furthest from its edges (sampled on a grid, then refined), where a name has the most room */
+function innerPoint(P) {
+  const xs = P.map(q => q[0]), ys = P.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const edge = (x, y) => { let d = Infinity; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [ax, ay] = P[j], [bx, by] = P[i], vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy, t = l2 ? clamp(((x - ax) * vx + (y - ay) * vy) / l2, 0, 1) : 0; d = Math.min(d, Math.hypot(x - ax - t * vx, y - ay - t * vy)); } return d; };
+  let best = [P.reduce((t, q) => t + q[0], 0) / P.length, P.reduce((t, q) => t + q[1], 0) / P.length], bd = pointInPoly(best[0], best[1], P) ? edge(...best) : -1;
+  let step = Math.max(x1 - x0, y1 - y0) / 24;
+  if (!(step > 0)) return best;
+  for (let x = x0 + step / 2; x < x1; x += step) for (let y = y0 + step / 2; y < y1; y += step) if (pointInPoly(x, y, P)) { const d = edge(x, y); if (d > bd) { bd = d; best = [x, y]; } }
+  for (let k = 0; k < 4; k++) { step /= 3; const [bx, by] = best; for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) { const x = bx + i * step, y = by + j * step; if (pointInPoly(x, y, P)) { const d = edge(x, y); if (d > bd) { bd = d; best = [x, y]; } } } }
+  return best;
+}
 const dotCache = new Map();
 function driftDots(a) {
   const key = a.id + '|' + a.smooth + '|' + a.density + '|' + a.pts.join(';');
@@ -10635,12 +10648,14 @@ function placeOnPlan(LBL, halo, ls) {
   if (!LBL.length) return out;
   const PT = planType(), wk = planWk();
   const size = l => {
+    if (l.w != null) return { w: l.w, h: l.h ?? l.size * 1.2 };
     if (l.len == null && !l.wk && l.txt) return { w: Math.max(textW(plainText(l.txt), l.o.bold ? PT.bold : PT.name), 0.3) * l.size * 1.04, h: l.size * 1.2 };
     const n = l.len ?? plainText(l.txt).length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52) * wk, h: l.size * 1.2 };
   };
   const cell = Math.max(ls, 1e-6) * 2.5, H = new Map(), gap = ls * 0.16;
   const cells = (b, f) => { for (let i = Math.floor(b.x0 / cell); i <= Math.floor(b.x1 / cell); i++) for (let j = Math.floor(b.y0 / cell); j <= Math.floor(b.y1 / cell); j++) f(i + ',' + j); };
   const clash = b => { let hit = false; cells(b, k => { if (!hit) for (const o of H.get(k) || []) if (b.x0 < o.x1 + gap && o.x0 < b.x1 + gap && b.y0 < o.y1 + gap && o.y0 < b.y1 + gap) { hit = true; break; } }); return hit; };
+  const overlap = b => { let a = 0; const seen = new Set(); cells(b, k => { for (const o of H.get(k) || []) if (!seen.has(o)) { seen.add(o); a += Math.max(0, Math.min(b.x1, o.x1 + gap) - Math.max(b.x0, o.x0 - gap)) * Math.max(0, Math.min(b.y1, o.y1 + gap) - Math.max(b.y0, o.y0 - gap)); } }); return a; };
   const keep = b => cells(b, k => { if (!H.has(k)) H.set(k, []); H.get(k).push(b); });
   const boxAt = (l, x, y, d) => ({ x0: x - d.w / 2, x1: x + d.w / 2, y0: y - l.size * 0.9, y1: y - l.size * 0.9 + d.h });
   const order = LBL.map((l, i) => i).sort((a, b) => (LBL[b].fixed - LBL[a].fixed) || (LBL[b].pri - LBL[a].pri) || (LBL[a].y - LBL[b].y) || (LBL[a].x - LBL[b].x));
@@ -10649,16 +10664,21 @@ function placeOnPlan(LBL, halo, ls) {
     let x = l.x, y = l.y, b = boxAt(l, x, y, d);
     if (!l.fixed && clash(b)) {
       const tries = [];
-      for (let r = 1; r <= 5; r++) for (let a = 0; a < 8 * r; a++) { const t = a / (8 * r) * Math.PI * 2; tries.push([Math.sin(t) * r * (d.w * 0.55 + d.h * 0.3), -Math.cos(t) * r * d.h * 1.0]); }
+      for (let r = 1; r <= 9; r++) for (let a = 0; a < 8 * r; a++) { const t = a / (8 * r) * Math.PI * 2; tries.push([Math.sin(t) * r * (d.w * 0.55 + d.h * 0.3), -Math.cos(t) * r * d.h * 1.0]); }
       tries.sort((p, q) => Math.hypot(p[0] / d.w, p[1] / d.h) - Math.hypot(q[0] / d.w, q[1] / d.h));
-      for (const [dx, dy] of tries) { const c = boxAt(l, l.x + dx, l.y + dy, d); if (!clash(c)) { x = l.x + dx; y = l.y + dy; b = c; break; } }
+      let found = false;
+      for (const [dx, dy] of tries) { const c = boxAt(l, l.x + dx, l.y + dy, d); if (!clash(c)) { x = l.x + dx; y = l.y + dy; b = c; found = true; break; } }
+      if (!found) {   // nowhere clear nearby: the spot (in the nearer half of the search) where it covers the least of the others
+        let least = overlap(b);
+        for (const [dx, dy] of tries.slice(0, tries.length / 2)) { const c = boxAt(l, l.x + dx, l.y + dy, d), o = overlap(c); if (o < least - 1e-9) { least = o; x = l.x + dx; y = l.y + dy; b = c; } }
+      }
     }
     keep(b);
-    if (l.raw) { out[i] = l.raw; continue; }
+    if (l.raw) { const dx = +(x - l.x).toFixed(3), dy = +(y - l.y).toFixed(3); out[i] = dx || dy ? `<g transform="translate(${dx} ${dy})">${l.raw}</g>` : l.raw; continue; }
     const f = v => +v.toFixed(3);
     let s = '';
     const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, dx = cx - l.ax, dy = cy - l.ay, dist = Math.hypot(dx, dy);
-    if ((x !== l.x || y !== l.y) && Math.hypot(x - l.x, y - l.y) > d.h * 0.9 && dist > 1e-6) {   // a leader line from the plant to the label's edge
+    if (!l.noLeader && (x !== l.x || y !== l.y) && Math.hypot(x - l.x, y - l.y) > d.h * 0.9 && dist > 1e-6) {   // a leader line from the plant to the label's edge
       const ux = dx / dist, uy = dy / dist, hw = d.w / 2 + l.size * 0.15, hh = d.h / 2 + l.size * 0.1;
       const t = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
       if (dist > t) s += `<line x1="${f(l.ax)}" y1="${f(l.ay)}" x2="${f(cx - ux * t)}" y2="${f(cy - uy * t)}" style="stroke:var(--label)" stroke-opacity="0.55" stroke-width="0.8" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
@@ -10671,10 +10691,11 @@ function spreadLabels(html, LBL, halo, ls, pr, edge) {
   if (edge && LBL.length) {
     const r = edgeLayout(LBL, halo, edge);
     /* a species' other patches: its code, small, in the middle of each, kept clear of one another */
-    const cs = edge.NAME * 0.75, small = r.extra.map(x => ({ x: x.ax, y: x.ay + cs * 0.34, size: cs, txt: x.txt, o: {}, ax: x.ax, ay: x.ay, fixed: false, pri: 0 }));
+    const cs = edge.NAME * 0.85, small = r.extra.map(x => ({ x: x.ax, y: x.ay + cs * 0.34, size: cs, txt: x.txt, o: {}, ax: x.ax, ay: x.ay, fixed: false, pri: 0 }));
     /* and the species labelled on the plan, in full, placed first so their codes keep clear of them */
-    const full = r.inner.map(({ l, txt }) => { const size = l.o.bold ? edge.NUM : edge.NAME; return { ...l, txt, len: undefined, size, x: l.ax, y: l.ay + size * 0.34, pri: (l.pri || 0) + 1 }; }), idx = [...r.inner, ...r.extra].map(x => x.i);
-    placeOnPlan([...full, ...small], halo, ls).forEach((m, j) => { r.out[idx[j]] = m; });
+    const full = r.inner.map(({ l, txt }) => { const size = l.o.bold ? edge.NUM : edge.NAME; return { ...l, txt, len: undefined, size, x: l.ax, y: l.ay + size * 0.34, pri: (l.pri || 0) + 1 }; });
+    const areas = LBL.map((l, i) => ({ l, i })).filter(x => x.l.raw), idx = [...areas, ...r.inner, ...r.extra].map(x => x.i);
+    placeOnPlan([...areas.map(x => x.l), ...full, ...small], halo, ls).forEach((m, j) => { r.out[idx[j]] = m; });
     return html.replace('\u0002', r.lines).replace(/\u0001(\d+)\u0001/g, (_, n) => r.out[n] ?? '');
   }
   html = html.replace('\u0002', '');
@@ -10686,6 +10707,7 @@ function renderMapSoon() { if (rafPending) return; rafPending = true; requestAni
 function renderMap() {
   const g = S.g;
   if (!g) { svg.innerHTML = ''; return; }
+  svg.classList.toggle('over-photo', !S.print && aerialOn());
   if (!S.drag && beds().some(b => !Number.isFinite(b.ox))) settleBeds();
   const W = g.width, D = g.depth, M = Math.max(W, D);
   const pr = S.print, pad = pr?.pad ?? M * 0.07, fs = pr?.fs ?? M / 55 / S.zoom, showScale = S.prefs.showScale || !!pr?.sheet;
@@ -10700,7 +10722,7 @@ function renderMap() {
      m.ax/m.ay is what the label belongs to (a leader line runs back to it if the label had to move far);
      m.fixed keeps a label where it is (one the designer dragged); m.pri decides who keeps their spot first */
   const LBL = [];
-  const tag = (x, y, size, txt, o = {}, m = {}) => { LBL.push({ x, y, size, txt, o, ax: m.ax ?? x, ay: m.ay ?? y, fixed: !!m.fixed, pri: m.pri || 0, raw: m.raw, wk: m.wk, len: m.len, pid: m.pid, n: m.n, name: m.name }); return `\u0001${LBL.length - 1}\u0001`; };
+  const tag = (x, y, size, txt, o = {}, m = {}) => { LBL.push({ x, y, size, txt, o, ax: m.ax ?? x, ay: m.ay ?? y, fixed: !!m.fixed, pri: m.pri || 0, raw: m.raw, wk: m.wk, len: m.len, w: m.w, h: m.h, noLeader: m.noLeader, pid: m.pid, n: m.n, name: m.name }); return `\u0001${LBL.length - 1}\u0001`; };
   let px = (M / 900) / S.zoom;
   if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
   S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
@@ -10750,7 +10772,7 @@ function renderMap() {
      with a dashed edge for existing trees and shrubs */
   const look = (p, se) => { if (se) return { fill: se.col || 'var(--muted)', op: se.op, line: 'var(--muted)', dash: false }; const f = spFill(p); return { ...f, dash: !!p?.existing && !onGrid(p) }; };
   const spFill = p => { const st = speciesStyle(p); if (st.pat === 'solid') return { fill: st.col, op: 0.55, line: st.col }; const id = 'pat-' + String(p.id).replace(/[^\w-]/g, ''); if (!defs.has(id)) defs.set(id, patternDef(id, st.col, st.pat, patT)); return { fill: `url(#${id})`, op: 1, line: st.col }; };
-  /* touching plants of one species on the grid form a block that is labelled once */
+  /* touching plants of one species (on the grid, or shrubs and trees whose canopies meet) form a block that is labelled once */
   let blockLab = null;
   if (showL) {
     blockLab = new Map(); const by = new Map(), rows = new Map();
@@ -10762,10 +10784,10 @@ function renderMap() {
       const rp = mem.find(q => q.lx != null) || mem[(mem.length - 1) >> 1], n = mem.reduce((t, q) => t + Math.max(1, q.qty || 1), 0);
       for (const q of mem) blockLab.set(q.id, q === rp ? n : 0);
     }
-    for (const pl of g.plantings) { const p = plantById(pl.plantId); if (!p || !onGrid(p) || (pl.qty || 1) > 1 || !isVisible(p) || pl.lx != null || blockLab.has(pl.id)) continue; if (!by.has(p.id)) by.set(p.id, []); by.get(p.id).push(pl); }
+    for (const pl of g.plantings) { const p = plantById(pl.plantId); if (!p || (pl.qty || 1) > 1 || !isVisible(p) || pl.lx != null || blockLab.has(pl.id)) continue; if (!by.has(p.id)) by.set(p.id, []); by.get(p.id).push(pl); }
     for (const [pid, list] of by) {
       if (list.length < 2) continue;
-      const lim = spacingOf(plantById(pid)) * 1.2, up = list.map((_, i) => i), find = i => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; }, H = new Map(), key = (a, b) => a + ',' + b;
+      const P0 = plantById(pid), lim = onGrid(P0) ? spacingOf(P0) * 1.2 : num(P0.spread, 0.5) * 1.05,   /* grid plants a spacing apart; shrubs and trees whose canopies touch */ up = list.map((_, i) => i), find = i => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; }, H = new Map(), key = (a, b) => a + ',' + b;
       list.forEach((q, i) => { const k = key(Math.floor(q.x / lim), Math.floor(q.y / lim)); if (!H.has(k)) H.set(k, []); H.get(k).push(i); });
       list.forEach((q, i) => { const cx = Math.floor(q.x / lim), cy = Math.floor(q.y / lim); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const j of H.get(key(cx + a, cy + b)) || []) if (j > i && Math.hypot(list[j].x - q.x, list[j].y - q.y) <= lim) up[find(j)] = find(i); });
       const groups = new Map(); list.forEach((q, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(q); });
@@ -10884,16 +10906,25 @@ function renderMap() {
     }
   }
   const fade = on => on ? ' opacity="0.4"' : '';
+  /* an area's name and what it is, as one unit: measured in the plan face (capitals tracked 0.08em), placed at the widest point inside the area,
+     and free to move off it (with the other labels) when a plant's name is already there */
+  const capW = t => textW(t, 400) + t.length * 0.08;
+  const areaTag = (x, y, nm, s1, sub, s2, at) => {
+    const w = Math.max(capW(nm) * s1, sub ? textW(sub, 400) * s2 * 1.05 : 0) * 1.04, h = s1 * 1.15 + (sub ? s2 * 1.6 : 0);
+    const raw = `<text x="${x}" y="${y}" font-size="${+s1.toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>`
+      + (sub ? `<text x="${x}" y="${+(y + s2 * 1.5).toFixed(3)}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label);font-style:italic" pointer-events="none">${esc(sub)}</text>` : '');
+    return tag(x, y, s1, '', {}, { pri: 1000, raw, w, h, ax: at[0], ay: at[1], noLeader: true });
+  };
   const bedNames = showL ? beds().filter(b => areaKind(b) !== 'bed' || (b.name || '').trim()).map(b => { const P = bedPoly(b);
     if (areaKind(b) !== 'bed' && areaKind(b) !== 'guild') {   // woodland, buildings, paths and water are named in their middle, with what they are beneath
-      const cx = +(P.reduce((t, q) => t + q[0], 0) / P.length).toFixed(3), cy = +(P.reduce((t, q) => t + q[1], 0) / P.length).toFixed(3), nm = ((b.name || '').trim() || areaDefault(b)).toUpperCase(), sub = areaSub(b), s1 = ls * 0.85, s2 = ls * 0.62;
-      if (areaKind(b) === 'hedge') { const t2 = nm + '  ' + sub; return tag(cx, +(cy + s2 * 0.35).toFixed(3), s2, '', {}, { fixed: true, wk: 0.62, len: t2.length, raw: `<text x="${cx}" y="${+(cy + s2 * 0.35).toFixed(3)}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label)" pointer-events="none"><tspan style="letter-spacing:0.08em">${esc(nm)}</tspan>  <tspan style="font-style:italic">${esc(sub)}</tspan></text>` }); }
-      return tag(cx, cy, s1, '', {}, { fixed: true, wk: 0.7, len: nm.length, raw: `<text x="${cx}" y="${cy}" font-size="${+s1.toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>` })
-        + (sub ? tag(cx, +(cy + s2 * 1.5).toFixed(3), s2, '', {}, { fixed: true, wk: 0.5, len: sub.length, raw: `<text x="${cx}" y="${+(cy + s2 * 1.5).toFixed(3)}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label);font-style:italic" pointer-events="none">${esc(sub)}</text>` }) : '');
+      const [cx, cy] = innerPoint(P).map(v => +v.toFixed(3)), nm = ((b.name || '').trim() || areaDefault(b)).toUpperCase(), sub = areaSub(b), s1 = ls * 0.85, s2 = ls * 0.62;
+      if (areaKind(b) === 'hedge') { const t2 = nm + '  ' + sub, y = +(cy + s2 * 0.35).toFixed(3);
+        return tag(cx, y, s2, '', {}, { pri: 1000, w: (capW(nm) + textW('  ' + sub, 400)) * s2 * 1.04, ax: cx, ay: cy, noLeader: true, raw: `<text x="${cx}" y="${y}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label)" pointer-events="none"><tspan style="letter-spacing:0.08em">${esc(nm)}</tspan>  <tspan style="font-style:italic">${esc(sub)}</tspan></text>` }); }
+      return areaTag(cx, cy, nm, s1, sub, s2, [cx, cy]);
     }
     const top = P.reduce((m, q) => q[1] < m[1] ? q : m, P[0]), xs = P.map(q => q[0]);
     const x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3), y = +(top[1] - ls * 0.35).toFixed(3), nm = (areaKind(b) === 'guild' ? guildName(b) : b.name.trim()).toUpperCase();
-    return tag(x, y, ls * 0.85, '', {}, { fixed: true, wk: 0.7, raw: `<text x="${x}" y="${y}" font-size="${+(ls * 0.85).toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>`, len: nm.length }); }).join('') : '';
+    return areaTag(x, y, nm, ls * 0.85, '', 0, [x, top[1]]); }).join('') : '';
   const psc = +Math.max(1, M / 30).toFixed(3), apats = new Set();
   const hardAreas = beds().filter(b => !plantable(b)).map(b => {
     const k = areaKind(b), d = bedPath(b), sel = S.tool === 'bed' && !pr && S.bedSel === b.id, pid = 'apat-' + (k === 'path' ? surfOf(b) : k);
