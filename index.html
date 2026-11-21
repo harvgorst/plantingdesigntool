@@ -10565,10 +10565,48 @@ function labelState(key, hide) {   // hide or show one label
   if (hide) S.lblSel = null;
   saveGarden(); renderInspector(); renderMap();
 }
+/* labels stacked by dropping one on another: g.labelJoin maps a label's key to the key of the label it was dropped on.
+   On the plan, a planting's label joins another planting's ('p' to 'p'): the same plant's labels become one, with its total,
+   and a different plant's label stacks under it; each plant keeps a line to its label. Around the edge, a species' label
+   stacks under another species' ('s' to 's'), and a patch's code dropped on its own species' label is replaced by a line to it */
+function joinRoot(key) { const J = S.g?.labelJoin; let k = key, n = 0; while (J?.[k] && n++ < 50) k = J[k]; return k; }
+function unjoinLabel(key) { const g = S.g; if (!g?.labelJoin?.[key]) return false; delete g.labelJoin[key]; if (!Object.keys(g.labelJoin).length) delete g.labelJoin; return true; }
+function canJoin(src, dst) {
+  if (!src || !dst || src === dst || !/^[sp]/.test(src) || !/^[sp]/.test(dst) || joinRoot(dst) === src) return false;
+  return edgeLabels() || (src[0] === 'p' && dst[0] === 'p');
+}
+function joinLabels(src, dst) {
+  const g = S.g; if (!g || !canJoin(src, dst)) return false;
+  const J = { ...(g.labelJoin || {}) }, sp = k => k[0] === 's' ? k.slice(1) : lblPlanting(k)?.plantId;
+  const set = (a, b) => {
+    if (a === b) return; J[a] = b;
+    if (a[0] === 's') { if (g.labelAt) { delete g.labelAt[a.slice(1)]; if (!Object.keys(g.labelAt).length) delete g.labelAt; } }
+    else { const pl = lblPlanting(a); if (pl) for (const k of ['lx', 'ly', 'kx', 'ky']) delete pl[k]; }
+  };
+  if (edgeLabels()) {
+    const a = sp(src), b = sp(dst); if (a == null || b == null) return false;
+    if (a === b) { const c = src[0] === 'p' ? src : dst[0] === 'p' ? dst : null; if (!c) return false; set(c, 's' + a); }   // a patch joins its own species' label
+    else { const t = joinRoot('s' + b); if (t === 's' + a) return false; set('s' + a, t); if (src[0] === 'p') set(src, 's' + a); }
+  } else set(src, joinRoot(dst));
+  g.labelJoin = J;
+  return true;
+}
+/* on the plan: labels joined to another are drawn with it (see placeOnPlan) */
+function planJoin(LBL) {
+  const J = S.g?.labelJoin; if (!J) return;
+  const at = new Map(); LBL.forEach((l, i) => { if (l.o?.key && !l.raw) at.set(l.o.key, i); });
+  LBL.forEach((l, i) => {
+    const k = l.o?.key; if (!k || !J[k]) return;
+    const t = at.get(joinRoot(k)); if (t == null || t === i) return;
+    const T = LBL[t]; (T.stack ||= []).push(l); l.joined = true;
+    if (l.pid != null && l.pid === T.pid && l.name === T.name) { l.merged = true; T.n = (T.n || 1) + (l.n || 1); if (S.prefs.labelQty && !/^\d+$/.test(T.name)) T.txt = T.n + ' ' + T.name; }
+  });
+}
 function resetLabelAt(keys) {   // put labels back where they are placed automatically
   const g = S.g; if (!g) return;
   checkpoint();
   for (const key of keys) {
+    unjoinLabel(key);
     if (key[0] === 's') { if (g.labelAt) { delete g.labelAt[key.slice(1)]; if (!Object.keys(g.labelAt).length) delete g.labelAt; } }
     else { const pl = lblPlanting(key) || lblArea(key) || lblBed(key); if (pl) for (const k of ['lx', 'ly', 'kx', 'ky']) delete pl[k]; }
   }
@@ -10577,7 +10615,7 @@ function resetLabelAt(keys) {   // put labels back where they are placed automat
 function labelCounts() {
   const g = S.g; if (!g) return { moved: 0, hidden: 0 };
   const own = [...g.plantings, ...g.areas, ...beds()];
-  return { moved: Object.keys(g.labelAt || {}).length + own.filter(x => x.lx != null || x.kx != null).length,
+  return { moved: Object.keys(g.labelAt || {}).length + Object.keys(g.labelJoin || {}).length + own.filter(x => x.lx != null || x.kx != null).length,
     hidden: Object.keys(g.labelHide || {}).length + own.filter(x => x.lhide).length };
 }
 function renderLblActs(show) {
@@ -10590,7 +10628,7 @@ function renderLblActs(show) {
 /* the inspector's label buttons for a planting */
 function labelActs(it) {
   const g = S.g, pid = it.plantId, on = S.lblSel && (S.lblSel.plid === it.id || S.lblSel.key === 's' + pid || S.lblSel.key === 'a' + it.id) ? S.lblSel : null;
-  const moved = it.lx != null || it.kx != null || !!g.labelAt?.[pid], hidden = !!it.lhide || !!g.labelHide?.[pid];
+  const moved = it.lx != null || it.kx != null || !!g.labelAt?.[pid] || !!g.labelJoin?.['p' + it.id] || !!g.labelJoin?.['s' + pid], hidden = !!it.lhide || !!g.labelHide?.[pid];
   return (on ? '<button class="btn sm" type="button" data-act="hideLabel" title="Hide this label (Delete). The plant stays.">Hide label</button>' : '')
     + (hidden ? '<button class="btn sm" type="button" data-act="showLabel" title="Show this plant’s hidden label again">Show label</button>' : '')
     + (moved ? '<button class="btn sm" type="button" data-act="resetLabel" title="Put the label back where it was placed automatically">Reset label</button>' : '');
@@ -10643,22 +10681,33 @@ function edgeLayout(LBL, halo, e) {
   /* where each species is labelled: in a side column if a patch is within REACH of a side (as on most gardens), else in a
      row along the top or bottom if one is within REACH of those, else on the plan in full beside its biggest patch */
   const all = [], rows = { T: [], B: [] }, inner = [];
-  const others = (gp, lead) => { for (const q of gp.pts) if (q !== lead) extra.push({ i: q.i, ax: q.ax, ay: q.ay, txt: q.l.name ?? q.l.txt, plid: q.l.plid }); };
+  /* a patch whose code was dropped on its species' label (see joinLabels) gets a line to the label instead, unless join is off */
+  const J = S.g?.labelJoin || {};
+  const others = (gp, lead, join = true) => { const pid = gp.pts[0]?.l?.pid; for (const q of gp.pts) if (q !== lead && q.l) {
+    if (join && pid != null && q.l.plid && J['p' + q.l.plid] === 's' + pid) gp.jp.push([q.ax, q.ay]);
+    else extra.push({ i: q.i, ax: q.ax, ay: q.ay, txt: q.l.name ?? q.l.txt, plid: q.l.plid }); } };
   const toCol = (gp, lead) => { Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, side: lead.ax < W / 2 ? 'L' : 'R' }); others(gp, lead); gp.pts = [[lead.ax, lead.ay]]; all.push(gp); };
-  const onPlan = gp => { const B = gp.pts.reduce((b, q) => q.n > b.n ? q : b); inner.push({ i: B.i, l: B.l, txt: qtyTxt(B.l, gp.n) }); others(gp, B); };
+  const onPlan = gp => { const B = gp.pts.reduce((b, q) => q.n > b.n ? q : b); inner.push({ i: B.i, l: B.l, txt: qtyTxt(B.l, gp.n) }); others(gp, B, false); };
   /* a species whose label was dragged is drawn where it was put, joined to its nearest patch; a hidden one is left out (its
      other patches keep their codes) */
   const LA = S.g?.labelAt || {}, LH = S.g?.labelHide || {}, moved = [];
-  for (const gp of groups.values()) {
+  const place = gp => {
     const pid = gp.pts[0].l.pid;
-    if (pid != null && LH[pid]) { others(gp, leadPatch(gp.pts, sideD)); continue; }
-    if (pid != null && LA[pid]) { const at = LA[pid], dd = q => Math.hypot(q.ax - at.x, q.ay - at.y), lead = gp.pts.reduce((b, q) => dd(q) < dd(b) ? q : b); others(gp, lead); moved.push({ gp, lead, at, pid }); continue; }
+    if (pid != null && LH[pid]) { others(gp, leadPatch(gp.pts, sideD), false); return; }
+    if (pid != null && LA[pid]) { const at = LA[pid], dd = q => Math.hypot(q.ax - at.x, q.ay - at.y), lead = gp.pts.reduce((b, q) => dd(q) < dd(b) ? q : b); others(gp, lead); moved.push({ gp, lead, at, pid }); return; }
     let lead = leadPatch(gp.pts, sideD);
-    if (sideD(lead) <= REACH) { toCol(gp, lead); continue; }
+    if (sideD(lead) <= REACH) { toCol(gp, lead); return; }
     const side = lead;
     lead = leadPatch(gp.pts, endD);
-    if (endD(lead) <= REACH) { Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, lead, deep: endD(lead) }); rows[lead.ay < D / 2 ? 'T' : 'B'].push(gp); continue; }
+    if (endD(lead) <= REACH) { Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, lead, deep: endD(lead) }); rows[lead.ay < D / 2 ? 'T' : 'B'].push(gp); return; }
     toCol(gp, side);   // deep in a large plan: still labelled at the edge, as asked, never back beside the plant
+  };
+  /* a species' label dropped on another's is stacked with it (placed once the other's place is known) */
+  const byPid = new Map(), stk = [];
+  for (const gp of groups.values()) { gp.jp = []; const pid = gp.pts[0].l.pid; if (pid != null && !byPid.has(String(pid))) byPid.set(String(pid), gp); }
+  for (const gp of groups.values()) {
+    const pid = gp.pts[0].l.pid, r = pid != null && joinRoot('s' + pid), T = r && r !== 's' + pid ? byPid.get(r.slice(1)) : null;
+    if (T && !LH[pid] && !LH[r.slice(1)]) stk.push([gp, T]); else place(gp);
   }
   /* a row along the top or bottom that is too full sends the species deepest in to the side columns */
   for (const r of ['T', 'B']) {
@@ -10667,14 +10716,23 @@ function edgeLayout(LBL, halo, e) {
     rows[r].sort((p, q) => p.deep - q.deep);
     while (rows[r].length && rows[r].reduce((t, gp) => t + wOf(gp), 0) > W - lo) { const gp = rows[r].pop(); gp.pts = gp.pts.filter(q => !Array.isArray(q)); toCol(gp, leadPatch(gp.pts, sideD)); }
   }
+  for (const [gp, T] of stk) {
+    const m = moved.find(x => x.gp === T);
+    if (m) { const at = m.at, dd = q => Math.hypot(q.ax - at.x, q.ay - at.y), lead = gp.pts.reduce((b, q) => dd(q) < dd(b) ? q : b); others(gp, lead); (m.stack ||= []).push({ gp, lead, pid: gp.pts[0].l.pid }); continue; }
+    if (all.includes(T)) { toCol(gp, leadPatch(gp.pts, sideD)); gp.under = T; continue; }   // next to it in its column
+    const r = rows.T.includes(T) ? 'T' : rows.B.includes(T) ? 'B' : null;
+    if (r) { const lead = leadPatch(gp.pts, endD); Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, lead, deep: T.deep, cx: T.ax + 1e-6 * rows[r].length }); rows[r].push(gp); continue; }
+    place(gp);   // the other is labelled on the plan: this one goes where it would anyway
+  }
   const pitch0 = NAME * 1.42, top = -pad * 0.6, bot = D + pad * 0.6, cap = Math.max(1, Math.floor((bot - top) / pitch0));
   const side = c => all.filter(gp => gp.side === c);
   /* keep the two columns about even: if one side is full, the labels nearest the middle cross over */
   for (const [a, b] of [['L', 'R'], ['R', 'L']]) {
     const A = side(a).sort((p, q) => a === 'L' ? q.ax - p.ax : p.ax - q.ax);
     let over = A.length - cap, room = cap - side(b).length;
-    for (const gp of A) { if (over <= 0 || room <= 0) break; gp.side = b; over--; room--; }
+    for (const gp of A) { if (over <= 0 || room <= 0) break; if (gp.under) continue; gp.side = b; over--; room--; }
   }
+  let ui = 0; for (const gp of all) if (gp.under) { gp.side = gp.under.side; gp.ay = gp.under.ay + 1e-6 * ++ui; }   // stacked labels sit just after the one they were dropped on
   const lines = [];
   for (const c of ['L', 'R']) {
     const col = side(c).sort((p, q) => p.ay - q.ay || p.ax - q.ax);
@@ -10700,7 +10758,7 @@ function edgeLayout(LBL, halo, e) {
       const txt = qtyTxt(l, gp.n);
       const x = c === 'L' ? -gx : W + gx, sx = c === 'L' ? x + size * 0.3 : x - size * 0.3, edge = c === 'L' ? 0 : W;
       out[gp.at] = halo(f(x), f(yc + size * 0.34), f(size), txt, { ...l.o, anchor: c === 'L' ? 'end' : 'start', ...skey(l) });
-      for (const [ax, ay] of gp.pts) {
+      for (const [ax, ay] of [...gp.pts, ...gp.jp]) {
         const dy = ay - yc, ad = Math.abs(dy), sg = Math.sign(dy);
         const xk = c === 'L' ? Math.max(edge, ax - ad) : Math.min(edge, ax + ad), run = Math.abs(ax - xk);
         const pts = [[sx, yc], [xk, yc], [ax, yc + sg * run], [ax, ay]].filter((q, i, A) => !i || Math.hypot(q[0] - A[i - 1][0], q[1] - A[i - 1][1]) > 1e-6);
@@ -10713,7 +10771,7 @@ function edgeLayout(LBL, halo, e) {
      (clear of the scale bar along the bottom); if a row is full, the species deepest in go on the plan instead */
   for (const r of ['T', 'B']) {
     const lo = r === 'B' ? Math.min(e.sbEnd || 0, W / 2) : 0, hi = W, gap = NAME * 0.9, PT = planType();
-    let row = rows[r].map(gp => { const size = gp.l.o.bold ? NUM : NAME, txt = qtyTxt(gp.l, gp.n); return { gp, size, txt, w: textW(plainText(txt), gp.l.o.bold ? PT.bold : PT.name) * size + gap, c: gp.ax }; });
+    let row = rows[r].map(gp => { const size = gp.l.o.bold ? NUM : NAME, txt = qtyTxt(gp.l, gp.n); return { gp, size, txt, w: textW(plainText(txt), gp.l.o.bold ? PT.bold : PT.name) * size + gap, c: gp.cx ?? gp.ax }; });
     row.sort((p, q) => p.gp.deep - q.gp.deep);
     while (row.reduce((t, it) => t + it.w, 0) > hi - lo && row.length) { const it = row.pop(); onPlan(it.gp); }
     row.sort((p, q) => p.c - q.c);
@@ -10735,26 +10793,36 @@ function edgeLayout(LBL, halo, e) {
       for (const { gp, size, txt, w } of c2.items) {
         const cx = x + w / 2, yb = r === 'T' ? -fs * 2.4 : D + fs * 1.5; x += w;
         out[gp.at] = halo(f(cx), f(yb), f(size), txt, { ...gp.l.o, anchor: 'middle', ...skey(gp.l) });
-        const sy = r === 'T' ? yb + size * 0.3 : yb - size * 0.95, { ax, ay } = gp, ad = Math.abs(ax - cx), sg = Math.sign(ax - cx);
-        const yk = r === 'T' ? Math.max(0, ay - ad) : Math.min(D, ay + ad), run = Math.abs(ay - yk);
-        const pts = [[cx, sy], [cx, yk], [cx + sg * run, ay], [ax, ay]].filter((q, i, A) => !i || Math.hypot(q[0] - A[i - 1][0], q[1] - A[i - 1][1]) > 1e-6);
-        lines.push(`M${pts.map(q => f(q[0]) + ' ' + f(q[1])).join('L')}`);
-        lines.push(`M${f(ax)} ${f(ay)}m${f(-fs * 0.1)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(fs * 0.2)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(-fs * 0.2)} 0`);
+        const sy = r === 'T' ? yb + size * 0.3 : yb - size * 0.95;
         others(gp, gp.lead);
+        for (const [ax, ay] of [[gp.ax, gp.ay], ...gp.jp]) {
+          const ad = Math.abs(ax - cx), sg = Math.sign(ax - cx);
+          const yk = r === 'T' ? Math.max(0, ay - ad) : Math.min(D, ay + ad), run = Math.abs(ay - yk);
+          const pts = [[cx, sy], [cx, yk], [cx + sg * run, ay], [ax, ay]].filter((q, i, A) => !i || Math.hypot(q[0] - A[i - 1][0], q[1] - A[i - 1][1]) > 1e-6);
+          lines.push(`M${pts.map(q => f(q[0]) + ' ' + f(q[1])).join('L')}`);
+          lines.push(`M${f(ax)} ${f(ay)}m${f(-fs * 0.1)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(fs * 0.2)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(-fs * 0.2)} 0`);
+        }
       }
     }
   }
   const PT = planType(), obst = [];
-  for (const { gp, lead, at, pid } of moved) {
+  const drawAt = (gp, lead, pid, x0, y0) => {
     const l = lead.l, isN = !!l.o.bold, size = isN ? NUM : NAME, txt = qtyTxt(l, gp.n), w = textW(plainText(txt), isN ? PT.bold : PT.name) * size, ex = e.ex || 0;
-    const x = clamp(at.x, -pad - ex + w / 2, W + pad + ex - w / 2), y = clamp(at.y, -pad + size, D + pad);   // never off the sheet
+    const x = clamp(x0, -pad - ex + w / 2, W + pad + ex - w / 2), y = clamp(y0, -pad + size, D + pad);   // never off the sheet
     out[lead.i] = halo(f(x), f(y), f(size), txt, { ...l.o, anchor: 'middle', key: 's' + pid, plid: l.plid, ax: lead.ax, ay: lead.ay });
     obst.push({ x, y, size, w: w * 1.04, h: size * 1.2 });
-    const { ax, ay } = lead, cy = y - size * 0.34, hw = w / 2 + size * 0.3, adx = Math.abs(ax - x), ady = Math.abs(ay - cy);
-    if (adx < hw && ady < size * 0.9) continue;   // sitting on its own plants: no line needed
-    const hFirst = adx - hw > ady, sx = hFirst ? x + Math.sign(ax - x) * hw : x, sy = hFirst ? cy : ay > cy ? y + size * 0.3 : y - size * 0.95;
-    lines.push(metroPath(sx, sy, ax, ay, hFirst, f));
-    lines.push(`M${f(ax)} ${f(ay)}m${f(-fs * 0.1)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(fs * 0.2)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(-fs * 0.2)} 0`);
+    for (const [ax, ay] of [[lead.ax, lead.ay], ...gp.jp]) {
+      const cy = y - size * 0.34, hw = w / 2 + size * 0.3, adx = Math.abs(ax - x), ady = Math.abs(ay - cy);
+      if (adx < hw && ady < size * 0.9) continue;   // sitting on its own plants: no line needed
+      const hFirst = adx - hw > ady, sx = hFirst ? x + Math.sign(ax - x) * hw : x, sy = hFirst ? cy : ay > cy ? y + size * 0.3 : y - size * 0.95;
+      lines.push(metroPath(sx, sy, ax, ay, hFirst, f));
+      lines.push(`M${f(ax)} ${f(ay)}m${f(-fs * 0.1)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(fs * 0.2)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(-fs * 0.2)} 0`);
+    }
+    return { x, y, size };
+  };
+  for (const { gp, lead, at, pid, stack } of moved) {   // a dragged label, and any stacked under it, a line apart
+    let { x, y, size } = drawAt(gp, lead, pid, at.x, at.y);
+    for (const st of stack || []) { const sz = st.lead.l.o.bold ? NUM : NAME; ({ y, size } = drawAt(st.gp, st.lead, st.pid, x, y + Math.max(size, sz) * 1.3)); }
   }
   const sans = PT.sans, dots = lines.filter(d => d.includes('a')).join('');
   return { out, extra, inner, moved: obst, wires: lines.filter(d => !d.includes('a')), lines: lines.length ? `<g class="leaders" opacity="${sans ? 0.8 : 0.65}" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="${sans ? 0.7 : 0.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${sans ? `<path d="${dots}" fill="none" style="stroke:var(--panel)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}<path d="${dots}" style="fill:var(--label)"/></g>` : '' };
@@ -10798,8 +10866,17 @@ function placeOnPlan(LBL, halo, ls, wires = []) {
   }
   const boxAt = (l, x, y, d) => ({ x0: x - d.w / 2, x1: x + d.w / 2, y0: y - l.size * 0.9, y1: y - l.size * 0.9 + d.h });
   const order = LBL.map((l, i) => i).sort((a, b) => (LBL[b].fixed - LBL[a].fixed) || (LBL[b].pri - LBL[a].pri) || (LBL[a].y - LBL[b].y) || (LBL[a].x - LBL[b].x));
+  /* a label with others stacked on it (see planJoin) is placed as one block, its stacked lines under it */
+  const block = l => { const d = size(l), st = (l.stack || []).filter(m => !m.merged).map(size); return st.length ? { w: Math.max(d.w, ...st.map(q => q.w)), h: d.h + st.reduce((t, q) => t + q.h, 0) } : d; };
+  const f = v => +v.toFixed(3);
+  const leadTo = (ax, ay, cx, cy, hw, hh, op = 0.55) => {   // a leader line from a plant to the edge of a label's box
+    const dx = cx - ax, dy = cy - ay, dist = Math.hypot(dx, dy); if (dist < 1e-6) return '';
+    const ux = dx / dist, uy = dy / dist, t = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
+    return dist > t ? `<line x1="${f(ax)}" y1="${f(ay)}" x2="${f(cx - ux * t)}" y2="${f(cy - uy * t)}" style="stroke:var(--label)" stroke-opacity="${op}" stroke-width="0.8" vector-effect="non-scaling-stroke" pointer-events="none"/>` : '';
+  };
   for (const i of order) {
-    const l = LBL[i], d = size(l);
+    if (LBL[i].joined) { out[i] = ''; continue; }   // drawn with the label it was dropped on
+    const l = LBL[i], d = block(l);
     let x = l.x, y = l.y, b = boxAt(l, x, y, d);
     /* a bed name crossed by a leader line slides a little along its line to a clear gap; with no gap close by it stays put */
     if (l.raw && !l.fixed && WH.size && wireHit(b)) {
@@ -10821,9 +10898,8 @@ function placeOnPlan(LBL, halo, ls, wires = []) {
         for (const [dx, dy] of tries.slice(0, tries.length / 2)) { const c = boxAt(l, l.x + dx, l.y + dy, d), o = overlap(c); if (o < least - 1e-9) { least = o; x = l.x + dx; y = l.y + dy; b = c; } }
       }
     }
-    keep(b);
+    if (!(S.drag?.lbl && S.drag.moved && l.o?.key === S.drag.key)) keep(b);   // the label being dragged pushes no others aside, so the one it will join stays put
     if (l.raw) { const dx = +(x - l.x).toFixed(3), dy = +(y - l.y).toFixed(3); out[i] = dx || dy ? `<g transform="translate(${dx} ${dy})">${l.raw}</g>` : l.raw; continue; }
-    const f = v => +v.toFixed(3);
     let s = '';
     const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, dx = cx - l.ax, dy = cy - l.ay, dist = Math.hypot(dx, dy);
     const far = l.forceLead ? dist > d.h * 0.9 : (x !== l.x || y !== l.y) && Math.hypot(x - l.x, y - l.y) > d.h * 0.9;
@@ -10833,6 +10909,16 @@ function placeOnPlan(LBL, halo, ls, wires = []) {
       if (dist > t) s += `<line x1="${f(l.ax)}" y1="${f(l.ay)}" x2="${f(cx - ux * t)}" y2="${f(cy - uy * t)}" style="stroke:var(--label)" stroke-opacity="0.55" stroke-width="0.8" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
     }
     out[i] = s + halo(f(x), f(y), l.size, l.txt, l.o);
+    if (l.stack) {   // each plant joined to this label keeps a line to it: the same plant's to this line, another's to its own line below
+      const d0 = size(l), hw = d0.w / 2 + l.size * 0.15, hh = d0.h / 2 + l.size * 0.1, cy0 = y - l.size * 0.9 + d0.h / 2;
+      let yb = y - l.size * 0.9 + d0.h, add = '';
+      for (const m of l.stack) {
+        if (m.merged) { add += leadTo(m.ax, m.ay, x, cy0, hw, hh); continue; }
+        const dm = size(m); yb += dm.h;
+        add += leadTo(m.ax, m.ay, x, yb - dm.h / 2, dm.w / 2 + m.size * 0.15, dm.h / 2 + m.size * 0.1) + halo(f(x), f(yb - dm.h + m.size * 0.9), m.size, m.txt, m.o);
+      }
+      out[i] = add + out[i];
+    }
   }
   return out;
 }
@@ -10852,6 +10938,7 @@ function spreadLabels(html, LBL, halo, ls, pr, edge) {
   }
   html = html.replace('\u0002', '');
   if (!LBL.length) return html;
+  planJoin(LBL);
   const out = placeOnPlan(LBL, halo, ls);
   return html.replace(/\u0001(\d+)\u0001/g, (_, n) => out[n] ?? '');
 }
@@ -11197,8 +11284,9 @@ function renderMap() {
       if (!(w > 0)) continue;
       const b = { x: a === 'end' ? x - w : a === 'middle' ? x - w / 2 : x, y: y - size * 0.82, width: w, height: size * 1.06 };
       t.dataset.cx = +(b.x + w / 2).toFixed(3);
-      const r = box(b, px * 2, { class: 'lblhit', 'data-kind': 'lbl', 'pointer-events': 'all', style: `fill:none${S.tool === 'select' ? ';cursor:grab' : ''}` });
+      const r = box(b, px * 2, { class: 'lblhit', 'data-kind': 'lbl', 'pointer-events': 'fill', style: `fill:none${S.tool === 'select' ? ';cursor:grab' : ''}` });
       Object.assign(r.dataset, t.dataset); t.after(r);
+      if (S.lblDrop && S.lblDrop === t.dataset.lk) r.after(box(b, px * 4, { class: 'lbldrop', style: `fill:var(--accent);fill-opacity:.12;stroke:var(--accent);stroke-width:${px * 1.5};stroke-dasharray:${px * 4} ${px * 3};pointer-events:none` }));
       if (S.lblSel?.key === t.dataset.lk) { found = true; r.after(box(b, px * 3, { class: 'lblsel', style: `fill:none;stroke:var(--accent);stroke-width:${px * 1.5};pointer-events:none` })); }
     }
     if (S.lblSel && !found) S.lblSel = null;
@@ -12290,7 +12378,10 @@ svg.addEventListener('pointermove', e => {
   if (d.lbl) {
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
-    if (!d.moved) { pushHistory(d.before); d.moved = true; S.lblTap = null; }
+    if (!d.moved) { pushHistory(d.before); d.moved = true; S.lblTap = null; unjoinLabel(d.key); }   // a stacked label pulled away stands alone again
+    /* over another label, dropping it there stacks the two (see joinLabels) */
+    const over = [...svg.querySelectorAll('rect.lblhit')].find(el => { const r = el.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom && canJoin(d.key, el.dataset.lk); });   // by the box's own shape: the browser counts a wide margin round it
+    d.drop = S.lblDrop = over ? over.dataset.lk : null;
     setLabelPos(d.key, d.x0 + dx, d.y0 + dy, d); renderMapSoon(); return;
   }
   if (d.label) {
@@ -12337,6 +12428,8 @@ function endDrag() {
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
   if (d.north) { if (d.moved) saveGarden(); renderMap(); return; }
   if (d.lbl) {
+    S.lblDrop = null;
+    if (d.moved && d.drop) joinLabels(d.key, d.drop);
     if (d.moved) saveGarden();
     const pl = d.plid && S.g.plantings.find(x => x.id === d.plid);
     const ar = !pl && lblArea(d.key);
@@ -13252,7 +13345,7 @@ app.addEventListener('click', async e => {
   if (act === 'hideLabel' && S.lblSel) labelState(S.lblSel.key, true);
   if (act === 'showLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lhide; if (S.g.labelHide) { delete S.g.labelHide[it.plantId]; if (!Object.keys(S.g.labelHide).length) delete S.g.labelHide; } saveGarden(); renderInspector(); renderMap(); } }
   if (act === 'showAllLabels' && S.g) { checkpoint(); delete S.g.labelHide; for (const x of [...S.g.plantings, ...S.g.areas, ...beds()]) delete x.lhide; saveGarden(); renderInspector(); renderMap(); }
-  if (act === 'resetAllLabels' && S.g) { checkpoint(); delete S.g.labelAt; for (const x of [...S.g.plantings, ...S.g.areas, ...beds()]) for (const k of ['lx', 'ly', 'kx', 'ky']) delete x[k]; saveGarden(); renderInspector(); renderMap(); }
+  if (act === 'resetAllLabels' && S.g) { checkpoint(); delete S.g.labelAt; delete S.g.labelJoin; for (const x of [...S.g.plantings, ...S.g.areas, ...beds()]) for (const k of ['lx', 'ly', 'kx', 'ky']) delete x[k]; saveGarden(); renderInspector(); renderMap(); }
   if (act === 'rowCancel') { S.row = null; S.hover = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'measClear') { S.meas = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'bkpGarden') downloadBackup('garden');
@@ -13477,7 +13570,7 @@ function normGarden(id, d) {
     aerial: d.aerial && Number.isFinite(d.aerial.lat) && Number.isFinite(d.aerial.lon) ? d.aerial : undefined,
     rows: Array.isArray(d.rows) ? d.rows.filter(r => r && Array.isArray(r.a) && Array.isArray(r.b) && Array.isArray(r.c)) : undefined,
     palette: Array.isArray(d.palette) ? d.palette.filter(x => typeof x === 'string') : undefined, oudolf: typeof d.oudolf === 'boolean' ? d.oudolf : undefined,
-    labelAt: d.labelAt && typeof d.labelAt === 'object' ? d.labelAt : undefined, labelHide: d.labelHide && typeof d.labelHide === 'object' ? d.labelHide : undefined };
+    labelAt: d.labelAt && typeof d.labelAt === 'object' ? d.labelAt : undefined, labelHide: d.labelHide && typeof d.labelHide === 'object' ? d.labelHide : undefined, labelJoin: d.labelJoin && typeof d.labelJoin === 'object' ? d.labelJoin : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -14224,6 +14317,7 @@ function cleanGarden(d) {
   if (typeof d.oudolf === 'boolean') g.oudolf = d.oudolf;
   /* labels moved or hidden by hand: where each species' label sits, in plan metres, and which are hidden */
   if (d.labelAt && typeof d.labelAt === 'object') { const o = {}; for (const [k, v] of Object.entries(d.labelAt)) if (safeId(k) && numOrNull(v?.x) != null && numOrNull(v?.y) != null) o[k] = { x: xy(v.x), y: xy(v.y) }; if (Object.keys(o).length) g.labelAt = o; }
+  if (d.labelJoin && typeof d.labelJoin === 'object') { const o = {}; for (const [k, v] of Object.entries(d.labelJoin)) if (typeof v === 'string' && /^[sp]/.test(k) && /^[sp]/.test(v) && safeId(k.slice(1)) && safeId(v.slice(1))) o[k] = v; if (Object.keys(o).length) g.labelJoin = o; }
   if (d.labelHide && typeof d.labelHide === 'object') { const o = {}; for (const [k, v] of Object.entries(d.labelHide)) if (safeId(k) && v === true) o[k] = true; if (Object.keys(o).length) g.labelHide = o; }
   return g;
 }

@@ -1294,11 +1294,11 @@ test('any plant label can be dragged, hidden and put back', async open => {
   const pid = sk.slice(1), before = (await app.store('gardens/g1')).plantings.map(p => [p.x, p.y]);
   const drag = async (loc, to) => { const b = await loc.boundingBox(); await pg.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await pg.mouse.down(); await pg.mouse.move(to.x, to.y, { steps: 6 }); await pg.mouse.up(); };
   const to = await app.planXY(6, 4);
-  await drag(lbl(sk), to);
+  await drag(hit(sk), to);
   let gd = await g();
   ok(gd.labelAt && gd.labelAt[pid], 'position stored, got ' + JSON.stringify(gd.labelAt));
   eq(gd.plantings.map(p => [p.x, p.y]), before, 'no plant moved');
-  const bb = await lbl(sk).boundingBox();
+  const bb = await hit(sk).boundingBox();
   ok(Math.abs(bb.x + bb.width / 2 - to.x) < 6 && Math.abs(bb.y + bb.height / 2 - to.y) < 12, 'label drawn where it was dropped');
   const hits = await pg.evaluate(k => { const r = t => t.getBoundingClientRect(), a = r(document.querySelector(`#map text[data-kind=lbl][data-lk="${k}"]`));
     return [...document.querySelectorAll('#map text')].filter(t => t.dataset.lk !== k && t.textContent.trim()).map(r).filter(b => b.width && b.left < a.right - 1 && b.right > a.left + 1 && b.top < a.bottom - 1 && b.bottom > a.top + 1).length; }, sk);
@@ -1330,11 +1330,11 @@ test('any plant label can be dragged, hidden and put back', async open => {
   // a planting's own label (a code, or its label on the plan) moves with an offset
   const pk = (await pg.$$eval('#map text[data-kind=lbl]', ts => ts.map(t => t.dataset.lk))).find(k => k[0] === 'p');
   if (pk) {
-    const b = await lbl(pk).boundingBox(); await drag(lbl(pk), { x: b.x + b.width / 2 + 40, y: b.y + b.height / 2 + 30 });
+    const b = await lbl(pk).boundingBox(); await drag(hit(pk), { x: b.x + b.width / 2 + 40, y: b.y + b.height / 2 + 30 });
     gd = await g(); const pl = gd.plantings.find(p => p.id === pk.slice(1));
     ok(pl.kx != null || pl.lx != null, 'offset stored for the planting label, got ' + JSON.stringify(pl));
   }
-  await drag(lbl(sk), to); await pg.keyboard.press('Escape'); await pg.waitForTimeout(100);
+  await drag(hit(sk), to); await pg.keyboard.press('Escape'); await pg.waitForTimeout(100);
   ok(await pg.isVisible('[data-act=resetAllLabels]'), 'Reset all labels offered');
   await pg.click('[data-act=resetAllLabels]'); gd = await g();
   eq([gd.labelAt, gd.plantings.some(p => p.kx != null || p.lx != null)], [undefined, false], 'all reset');
@@ -1374,6 +1374,81 @@ test('the plot can be cropped to a box, or trimmed to the design, and undone', a
   ok(gd.width < 14 && gd.depth < 12 && gd.plantings.every(p => p.x > 0 && p.x < gd.width && p.y > 0 && p.y < gd.depth), 'trimmed round the design, got ' + gd.width + ' × ' + gd.depth);
   eq(gd.plantings.length, 7, 'trimming keeps every plant');
   eq(app2.errors, [], 'no errors');
+});
+
+test('labels stack: drop one label on another and both plants lead to one place; pull it away to undo', async open => {
+  let app = await open(sample());
+  let pg = app.page;
+  const g = async () => { await pg.waitForTimeout(900); return app.store('gardens/g1'); };
+  const lbl = k => pg.locator(`#map rect.lblhit[data-lk="${k}"]`).first();   // measured by the box over each label: the browser's box for tiny scaled text is far too big
+  const txt = k => pg.locator(`#map text[data-kind=lbl][data-lk="${k}"]`).first();
+  const keys = () => pg.$$eval('#map text[data-kind=lbl]', ts => ts.map(t => t.dataset.lk));
+  const ctr = async loc => { const b = await loc.boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2, h: b.height }; };
+  const drag = async (loc, to) => { const a = await ctr(loc); await pg.mouse.move(a.x, a.y); await pg.mouse.down(); await pg.mouse.move(to.x, to.y, { steps: 8 }); await pg.mouse.up(); };
+  /* onto another label: once the dragged one leaves its column the rest close up, so aim again at where the target is now */
+  const dropOn = async (loc, k) => { const a = await ctr(loc); await pg.mouse.move(a.x, a.y); await pg.mouse.down(); await pg.mouse.move(a.x + 30, a.y + 30, { steps: 4 }); await pg.waitForTimeout(100);
+    const t = await ctr(lbl(k)); await pg.mouse.move(t.x, t.y, { steps: 6 }); await pg.waitForTimeout(100); const t2 = await ctr(lbl(k)); await pg.mouse.move(t2.x, t2.y, { steps: 2 });
+    eq(await pg.locator('#map rect.lbldrop').count(), 1, 'the label it will join is marked'); await pg.mouse.up(); };
+  // around the edge: one species' label dropped on another's stacks under it
+  let ks = (await keys()).filter(k => k[0] === 's');
+  ok(ks.length >= 2, 'two edge labels, got ' + JSON.stringify(ks));
+  const [a, b] = ks;
+  await dropOn(lbl(a), b);
+  let gd = await g();
+  eq(gd.labelJoin, { [a]: b }, 'joined');
+  ok(!gd.labelAt?.[a.slice(1)], 'no position of its own');
+  let A = await ctr(lbl(a)), B = await ctr(lbl(b));
+  ok(Math.abs(A.y - B.y) < B.h * 2.2 && Math.abs(A.y - B.y) > B.h * 0.5 && Math.abs(A.x - B.x) < 200, 'stacked next to it, got ' + JSON.stringify([A, B]));
+  await pg.click('#undoBtn'); eq((await g()).labelJoin, undefined, 'undone');
+  await pg.click('#redoBtn'); eq((await g()).labelJoin, { [a]: b }, 'redone');
+  // dragging the label it was dropped on carries the stack along
+  const to = await app.planXY(6, 4);
+  await drag(lbl(b), to); gd = await g();
+  ok(gd.labelAt?.[b.slice(1)] && gd.labelJoin?.[a] === b, 'the stack moved together, got ' + JSON.stringify([gd.labelAt, gd.labelJoin]));
+  A = await ctr(lbl(a)); B = await ctr(lbl(b));
+  ok(A.y > B.y && Math.abs(A.x - B.x) < 3 && A.y - B.y < B.h * 2, 'drawn on the line under it, got ' + JSON.stringify([A, B]));
+  // pulled away, it stands alone again
+  await drag(lbl(a), { x: to.x - 120, y: to.y + 90 }); gd = await g();
+  eq(gd.labelJoin, undefined, 'unjoined');
+  ok(gd.labelAt?.[a.slice(1)], 'and placed where dropped');
+  // a patch's code dropped on its own species' label becomes a line to it
+  const codes = await pg.$$eval('#map text[data-kind=lbl]', ts => ts.filter(t => t.dataset.lk[0] === 'p').map(t => t.dataset.plid));
+  const code = codes.map(id => ({ id, pid: gd.plantings.find(p => p.id === id)?.plantId })).find(c => c.pid != null && ks.includes('s' + c.pid));
+  if (code) {
+    const paths = async () => (await pg.$eval('#map g.leaders path', p => p.getAttribute('d'))).split('M').length;
+    const n0 = await paths();
+    await dropOn(lbl('p' + code.id), 's' + code.pid); gd = await g();
+    eq(gd.labelJoin?.['p' + code.id], 's' + code.pid, 'code joined to its label');
+    eq(await pg.locator(`#map text[data-lk="p${code.id}"]`).count(), 0, 'code no longer drawn');
+    ok(await paths() > n0, 'a line runs to it instead');
+  }
+  await pg.keyboard.press('Escape'); await pg.waitForTimeout(100); await pg.click('[data-act=resetAllLabels]'); gd = await g();
+  eq([gd.labelJoin, gd.labelAt], [undefined, undefined], 'Reset all labels unstacks too');
+  eq(app.errors, [], 'no errors');
+  await app.close();
+  // on the plan: one planting's label dropped on another's
+  app = await open({ ...sample(), 'settings/prefs': { labelPlace: 'plan' } }); pg = app.page;
+  ks = (await keys()).filter(k => k[0] === 'p');
+  gd = await app.store('gardens/g1');
+  const sp = k => gd.plantings.find(p => p.id === k.slice(1))?.plantId;
+  const [p1, p2] = [ks[0], ks.find(k => sp(k) !== sp(ks[0]))];
+  ok(p1 && p2, 'two plantings of different plants, got ' + JSON.stringify(ks));
+  const lines0 = await pg.locator('#map line').count();
+  await dropOn(lbl(p1), p2); gd = await g();
+  eq(gd.labelJoin, { [p1]: p2 }, 'joined on the plan');
+  A = await ctr(lbl(p1)); B = await ctr(lbl(p2));
+  ok(A.y > B.y && Math.abs(A.x - B.x) < 3 && A.y - B.y < B.h * 2, 'stacked on the line below, got ' + JSON.stringify([A, B]));
+  ok(await pg.locator('#map line').count() > lines0, 'with a leader back to its plant');
+  const same = ks.find(k => k !== p2 && k !== p1 && sp(k) === sp(p2));
+  if (same) {
+    const t0 = await txt(p2).textContent();
+    await dropOn(lbl(same), p2); await g();
+    eq(await pg.locator(`#map text[data-lk="${same}"]`).count(), 0, 'the same plant merges into one label');
+    ok(/^\d+ /.test(await txt(p2).textContent()) && (await txt(p2).textContent()) !== t0, 'with its total, got ' + t0 + ' → ' + (await txt(p2).textContent()));
+  }
+  await pg.locator(`#map rect.lblhit[data-lk="${p1}"]`).first().dblclick(); gd = await g();
+  ok(!gd.labelJoin?.[p1], 'double-click unstacks it');
+  eq(app.errors, [], 'no errors');
 });
 
 run();
