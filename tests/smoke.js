@@ -859,6 +859,40 @@ test('busy plan: one edge label and one line per species, its code small on its 
   eq(app.errors, [], 'no page errors');
 });
 
+test('large plan: lines come from the nearest side, top or bottom; a species deep inside is labelled on the plan', async open => {
+  const seed = sample(); const g = seed['gardens/g1']; Object.assign(g, { underlay: null, width: 40, depth: 25 });
+  g.plantings = [['p2', 20, 2, 3], ['p3', 22, 23, 20], ['p0', 20, 12, 6], ['p0', 14, 9, 2], ['p4', 3, 10, 5], ['p1', 12, 1.5, 4], ['p5', 30, 3, 1]].map(([plantId, x, y, qty], i) => ({ id: 'z' + i, plantId, x, y, qty }));
+  const app = await open(seed); await app.page.waitForTimeout(300);
+  const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => { const b = t.getBBox(); return { t: t.textContent, x: +t.getAttribute('x'), y: +t.getAttribute('y'), b: { x: b.x, y: b.y, w: b.width, h: b.height } }; }));
+  const one = re => { const m = labs.filter(l => re.test(l.t)); ok(m.length === 1, re + ' labelled once, got ' + JSON.stringify(m)); return m[0]; };
+  const ros = one(/Ros oli/), tul = one(/Tul bal/), lav = one(/Lav ang/), ger = one(/Ger roz/);
+  ok(ros.t === '3 Ros oli' && ros.y < 0 && Math.abs(ros.x - 20) < 2, 'near the top: in the row along the top, above its plants, got ' + JSON.stringify(ros));
+  ok(tul.y > 25 && tul.x > 0 && tul.x < 40, 'near the bottom: in the row along the bottom, got ' + JSON.stringify(tul));
+  ok(lav.t === '8 Lav ang' && Math.hypot(lav.x - 20, lav.y - 12) < 2, 'deep inside: on the plan at its big patch, with its total, got ' + JSON.stringify(lav));
+  ok(ger.x < 0, 'near a side: in the side column, got ' + JSON.stringify(ger));
+  const top = labs.filter(l => l.y < 0);
+  ok(top.every((a, i) => top.every((c, j) => i >= j || a.b.x + a.b.w <= c.b.x || c.b.x + c.b.w <= a.b.x)), 'the top row labels do not overlap');
+  const d = await app.page.$eval('#map g[opacity="0.65"] path', p => p.getAttribute('d'));
+  const segs = d.split('M').filter(Boolean).flatMap(m => { const n = m.split('L').map(q => q.trim().split(' ').map(Number)); return n.slice(1).map((q, i) => [q[0] - n[i][0], q[1] - n[i][1]]); });
+  ok(segs.every(([dx, dy]) => Math.abs(dx) < 1e-3 || Math.abs(dy) < 1e-3 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 2e-3), 'lines only run level, upright or at 45°');
+  ok(await app.page.$$eval('#map text:not([pointer-events=auto])', ts => ts.some(t => t.textContent.trim() === 'Lav ang')), 'its other patch carries its code');
+  eq(app.errors, [], 'no page errors');
+});
+
+test('large plan: a full row along the top spills onto the plan, nothing overlapping', async open => {
+  const seed = sample(); const g = seed['gardens/g1']; Object.assign(g, { underlay: null, width: 14, depth: 25 });
+  for (let i = 0; i < 12; i++) seed['plants/t' + i] = { common: 'Test ' + i, botanical: 'Testus longnamius' + i, role: 'herbaceous', spread: 0.4, potSpread: 0.15, height: 0.5, cost: 1 };
+  g.palette = [...g.palette, ...Array.from({ length: 12 }, (_, i) => 't' + i)];
+  g.plantings = Array.from({ length: 12 }, (_, i) => ({ id: 'w' + i, plantId: 't' + i, x: 6.2 + i * 0.15, y: 1 + (i % 3) * 0.6, qty: 3 }));
+  const app = await open(seed); await app.page.waitForTimeout(300);
+  const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => { const b = t.getBBox(); return { t: t.textContent, y: +t.getAttribute('y'), x: b.x, w: b.width }; }));
+  const top = labs.filter(l => l.y < 0), inPlan = labs.filter(l => l.y > 0 && l.y < 25 && l.x > 0 && l.x + l.w < 14);
+  ok(top.length >= 2 && inPlan.length >= 1 && top.length + inPlan.length === 12, `some in the top row, the rest on the plan, got ${top.length} and ${inPlan.length} of ${labs.length}`);
+  ok(top.every(l => l.x >= -1e-3 && l.x + l.w <= 14 + 1e-3), 'the row stays within the plan width');
+  ok(top.every((a, i) => top.every((c, j) => i >= j || a.x + a.w <= c.x + 1e-3 || c.x + c.w <= a.x + 1e-3)), 'the top row labels do not overlap, got ' + JSON.stringify(top));
+  eq(app.errors, [], 'no page errors');
+});
+
 test('existing woodland: a bed set as woodland is drawn with a crown edge, casts canopy shade, and is listed but never counted', async open => {
   const seed = sample(); Object.assign(seed['gardens/g1'], { north: 0, lat: 51.5072, lon: -0.1276, underlay: null });
   seed['gardens/g1'].plantings = seed['gardens/g1'].plantings.filter(q => q.plantId !== 'ex1');

@@ -10348,13 +10348,15 @@ function edgeEx(fs, pad, numbered) {
 }
 /* Labels in a column down each side of the plan, in the order of what they label, each joined to its plants by a fine line
    that runs straight, then at 45°, then straight, like a metro map. A species is labelled once, with its total for the whole
-   plan, and its one line goes to its lead patch (see leadPatch); its other patches carry its code, small, on the plan. */
-const edgeDist = (ax, W) => Math.min(ax, W - ax);
-/* the patch a species' line goes to: its biggest, unless a patch at least half that size sits at most half as far from a side */
-function leadPatch(pts, W) {
-  const B = pts.reduce((b, q) => q.n > b.n || (q.n === b.n && edgeDist(q.ax, W) < edgeDist(b.ax, W)) ? q : b);
-  const C = pts.filter(q => q !== B && q.n >= B.n / 2 && edgeDist(q.ax, W) <= edgeDist(B.ax, W) * 0.5);
-  return C.length ? C.reduce((b, q) => edgeDist(q.ax, W) < edgeDist(b.ax, W) ? q : b) : B;
+   plan, and its one line goes to its lead patch (see leadPatch); its other patches carry its code, small, on the plan.
+   On a large plan a species can be labelled in a row along the top or bottom instead, or on the plan (see REACH). */
+const REACH = 6;   // metres: a line runs at most this far in from the side it comes from
+/* the patch a species' line goes to: its biggest, unless a patch at least half that size sits at most half as far from the edge.
+   dist(q) is how far patch q is from the edges in question */
+function leadPatch(pts, dist) {
+  const B = pts.reduce((b, q) => q.n > b.n || (q.n === b.n && dist(q) < dist(b)) ? q : b);
+  const C = pts.filter(q => q !== B && q.n >= B.n / 2 && dist(q) <= dist(B) * 0.5);
+  return C.length ? C.reduce((b, q) => dist(q) < dist(b) ? q : b) : B;
 }
 function edgeLayout(LBL, halo, e) {
   const { W, D, pad, fs, NAME, NUM } = e, gx = pad * 0.8, out = [], extra = [], f = v => +v.toFixed(3), groups = new Map();
@@ -10365,13 +10367,23 @@ function edgeLayout(LBL, halo, e) {
     if (!groups.has(k)) groups.set(k, { n: 0, pts: [] });
     const gp = groups.get(k); gp.n += l.n ?? 1; gp.pts.push({ ax: l.ax, ay: l.ay, n: l.n ?? 1, i, l });
   });
-  const all = [...groups.values()];
-  all.forEach(gp => {
-    const lead = leadPatch(gp.pts, W);
-    Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, side: lead.ax < W / 2 ? 'L' : 'R' });
-    for (const q of gp.pts) if (q !== lead) extra.push({ i: q.i, ax: q.ax, ay: q.ay, txt: q.l.name ?? q.l.txt });
-    gp.pts = [[lead.ax, lead.ay]];
-  });
+  const qtyTxt = (l, n) => l.o.bold || !S.prefs.labelQty || n < 2 || l.name == null ? (l.name ?? l.txt) : n + ' ' + l.name;
+  const sideD = q => Math.min(q.ax, W - q.ax), endD = q => Math.min(q.ay, D - q.ay);
+  /* where each species is labelled: in a side column if a patch is within REACH of a side (as on most gardens), else in a
+     row along the top or bottom if one is within REACH of those, else on the plan in full beside its biggest patch */
+  const all = [], rows = { T: [], B: [] }, inner = [];
+  const others = (gp, lead) => { for (const q of gp.pts) if (q !== lead) extra.push({ i: q.i, ax: q.ax, ay: q.ay, txt: q.l.name ?? q.l.txt }); };
+  const onPlan = gp => { const B = gp.pts.reduce((b, q) => q.n > b.n ? q : b); inner.push({ i: B.i, l: B.l, txt: qtyTxt(B.l, gp.n) }); others(gp, B); };
+  for (const gp of groups.values()) {
+    let lead = leadPatch(gp.pts, sideD);
+    if (sideD(lead) <= REACH) {
+      Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, side: lead.ax < W / 2 ? 'L' : 'R' }); others(gp, lead);
+      gp.pts = [[lead.ax, lead.ay]]; all.push(gp); continue;
+    }
+    lead = leadPatch(gp.pts, endD);
+    if (endD(lead) <= REACH) { Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, lead, deep: endD(lead) }); rows[lead.ay < D / 2 ? 'T' : 'B'].push(gp); continue; }
+    onPlan(gp);
+  }
   const pitch0 = NAME * 1.3, top = -pad * 0.6, bot = D + pad * 0.6, cap = Math.max(1, Math.floor((bot - top) / pitch0));
   const side = c => all.filter(gp => gp.side === c);
   /* keep the two columns about even: if one side is full, the labels nearest the middle cross over */
@@ -10402,7 +10414,7 @@ function edgeLayout(LBL, halo, e) {
     for (let j = cl.length - 1; j >= 0; j--) { const c2 = cl[j]; c2.y0 = Math.min(c2.y0, hi - c2.items.length * pitch); hi = c2.y0; }
     for (const c2 of cl) c2.items.forEach((gp, j) => {
       const l = gp.l, isN = !!l.o.bold, size = (isN ? NUM : NAME) * Math.max(0.55, k), yc = c2.y0 + j * pitch + pitch / 2;
-      const txt = isN || !S.prefs.labelQty || gp.n < 2 || l.name == null ? (l.name ?? l.txt) : gp.n + ' ' + l.name;
+      const txt = qtyTxt(l, gp.n);
       const x = c === 'L' ? -gx : W + gx, sx = c === 'L' ? x + size * 0.3 : x - size * 0.3, edge = c === 'L' ? 0 : W;
       out[gp.at] = halo(f(x), f(yc + size * 0.34), f(size), txt, { ...l.o, anchor: c === 'L' ? 'end' : 'start' });
       for (const [ax, ay] of gp.pts) {
@@ -10414,7 +10426,42 @@ function edgeLayout(LBL, halo, e) {
       }
     });
   }
-  return { out, extra, lines: lines.length ? `<g opacity="0.65" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="0.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${lines.filter(d => d.includes('a')).join('')}" style="fill:var(--label)"/></g>` : '' };
+  /* the rows along the top and bottom: each label as near above (or below) its plants as it can be, within the plan's width
+     (clear of the scale bar along the bottom); if a row is full, the species deepest in go on the plan instead */
+  for (const r of ['T', 'B']) {
+    const lo = r === 'B' ? Math.min(e.sbEnd || 0, W / 2) : 0, hi = W, gap = NAME * 0.9;
+    let row = rows[r].map(gp => { const size = gp.l.o.bold ? NUM : NAME, txt = qtyTxt(gp.l, gp.n); return { gp, size, txt, w: txt.length * size * 0.72 + gap, c: gp.ax }; });
+    row.sort((p, q) => p.gp.deep - q.gp.deep);
+    while (row.reduce((t, it) => t + it.w, 0) > hi - lo && row.length) { const it = row.pop(); onPlan(it.gp); }
+    row.sort((p, q) => p.c - q.c);
+    const cl = [];
+    for (const it of row) {
+      cl.push({ items: [it], x0: it.c - it.w / 2, w: it.w });
+      while (cl.length > 1) {
+        const b = cl[cl.length - 1], a = cl[cl.length - 2];
+        if (a.x0 + a.w <= b.x0 + 1e-9) break;
+        const items = [...a.items, ...b.items];
+        let off = 0; const x0 = items.reduce((t, q) => { const v = q.c - q.w / 2 - off; off += q.w; return t + v; }, 0) / items.length;
+        cl.splice(-2, 2, { items, x0, w: a.w + b.w });
+      }
+    }
+    let L = lo; for (const c2 of cl) { c2.x0 = Math.max(L, c2.x0); L = c2.x0 + c2.w; }
+    let R = hi; for (let j = cl.length - 1; j >= 0; j--) { const c2 = cl[j]; c2.x0 = Math.min(c2.x0, R - c2.w); R = c2.x0; }
+    for (const c2 of cl) {
+      let x = c2.x0;
+      for (const { gp, size, txt, w } of c2.items) {
+        const cx = x + w / 2, yb = r === 'T' ? -fs * 2.4 : D + fs * 1.5; x += w;
+        out[gp.at] = halo(f(cx), f(yb), f(size), txt, { ...gp.l.o, anchor: 'middle' });
+        const sy = r === 'T' ? yb + size * 0.3 : yb - size * 0.95, { ax, ay } = gp, ad = Math.abs(ax - cx), sg = Math.sign(ax - cx);
+        const yk = r === 'T' ? Math.max(0, ay - ad) : Math.min(D, ay + ad), run = Math.abs(ay - yk);
+        const pts = [[cx, sy], [cx, yk], [cx + sg * run, ay], [ax, ay]].filter((q, i, A) => !i || Math.hypot(q[0] - A[i - 1][0], q[1] - A[i - 1][1]) > 1e-6);
+        lines.push(`M${pts.map(q => f(q[0]) + ' ' + f(q[1])).join('L')}`);
+        lines.push(`M${f(ax)} ${f(ay)}m${f(-fs * 0.1)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(fs * 0.2)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(-fs * 0.2)} 0`);
+        others(gp, gp.lead);
+      }
+    }
+  }
+  return { out, extra, inner, lines: lines.length ? `<g opacity="0.65" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="0.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${lines.filter(d => d.includes('a')).join('')}" style="fill:var(--label)"/></g>` : '' };
 }
 /* place labels on the plan so none overlap: each keeps its spot if it can, else the nearest free spot, with a fine
    leader line back to its plant if it moved far; returns the markup for each, in the order given */
@@ -10455,8 +10502,10 @@ function spreadLabels(html, LBL, halo, ls, pr, edge) {
   if (edge && LBL.length) {
     const r = edgeLayout(LBL, halo, edge);
     /* a species' other patches: its code, small, in the middle of each, kept clear of one another */
-    const small = r.extra.map(x => ({ x: x.ax, y: x.ay + ls * 0.7 * 0.34, size: ls * 0.7, txt: x.txt, o: {}, ax: x.ax, ay: x.ay, fixed: false, pri: 0 }));
-    placeOnPlan(small, halo, ls).forEach((m, j) => { r.out[r.extra[j].i] = m; });
+    const cs = edge.NAME * 0.75, small = r.extra.map(x => ({ x: x.ax, y: x.ay + cs * 0.34, size: cs, txt: x.txt, o: {}, ax: x.ax, ay: x.ay, fixed: false, pri: 0 }));
+    /* and the species labelled on the plan, in full, placed first so their codes keep clear of them */
+    const full = r.inner.map(({ l, txt }) => { const size = l.o.bold ? edge.NUM : edge.NAME; return { ...l, txt, len: undefined, size, x: l.ax, y: l.ay + size * 0.34, pri: (l.pri || 0) + 1 }; }), idx = [...r.inner, ...r.extra].map(x => x.i);
+    placeOnPlan([...full, ...small], halo, ls).forEach((m, j) => { r.out[idx[j]] = m; });
     return html.replace('\u0002', r.lines).replace(/\u0001(\d+)\u0001/g, (_, n) => r.out[n] ?? '');
   }
   html = html.replace('\u0002', '');
@@ -10737,7 +10786,7 @@ function renderMap() {
     if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, sb.straight ? 0 : BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
-  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, fs, NAME, NUM } : null);
+  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, fs, NAME, NUM, sbEnd: showScale ? (M > 20 ? 5 : 2) + fs * 3 : 0 } : null);
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
 }
 
