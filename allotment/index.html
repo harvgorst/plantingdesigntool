@@ -12,7 +12,7 @@
   const f = { drafting: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap', root: 'https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Mono:ital,wght@0,400;0,600;1,400&family=Noto+Sans+JP:wght@400;600&display=swap' }[t];
   if (f) document.write('<link rel="stylesheet" href="' + f + '" data-theme-font="' + t + '">'); })();
 </script>
-<title>Allotment Plot Planner</title>
+<title>root planner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
@@ -442,7 +442,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
 <body>
 <div class="app">
   <header class="top">
-    <h1><span class="jp" aria-hidden="true">菜園</span>Allotment Plot Planner</h1>
+    <h1><span class="jp" aria-hidden="true">菜園</span>root planner</h1>
     <nav class="tabs" aria-label="Pages"><button type="button" id="navPlan" aria-pressed="true"><span class="jp" aria-hidden="true">計画</span>Plan</button><button type="button" id="navList" aria-pressed="false"><span class="jp" aria-hidden="true">輪作</span>Crop list &amp; rotation</button><button type="button" id="navCal" aria-pressed="false"><span class="jp" aria-hidden="true">種暦</span>Sowing calendar</button><button type="button" id="navCrops" aria-pressed="false"><span class="jp" aria-hidden="true">野菜</span>Crops</button><button type="button" id="navPrefs" aria-pressed="false"><span class="jp" aria-hidden="true">設定</span>Preferences</button></nav>
     <div class="spacer"></div>
     <div class="gbox"><select id="plotSel" aria-label="Choose a plot"></select><button class="btn sm" id="detailsBtn" type="button">Plot details</button></div>
@@ -532,7 +532,7 @@ const TOOLS = [
   { id: 'select', label: 'Select', key: 'V' },
   { id: 'bed', label: 'Bed', key: 'B' },
   { id: 'crop', label: 'Crop', key: 'C' },
-  { id: 'feature', label: 'Path & shed', key: 'F' },
+  { id: 'feature', label: 'Blocks', key: 'F' },
 ];
 const THEMES = {
   drafting: { name: 'Drafting table', note: 'Ink on pale drafting film, with narrow technical lettering.', bar: '#F8F9F5', barInk: '#1F2B26', bg: '#ECEEE8', cols: ['#F8F9F5', '#2F5A3C', '#CCD2CA'], font: '"IBM Plex Sans Condensed", "Arial Narrow", sans-serif' },
@@ -654,7 +654,7 @@ function idbOpen() {
     const r = indexedDB.open('allotment-planner', 1);
     r.onupgradeneeded = () => { const d = r.result; if (!d.objectStoreNames.contains('docs')) d.createObjectStore('docs'); };
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error || new Error('storage is blocked in this browser'));
-    r.onblocked = () => rej(new Error('the planner is open in another tab that needs reloading'));
+    r.onblocked = () => rej(new Error('root planner is open in another tab that needs reloading'));
   });
 }
 /* two kinds of backend: IndexedDB, or a plain map (used by the tests, or when the browser blocks storage) */
@@ -862,7 +862,7 @@ function renderTools() {
   const h = {
     select: 'Click to select; drag a corner to resize. Drag empty ground to move the page, Shift-drag to select several. Arrow keys nudge, Ctrl+D duplicates.',
     bed: 'Drag on the plan to draw a bed. Beds keep their place from year to year, so each one builds up a crop history for rotation.',
-    feature: 'Drag on the plan to draw a path, shed, greenhouse, compost bay or water butt. Choose which in the bar above once it’s drawn.',
+    feature: 'Blocks: drag on the plan to draw a path, shed, greenhouse, compost bay or water butt. Choose which in the bar above once it’s drawn.',
     crop: c ? `Planting ${cropName(c)}: drag inside a bed for a block of rows (${num(c.spacingCm)} cm apart, rows ${num(c.rowCm)} cm apart). A click plants one.` : 'Pick a crop from the library on the right first.',
   }[S.tool];
   $('hint').textContent = S.g && !S.g.areas.length && S.tool === 'select' ? 'Start with the Bed tool: drag out each bed, then add paths and the shed. ' + h : h;
@@ -1078,7 +1078,7 @@ function renderPrefs() {
         <div class="thgrid" role="radiogroup" aria-label="Theme">${Object.entries(THEMES).map(([k, t]) => `<label class="thopt"><input type="radio" name="pf-theme" data-pref="theme" value="${k}"${(THEMES[P.theme] ? P.theme : 'drafting') === k ? ' checked' : ''}>
           <span class="thprev" aria-hidden="true" style="background:${t.bg}"><span class="tb" style="background:${t.bar};color:${t.barInk};font-family:${esc(t.font)}">${t.jp || ''}${esc(t.name)}</span><span class="bd">${t.cols.map((c, i) => `<i style="background:${c};flex:${i ? 1 : 3}"></i>`).join('')}</span></span>
           <b>${esc(t.name)}</b><small>${esc(t.note)}</small></label>`).join('')}</div>
-        <p class="note" style="margin:0">The same themes as SevenLayers. Until you pick one here, the planner follows the theme you chose there.</p>
+        <p class="note" style="margin:0">The same themes as SevenLayers. Until you pick one here, root planner follows the theme you chose there.</p>
       </fieldset>
       <fieldset class="pref"><legend>Plan display</legend>
         ${chk('pf-labels', 'labels', 'Show bed and crop labels')}
@@ -1098,7 +1098,7 @@ function renderPrefs() {
         <div class="row"><button class="btn sm" type="button" data-act="resetFamCols">Reset colours</button></div>
       </fieldset>
       <fieldset class="pref"><legend>Starter crops</legend>
-        <p class="note" style="margin:0">The planner starts with ${STARTER ? Object.keys(STARTER.crops).length : 0} common crops, with typical UK spacings and months. Change any of them to suit your soil and varieties.</p>
+        <p class="note" style="margin:0">root planner starts with ${STARTER ? Object.keys(STARTER.crops).length : 0} common crops, with typical UK spacings and months. Change any of them to suit your soil and varieties.</p>
         <div class="row"><button class="btn sm" type="button" data-act="addStarter"${missing ? '' : ' disabled'}>${missing ? `Add back ${plural(missing, 'starter crop')} you’ve deleted` : 'All the starter crops are in your library'}</button></div>
       </fieldset>
       <fieldset class="pref"><legend>Backup</legend>
@@ -1546,7 +1546,7 @@ async function init() {
 }
 
 /* ---------- backup ---------- */
-const BACKUP_APP = 'Allotment Plot Planner', BACKUP_FORMAT = 1, BKP = { busy: false, msg: '', err: false };
+const BACKUP_APP = 'root planner', OLD_BACKUP_APPS = ['Allotment Plot Planner'], BACKUP_FORMAT = 1, BKP = { busy: false, msg: '', err: false };
 function setBackupMsg(t, err) { BKP.msg = t; BKP.err = !!err; const el = $('bkpMsg'); if (el) { el.textContent = t; el.style.color = err ? 'var(--crit)' : ''; } setStatus(t, err); }
 /* a backup file is outside data: everything is checked and rebuilt field by field before it is used */
 const safeId = v => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : null);
@@ -1580,7 +1580,7 @@ async function downloadBackup(kind) {
     const out = { app: BACKUP_APP, format: BACKUP_FORMAT, kind, exportedAt: new Date().toISOString(), plots: JSON.parse(JSON.stringify(plots)), crops: JSON.parse(JSON.stringify(crops)) };
     if (kind === 'all') out.prefs = JSON.parse(JSON.stringify(S.prefs));
     const label = kind === 'plot' ? plotLabel(S.g) : kind === 'crops' ? 'crop library' : 'everything';
-    await saveFile(`Allotment backup - ${label.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80)} - ${new Date().toISOString().slice(0, 10)}.json`, new Blob([JSON.stringify(out)], { type: 'application/json' }));
+    await saveFile(`root planner backup - ${label.replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80)} - ${new Date().toISOString().slice(0, 10)}.json`, new Blob([JSON.stringify(out)], { type: 'application/json' }));
     setBackupMsg(`Backup saved (${[plots.length && plural(plots.length, 'plan'), crops.length && plural(crops.length, 'crop')].filter(Boolean).join(' and ') || 'nothing yet'}).`);
   } catch (e) { setBackupMsg('Couldn’t make the backup: ' + (e?.message || 'try again'), true); }
   finally { BKP.busy = false; }
@@ -1592,8 +1592,8 @@ async function restoreBackup(file) {
   try {
     setBackupMsg('Reading the backup…');
     let data = null; try { data = JSON.parse(await file.text()); } catch {}
-    if (!data || data.app !== BACKUP_APP || !(data.format >= 1)) throw new Error('that file isn’t an Allotment Plot Planner backup.');
-    if (data.format > BACKUP_FORMAT) throw new Error('that backup was made by a newer version of the planner.');
+    if (!data || !(data.app === BACKUP_APP || OLD_BACKUP_APPS.includes(data.app)) || !(data.format >= 1)) throw new Error('that file isn’t a root planner backup.');
+    if (data.format > BACKUP_FORMAT) throw new Error('that backup was made by a newer version of root planner.');
     const crops = (Array.isArray(data.crops) ? data.crops : []).map(cleanCrop).filter(Boolean);
     const plots = (Array.isArray(data.plots) ? data.plots : []).map(cleanPlot).filter(Boolean);
     let addedC = 0, keptC = 0, addedP = 0, first = null;

@@ -31,11 +31,11 @@ SevenLayers is a single HTML file. Download `index.html` and open it in a browse
 
 Plants are grouped by the seven-layer system: Canopy, Understory, Shrub, Herbaceous, Ground cover, Tubers & bulbs, Climbers.
 
-## Allotment Plot Planner
+## root planner
 
-`allotment/index.html` is a second, simpler tool for vegetable plots and allotments, built on the same template as SevenLayers: one HTML file, the same five themes, the same layout and the same browser storage. Open `allotment/index.html` the same way.
+root planner (`allotment/index.html`) is a second, simpler tool for vegetable plots and allotments, built on the same template as SevenLayers: one HTML file, the same five themes, the same layout and the same browser storage. Open `allotment/index.html` the same way.
 
-- **Plan**: set the plot size, draw beds, paths, sheds, greenhouses, compost bays and water butts as rectangles, then drag out blocks of a crop inside a bed. The number of plants comes from the crop's spacing in the row and between rows, and the rows can be turned. A click plants a single plant. Moving a bed moves its crops with it. Undo and redo, arrow-key nudging, Ctrl+D to duplicate, Plant spacing to show where each plant goes, and Last year to show what grew in each bed the year before.
+- **Plan**: set the plot size, draw beds with the Bed tool, and paths, sheds, greenhouses, compost bays and water butts with the Blocks tool, all as rectangles, then drag out blocks of a crop inside a bed. The number of plants comes from the crop's spacing in the row and between rows, and the rows can be turned. A click plants a single plant. Moving a bed moves its crops with it. Undo and redo, arrow-key nudging, Ctrl+D to duplicate, Plant spacing to show where each plant goes, and Last year to show what grew in each bed the year before.
 - **Crop list & rotation**: crops, varieties, beds, rows, plant numbers and area, which copy straight into a spreadsheet. Each bed is compared with the previous year's plan on a four-course rotation (Peas & beans → Brassicas → Potatoes → Roots & onions). A bed that repeats a family is flagged on the plan and in the table, and each bed suggests what comes next.
 - **Sowing calendar**: this month's jobs (sow under cover, sow outside, plant out, harvest) and a year chart for every crop on the plan, or for the whole library.
 - **Crops**: the crop library as a sortable table, searchable and filterable by family, with spacing, months and notes, and a copy for spreadsheets. The library beside the plan has family chips and an On this plan filter.
@@ -47,7 +47,7 @@ On first opening it is filled with 31 common crops (typical UK spacings and mont
 ## Files
 
 - `index.html`: the whole app (HTML, CSS and JavaScript in one file).
-- `allotment/index.html`: the Allotment Plot Planner (one file).
+- `allotment/index.html`: root planner, the vegetable-plot planner (one file).
 - `example/example-site-plan.svg`: a made-up site plan used by the tests.
 - `tests/`: automated checks that open the app in a headless browser.
 
@@ -75,7 +75,7 @@ npx playwright install chromium
 npm test
 ```
 
-The Allotment Plot Planner has its own tests:
+root planner has its own tests:
 
 ```bash
 node tests/allotment.js
