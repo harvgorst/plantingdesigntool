@@ -526,6 +526,36 @@ html[data-skin=drafting] .btn.sm { min-height: 28px; }
 html[data-skin=drafting] .order .cn { margin-left: 6px; }
 html[data-skin=drafting] .sched:has(tfoot) tbody tr:last-child td { border-bottom-color: var(--ink); }
 html[data-skin=drafting] fieldset.pref .note { font-size: 13px; max-width: 60ch; line-height: 1.5; }
+/* plant database: each row ruled in its layer colour, botanical names in the serif, Edit on hover */
+html[data-skin=drafting] .dbt tbody td:first-child { box-shadow: inset 3px 0 var(--lc, var(--muted)); padding-left: 12px; }
+html[data-skin=drafting] .dbt tbody tr.exr td:first-child { box-shadow: none; background-image: linear-gradient(var(--exist) 50%, transparent 0); background-size: 3px 6px; background-repeat: repeat-y; }
+html[data-skin=drafting] .dbt tbody .sw.round { display: none !important; }
+html[data-skin=drafting] .dbt .cnm { font-weight: 500; }
+html[data-skin=drafting] .dbt i { font-family: "Source Serif 4", Georgia, serif; color: var(--ink); }
+html[data-skin=drafting] .dbt .nil { color: var(--muted); }
+html[data-skin=drafting] .dbt thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); border-bottom-color: var(--ink); }
+html[data-skin=drafting] .dbt tbody tr:hover td { background: color-mix(in srgb, var(--ink) 3%, transparent); }
+html[data-skin=drafting] .dbt tbody tr:has(input[data-dbsel]:checked) td { background: var(--accent-soft); }
+html[data-skin=drafting] .dbt .btn[data-edit] { opacity: 0; }
+html[data-skin=drafting] .dbt tr:hover .btn[data-edit], html[data-skin=drafting] .dbt tr:focus-within .btn[data-edit], html[data-skin=drafting] .dbt tr:has(input[data-dbsel]:checked) .btn[data-edit] { opacity: 1; }
+@media (hover: none) { html[data-skin=drafting] .dbt .btn[data-edit] { opacity: 1; } }
+html[data-skin=drafting] #dbLayer, html[data-skin=drafting] #dbKind { border-color: transparent; background-color: transparent; }
+html[data-skin=drafting] #dbLayer:hover, html[data-skin=drafting] #dbLayer:focus-visible, html[data-skin=drafting] #dbKind:hover, html[data-skin=drafting] #dbKind:focus-visible { border-color: var(--line); }
+html[data-skin=drafting] .btn.quiet { border-color: transparent; background: none; color: var(--muted); }
+html[data-skin=drafting] .btn.quiet:hover, html[data-skin=drafting] .btn.quiet:focus-visible { color: var(--ink); border-color: var(--line); }
+html[data-skin=drafting] #dbCount { color: var(--muted); font-variant-numeric: tabular-nums; }
+/* the species form: its fields grouped under small headings (other themes keep the plain list) */
+.fgrp { display: none; }
+html[data-skin=drafting] .fgrp { display: flex; align-items: center; gap: 8px; margin: 6px 0 -2px; padding-top: 10px; border-top: 1px solid var(--line-soft); font: 600 13px var(--f-body); color: var(--ink); }
+html[data-skin=drafting] .fgrp::before { content: ""; width: 14px; height: 3px; background: var(--accent); flex: none; }
+html[data-skin=drafting] .card-h + .fgrp, html[data-skin=drafting] .morebody > .fgrp:first-child { border-top: 0; padding-top: 2px; }
+html[data-skin=drafting] #plantModalBody .field { grid-template-columns: 110px 1fr; }
+html[data-skin=drafting] #plantModalBody .checks { white-space: nowrap; }
+html[data-skin=drafting] #plantModalBody h2 { font-family: var(--f-body); font-weight: 600; }
+html[data-skin=drafting] .pfafsug { border-radius: 3px; }
+html[data-skin=drafting] .pfafsug i { font-family: "Source Serif 4", Georgia, serif; color: var(--ink); }
+html[data-skin=drafting] .pfafsug .ph { font-size: 12px; }
+.pfafsug .edb { color: var(--accent); }
 html[data-skin=woodwork] .mapwrap { --panel: #F5ECDC; --paper: #EFE4D0; --line: #6A5440; --ground: #F1E7D5; --grid: #E2D5BF; --grid-major: #CDBB9E; border-color: #5A4634; }
 html[data-skin=woodwork] .modal { background: rgba(10, 7, 4, 0.6); }
 html[data-skin=woodwork] .btn.primary { color: #241B15; }
@@ -753,7 +783,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       <div class="row"><input type="text" id="dbSearch" placeholder="Search common or botanical name, supplier…" aria-label="Search the plant database" style="flex:1;min-width:200px;max-width:420px">
         <select id="dbLayer" aria-label="Filter by layer"></select>
         <select id="dbKind" aria-label="New or existing plants"><option value="">New and existing</option><option value="new">New plants only</option><option value="existing">Existing plants only</option></select>
-        <span class="spacer"></span><span class="note" id="dbCount"></span><button class="btn sm" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm" type="button" id="dbListBtn">Add a list</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div>
+        <span class="spacer"></span><span class="note" id="dbCount"></span><button class="btn sm quiet" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm quiet" type="button" id="dbListBtn">Add a list</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div>
       <div class="dblist" id="dbList" hidden><label class="note" for="dbListText">Paste botanical names, one per line. Each new species is filled in from <a href="https://pfaf.org" target="_blank" rel="noopener">Plants For A Future</a> (CC BY 4.0) where it’s listed, a cultivar from its parent species; names already in your database are skipped. Check each one, and choose its colour.</label>
         <textarea id="dbListText" rows="8" placeholder="Malus domestica 'Sunset'&#10;Ribes nigrum&#10;Symphytum officinale"></textarea>
         <div class="row"><button class="btn sm primary" type="button" id="dbListGo">Add these</button><button class="btn sm" type="button" id="dbListCancel">Close</button><span class="note" id="dbListMsg" aria-live="polite"></span></div></div>
@@ -9989,7 +10019,7 @@ function paintPfafSug() {
   const box = $('pfafSug'), row = $('pfafRow'); if (!box || !row) return;
   const q = $('sp-bot')?.value || '', m = S.editPlant ? pfafSearch(q) : [];
   S.pfafSug = m; row.hidden = !m.length;
-  box.innerHTML = m.length ? m.map((r, i) => `<button type="button" data-pfaf="${i}"><i>${esc(r.b)}</i> <span class="pc">${esc(r.c)}${r.ed >= 3 ? ' · edible' : ''}</span></button>`).join('') + '<div class="ph">From Plants For A Future: pick one to fill in its details</div>' : '';
+  box.innerHTML = m.length ? m.map((r, i) => `<button type="button" data-pfaf="${i}"><i>${esc(r.b)}</i> <span class="pc">${esc(r.c)}</span>${r.ed >= 3 ? '<span class="ex edb">Edible</span>' : ''}</button>`).join('') + '<div class="ph">From Plants For A Future: pick one to fill in its details</div>' : '';
 }
 
 /* ---------- Oudolf mode: the planting drawn as areas that share their borders ---------- */
@@ -11281,11 +11311,13 @@ function renderPlantEditor(el) {
   const cb = (map, arr, f) => Object.entries(map).map(([k, l]) => `<label><input type="checkbox" id="sp-${f}-${k}" data-arr="${f}" value="${k}"${(arr || []).includes(k) ? ' checked' : ''}> ${l}</label>`).join('');
   const used = gardensUsing(p.id).length > 0;
   el.innerHTML = `<div class="card-h"><h2 style="font-size:17px">${p._new ? 'New species' : 'Edit species'}</h2>${p.example ? '<span class="ex">Example</span>' : ''}</div>
+    <h3 class="fgrp">Identity</h3>
     <label class="field"><span>Botanical</span><input id="sp-bot" type="text" data-p="botanical" value="${esc(p.botanical)}" autocomplete="off" placeholder="Start typing to look it up"></label>
     <div class="field" id="pfafRow" hidden><span></span><div class="pfafsug" id="pfafSug" role="listbox" aria-label="Matches from Plants For A Future"></div></div>
     ${p.pfaf ? `<p class="note" id="pfafNote" style="margin:0">${p._pfafGot ? (p._pfafGot.length ? 'Filled in ' + esc(p._pfafGot.join(', ')) + '. ' : 'Nothing left to fill in. ') : ''}Details from <a href="https://pfaf.org" target="_blank" rel="noopener">Plants For A Future</a> (CC BY 4.0): check them, and choose the colour yourself.</p>` : ''}
     <label class="field"><span>Common name</span><input id="sp-common" type="text" data-p="common" value="${esc(p.common)}"></label>
     <label class="field"><span>Layer</span><select id="sp-role" data-p="role">${opt(ROLES, p.role)}</select></label>
+    <h3 class="fgrp">Season and interest</h3>
     <div class="field" style="align-items:start"><span style="padding-top:4px">In season</span><div style="display:flex;flex-direction:column;gap:6px;flex:1">
       <div class="row" role="radiogroup" aria-label="Flowers or crop"><label class="checks"><input type="radio" name="sp-kind" id="sp-kind-fl" value="flowers"${p.crop ? '' : ' checked'}> Flowers</label><label class="checks"><input type="radio" name="sp-kind" id="sp-crop" value="crop"${p.crop ? ' checked' : ''}> Crop (harvest)</label></div>
       ${monthSlider(p)}</div></div>
@@ -11294,9 +11326,11 @@ function renderPlantEditor(el) {
       <div class="swatches" role="group" aria-label="${p.crop ? 'Crop colour' : 'Flower colour'}">${FLOWER_COLOURS.map(([n, h]) => `<button type="button" data-color="${h}" data-cname="${n}" title="${n}" aria-label="${n}" aria-pressed="${(showCol(p) || '').toLowerCase() === h.toLowerCase()}" style="background:${h}"></button>`).join('')}</div>
       <div class="colrow"><label style="display:inline-flex;gap:6px;align-items:center">Custom <input type="color" id="sp-col" data-p="flowerColor" value="${showCol(p) || '#c9a7d9'}"></label><span id="colName">${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}"></span>${esc(showColName(p) || 'Custom colour')}` : 'No colour chosen'}</span>${showCol(p) ? '<button class="btn sm" type="button" data-act="clearColour">Clear</button>' : ''}</div>
     </div></div>
+    <h3 class="fgrp">Size</h3>
     <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
     <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label><button class="btn sm" type="button" data-act="findPhotoEdit">Find a photo online</button>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div>${p.photoCredit && p.photoId ? `<span class="note">${esc(photoCreditText(p.photoCredit))}</span>` : ''}</div>
     <details class="more" id="sp-more"${S.moreOpen || p.existing ? ' open' : ''}><summary>More details</summary><div class="morebody">
+    <h3 class="fgrp">On site and variety</h3>
     <div class="field"><span>On site</span><label class="checks"><input type="checkbox" id="sp-existing" data-pb="existing"${p.existing ? ' checked' : ''}> Existing plant, already in the garden</label></div>
     <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
     <label class="field"><span>Foliage</span><select id="sp-fol" data-p="foliage"><option value="">Not set</option>${opt(FOLIAGE, p.foliage)}</select></label>
@@ -11304,10 +11338,11 @@ function renderPlantEditor(el) {
       ${(p.interest || []).map((it, i) => `<div class="irow"><select data-ii="${i}" data-if="kind" aria-label="Kind of interest">${Object.entries(INTEREST).map(([k, v]) => `<option value="${k}"${it.kind === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select><select data-ii="${i}" data-if="from" aria-label="From month">${mo(it.from).replace('<option value="">None</option>', '')}</select><span class="pv">to</span><select data-ii="${i}" data-if="to" aria-label="To month">${mo(it.to).replace('<option value="">None</option>', '')}</select><input type="color" data-ii="${i}" data-if="color" value="${esc(it.color || '#C92F2F')}" aria-label="Colour"><button class="btn sm" type="button" data-idel="${i}" aria-label="Remove">×</button></div>`).join('')}
       <button class="btn sm" type="button" data-act="addInterest" style="align-self:flex-start">Add berries, autumn colour, stems…</button>
     </div></div>` : ''}
+    <h3 class="fgrp">On the plan</h3>
     ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>`}
     ${p.existing && !onGrid(p) ? '' : `<label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>`}
     ${`<div class="field"><span>Plan colour</span><div class="row pcrow">${plantSwatch({ ...p, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
-    ${p.existing ? '' : `<label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
+    ${p.existing ? '' : `<h3 class="fgrp">Supply</h3><label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
     <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
     <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
     </div></details>
@@ -11572,15 +11607,15 @@ function renderDatabase() {
   renderDbBar();
   $('dbTable').innerHTML = !S.plants.length ? `<tbody><tr><td class="empty">${S.loaded ? 'No plants yet. Use Add species to start your database.' : 'Loading your plants…'}</td></tr></tbody>`
     : !rows.length ? '<tbody><tr><td class="empty">No species match those filters.</td></tr></tbody>'
-    : `<thead><tr><th class="ck"><input type="checkbox" id="dbAll" aria-label="Select all shown"${rows.length && rows.every(r => DB.sel.has(r.p.id)) ? ' checked' : ''}></th>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Supply</th><th>Supplier</th>${th('cost', 'Cost', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n, used }) => `<tr>
-      <td class="ck"><input type="checkbox" data-dbsel="${p.id}"${DB.sel.has(p.id) ? ' checked' : ''} aria-label="Select ${esc(p.common || p.botanical)}"></td><td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
+    : `<thead><tr><th class="ck"><input type="checkbox" id="dbAll" aria-label="Select all shown"${rows.length && rows.every(r => DB.sel.has(r.p.id)) ? ' checked' : ''}></th>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Supply</th><th>Supplier</th>${th('cost', 'Cost', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n, used }) => `<tr style="--lc:var(--r-${p.role || 'herbaceous'})"${p.existing ? ' class="exr"' : ''}>
+      <td class="ck"><input type="checkbox" data-dbsel="${p.id}"${DB.sel.has(p.id) ? ' checked' : ''} aria-label="Select ${esc(p.common || p.botanical)}"></td><td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span><span class="cnm">${esc(p.common || 'Unnamed')}</span>${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
       <td><i>${esc(p.botanical)}</i>${p.cultivar ? ` <i>${esc(p.cultivar)}</i>` : ''}</td>
       <td>${esc(ROLES[p.role] || '')}</td>
       <td>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || '')}"></span>` : ''}${fm(p)}</td>
       <td class="n">${p.height != null && p.height !== '' ? num(p.height).toFixed(2) + ' m' : ''}</td><td class="n">${num(p.spread).toFixed(2)} m</td>
       <td>${esc(p.existing ? 'on site' : p.supply || '')}</td><td>${esc(p.existing ? '' : p.supplier || '')}</td>
-      <td class="n">${p.existing ? '–' : money(num(p.cost))}</td>
-      <td class="n" title="${esc(used.join(', '))}">${n || '–'}</td>
+      <td class="n">${p.existing ? '<span class="nil">–</span>' : money(num(p.cost))}</td>
+      <td class="n" title="${esc(used.join(', '))}">${n || '<span class="nil">–</span>'}</td>
       <td class="n"><button class="btn sm" type="button" data-edit="${p.id}">Edit</button></td></tr>`).join('')}</tbody>`;
 }
 function getPage() { const h = location.hash.slice(1); return ['flowering', 'schedule', 'preferences', 'database', 'presentation'].includes(h) ? h : 'plan'; }

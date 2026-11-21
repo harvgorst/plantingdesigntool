@@ -1127,4 +1127,22 @@ test('plan colour, pattern and size in the bar beside the plant name', async ope
   eq(app.errors, [], 'no errors');
 });
 
+test('plant database: rows ruled in their layer colour, the species form grouped under headings (Drafting table only)', async open => {
+  let app = await open(sample());
+  await app.go('database');
+  const rule = await app.page.$eval('#dbMine tbody tr', tr => ({ sh: getComputedStyle(tr.cells[0]).boxShadow, col: getComputedStyle(tr).getPropertyValue('--lc').trim() }));
+  ok(/inset/.test(rule.sh) && /rgb/.test(rule.sh), 'a coloured rule on the first cell, got ' + rule.sh);
+  const hex = rule.col.replace('#', ''), rgb = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)).join(', ');
+  ok(rule.sh.includes(rgb), 'the rule is the layer colour ' + rule.col + ', got ' + rule.sh);
+  await app.page.click('#dbMine [data-edit=p0]'); await app.page.waitForSelector('#plantModal:not([hidden])');
+  for (const h of ['Identity', 'Season and interest', 'Size']) ok(await app.page.isVisible(`#plantModalBody .fgrp:text-is("${h}")`), h + ' heading shown');
+  eq(app.errors, [], 'no errors');
+  await app.close();
+  app = await open({ ...sample(), 'settings/prefs': { theme: 'eiderdown', themeV: 1 } });
+  await app.go('database');
+  await app.page.click('#dbMine [data-edit=p0]'); await app.page.waitForSelector('#plantModal:not([hidden])');
+  ok(await app.page.$$eval('#plantModalBody .fgrp', hs => hs.length > 0 && hs.every(h => getComputedStyle(h).display === 'none')), 'Eiderdown: headings hidden');
+  eq(app.errors, [], 'no errors');
+});
+
 run();
