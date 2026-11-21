@@ -1145,4 +1145,60 @@ test('plant database: rows ruled in their layer colour, the species form grouped
   eq(app.errors, [], 'no errors');
 });
 
+test('any plant label can be dragged, hidden and put back', async open => {
+  const app = await open(sample());
+  const pg = app.page, g = async () => { await pg.waitForTimeout(900); return app.store('gardens/g1'); };
+  const lbl = k => pg.locator(`#map text[data-kind=lbl][data-lk="${k}"]`), hit = k => pg.locator(`#map rect.lblhit[data-lk="${k}"]`);   // the clear box over each label is what you grab
+  const keys = await pg.$$eval('#map text[data-kind=lbl]', ts => ts.map(t => t.dataset.lk));
+  const sk = keys.find(k => k[0] === 's'); ok(sk, 'an edge label can be grabbed, got ' + JSON.stringify(keys));
+  const pid = sk.slice(1), before = (await app.store('gardens/g1')).plantings.map(p => [p.x, p.y]);
+  const drag = async (loc, to) => { const b = await loc.boundingBox(); await pg.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await pg.mouse.down(); await pg.mouse.move(to.x, to.y, { steps: 6 }); await pg.mouse.up(); };
+  const to = await app.planXY(6, 4);
+  await drag(lbl(sk), to);
+  let gd = await g();
+  ok(gd.labelAt && gd.labelAt[pid], 'position stored, got ' + JSON.stringify(gd.labelAt));
+  eq(gd.plantings.map(p => [p.x, p.y]), before, 'no plant moved');
+  const bb = await lbl(sk).boundingBox();
+  ok(Math.abs(bb.x + bb.width / 2 - to.x) < 6 && Math.abs(bb.y + bb.height / 2 - to.y) < 12, 'label drawn where it was dropped');
+  const hits = await pg.evaluate(k => { const r = t => t.getBoundingClientRect(), a = r(document.querySelector(`#map text[data-kind=lbl][data-lk="${k}"]`));
+    return [...document.querySelectorAll('#map text')].filter(t => t.dataset.lk !== k && t.textContent.trim()).map(r).filter(b => b.width && b.left < a.right - 1 && b.right > a.left + 1 && b.top < a.bottom - 1 && b.bottom > a.top + 1).length; }, sk);
+  eq(hits, 0, 'no other label overlaps the moved one');
+  await pg.click('#undoBtn');
+  eq((await g()).labelAt, undefined, 'undone');
+  await pg.click('#redoBtn'); gd = await g();
+  ok(gd.labelAt?.[pid], 'redone');
+  // double-click puts it back
+  await hit(sk).dblclick(); gd = await g();
+  eq(gd.labelAt, undefined, 'double-click puts it back');
+  // click and Delete hides the label, never the plant
+  const n0 = gd.plantings.length;
+  await hit(sk).click(); await pg.waitForTimeout(100);
+  eq(await pg.locator('#map rect.lblsel').count(), 1, 'the clicked label is outlined');
+  ok(await pg.isVisible('[data-act=hideLabel]'), 'Hide label offered');
+  await pg.keyboard.press('Delete'); gd = await g();
+  eq(gd.labelHide, { [pid]: true }, 'hidden');
+  eq(gd.plantings.length, n0, 'plants kept');
+  eq(await lbl(sk).count(), 0, 'label gone');
+  await pg.keyboard.press('Escape'); await pg.waitForTimeout(100);
+  ok(await pg.isVisible('[data-act=showAllLabels]'), 'Show hidden labels offered');
+  await pg.click('[data-act=showAllLabels]'); gd = await g();
+  eq(gd.labelHide, undefined, 'shown again');
+  await pg.click('#undoBtn'); await pg.waitForTimeout(150);
+  eq(await lbl(sk).count(), 0, 'undo hides it again');
+  await pg.click('#undoBtn'); await pg.waitForTimeout(150);
+  eq(await lbl(sk).count(), 1, 'and undo once more shows it');
+  // a planting's own label (a code, or its label on the plan) moves with an offset
+  const pk = (await pg.$$eval('#map text[data-kind=lbl]', ts => ts.map(t => t.dataset.lk))).find(k => k[0] === 'p');
+  if (pk) {
+    const b = await lbl(pk).boundingBox(); await drag(lbl(pk), { x: b.x + b.width / 2 + 40, y: b.y + b.height / 2 + 30 });
+    gd = await g(); const pl = gd.plantings.find(p => p.id === pk.slice(1));
+    ok(pl.kx != null || pl.lx != null, 'offset stored for the planting label, got ' + JSON.stringify(pl));
+  }
+  await drag(lbl(sk), to); await pg.keyboard.press('Escape'); await pg.waitForTimeout(100);
+  ok(await pg.isVisible('[data-act=resetAllLabels]'), 'Reset all labels offered');
+  await pg.click('[data-act=resetAllLabels]'); gd = await g();
+  eq([gd.labelAt, gd.plantings.some(p => p.kx != null || p.lx != null)], [undefined, false], 'all reset');
+  eq(app.errors, [], 'no errors');
+});
+
 run();

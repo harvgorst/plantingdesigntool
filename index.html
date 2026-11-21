@@ -765,7 +765,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="zoom"><div class="seg" role="group" aria-label="Zoom"><button type="button" id="zOut" aria-label="Zoom out" title="Zoom out (−)">−</button><button type="button" id="zFit" title="Fit whole garden (0)">Fit</button><button type="button" id="zIn" aria-label="Zoom in" title="Zoom in (+)">+</button></div><span id="zoomLbl">100%</span></div>
   </nav>
 
-  <div class="props" aria-live="polite"><div class="insp" id="inspector" hidden></div><span class="hint" id="hint"></span></div>
+  <div class="props" aria-live="polite"><div class="insp" id="inspector" hidden></div><span class="hint" id="hint"></span><span class="acts" id="lblActs" hidden></span></div>
 
   <section class="calview" id="calView" hidden aria-label="Interest calendar"></section>
 
@@ -9695,7 +9695,7 @@ const TOOLS = [
   { id: 'bed', label: 'Area', key: 'A or B', icon: 'bed' },
 ];
 const HINTS = {
-  select: 'Click to select. Drag empty space to move the page. Shift-drag draws a selection box. Ctrl+D duplicates, Ctrl+C and Ctrl+V copy and paste, arrow keys nudge. Scroll to pan; + / − to zoom.',
+  select: 'Click to select. Drag empty space to move the page. Shift-drag draws a selection box. Drag a plant label to move it; click it and press Delete to hide it. Ctrl+D duplicates, Ctrl+C and Ctrl+V copy and paste, arrow keys nudge. Scroll to pan; + / − to zoom.',
   row: 'Row: click where the row starts, then where it ends. Plants are spaced evenly along the line. Hold Shift to keep it level, upright or at 45°.',
   measure: 'Measure: click two points on the plan to read the distance between them.',
   bed: 'Area: click round the edge, then click the first point again to close it. Click an area to choose what it is (planting bed, existing woodland, building, path or water), name it, move it or reshape it. Planting goes only in beds and woodland, never on buildings, paths or water. Areas can only be changed with this tool.',
@@ -10501,13 +10501,13 @@ function findSel() {
   const list = S.sel.kind === 'area' ? S.g.areas : S.g.plantings;
   return list.find(x => x.id === S.sel.id) || null;
 }
-function select(kind, id) { S.sel = kind ? { kind, id } : null; S.multi = []; S.blockSel = null; if (S.confirm === 'underlay') S.confirm = null; renderInspector(); renderMap(); }
+function select(kind, id) { S.sel = kind ? { kind, id } : null; S.multi = []; S.blockSel = null; S.lblSel = null; if (S.confirm === 'underlay') S.confirm = null; renderInspector(); renderMap(); }
 function isSelected(kind, id) { return (S.sel?.kind === kind && S.sel.id === id) || S.multi.some(m => m.kind === kind && m.id === id); }
 function itemOf(m) { return (m.kind === 'area' ? S.g.areas : S.g.plantings).find(x => x.id === m.id) || null; }
 function selectedItems() { if (!S.g) return []; const list = S.multi.length ? S.multi : S.sel ? [S.sel] : []; return list.map(m => ({ ...m, it: itemOf(m) })).filter(m => m.it); }
 function selectMany(list) {
   if (list.length <= 1) { select(list[0]?.kind || null, list[0]?.id); return; }
-  S.sel = null; S.multi = list; S.blockSel = null; renderInspector(); renderMap();
+  S.sel = null; S.multi = list; S.blockSel = null; S.lblSel = null; renderInspector(); renderMap();
 }
 function toggleSelect(kind, id) {
   const cur = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : [];
@@ -10530,6 +10530,55 @@ function removeSel() {
   const key = S.sel.kind === 'area' ? 'areas' : 'plantings';
   S.g[key] = S.g[key].filter(x => x !== it);
   S.sel = null; saveGarden(); renderAll();
+}
+
+/* ---------- labels moved or hidden by hand ----------
+   a label's key is 's' + species id for a species' one label (around the edge, or on the plan in full), or 'p' + planting id
+   for a planting's own label (its code on the plan, or its label when labels sit on the plan) */
+function lblPlanting(key) { return key?.[0] === 'p' ? S.g?.plantings.find(x => x.id === key.slice(1)) || null : null; }
+function setLabelPos(key, x, y, d) {
+  const g = S.g; if (!g) return;
+  if (key[0] === 's') { g.labelAt = { ...(g.labelAt || {}), [key.slice(1)]: { x: r2(x), y: r2(y) } }; return; }
+  const pl = lblPlanting(key); if (!pl) return;
+  if (edgeLabels()) { pl.kx = +(x - d.ax).toFixed(3); pl.ky = +(y - d.ay).toFixed(3); }
+  else { pl.lx = r2(x - pl.x); pl.ly = r2(y - pl.y); }
+}
+function labelState(key, hide) {   // hide or show one label
+  const g = S.g; if (!g) return;
+  checkpoint();
+  if (key[0] === 's') { const h = { ...(g.labelHide || {}) }; if (hide) h[key.slice(1)] = true; else delete h[key.slice(1)]; g.labelHide = Object.keys(h).length ? h : undefined; }
+  else { const pl = lblPlanting(key); if (pl) { if (hide) pl.lhide = true; else delete pl.lhide; } }
+  if (hide) S.lblSel = null;
+  saveGarden(); renderInspector(); renderMap();
+}
+function resetLabelAt(keys) {   // put labels back where they are placed automatically
+  const g = S.g; if (!g) return;
+  checkpoint();
+  for (const key of keys) {
+    if (key[0] === 's') { if (g.labelAt) { delete g.labelAt[key.slice(1)]; if (!Object.keys(g.labelAt).length) delete g.labelAt; } }
+    else { const pl = lblPlanting(key); if (pl) for (const k of ['lx', 'ly', 'kx', 'ky']) delete pl[k]; }
+  }
+  saveGarden(); renderInspector(); renderMap();
+}
+function labelCounts() {
+  const g = S.g; if (!g) return { moved: 0, hidden: 0 };
+  return { moved: Object.keys(g.labelAt || {}).length + g.plantings.filter(x => x.lx != null || x.kx != null).length,
+    hidden: Object.keys(g.labelHide || {}).length + g.plantings.filter(x => x.lhide).length };
+}
+function renderLblActs(show) {
+  const el = $('lblActs'); if (!el) return;
+  const c = show && S.g ? labelCounts() : { moved: 0, hidden: 0 };
+  el.hidden = !(c.moved || c.hidden);
+  el.innerHTML = (c.hidden ? `<button class="btn sm" type="button" data-act="showAllLabels" title="Show every label you hid">Show hidden labels (${c.hidden})</button>` : '')
+    + (c.moved ? `<button class="btn sm" type="button" data-act="resetAllLabels" title="Put every label you moved back where it was placed automatically">Reset all labels</button>` : '');
+}
+/* the inspector's label buttons for a planting */
+function labelActs(it) {
+  const g = S.g, pid = it.plantId, on = S.lblSel && (S.lblSel.plid === it.id || S.lblSel.key === 's' + pid) ? S.lblSel : null;
+  const moved = it.lx != null || it.kx != null || !!g.labelAt?.[pid], hidden = !!it.lhide || !!g.labelHide?.[pid];
+  return (on ? '<button class="btn sm" type="button" data-act="hideLabel" title="Hide this label (Delete). The plant stays.">Hide label</button>' : '')
+    + (hidden ? '<button class="btn sm" type="button" data-act="showLabel" title="Show this plant’s hidden label again">Show label</button>' : '')
+    + (moved ? '<button class="btn sm" type="button" data-act="resetLabel" title="Put the label back where it was placed automatically">Reset label</button>' : '');
 }
 
 /* ---------- map ---------- */
@@ -10572,14 +10621,21 @@ function edgeLayout(LBL, halo, e) {
     if (!groups.has(k)) groups.set(k, { n: 0, pts: [] });
     const gp = groups.get(k); gp.n += l.n ?? 1; gp.pts.push({ ax: l.ax, ay: l.ay, n: l.n ?? 1, i, l });
   });
+  const skey = l => ({ key: l.pid != null ? 's' + l.pid : undefined, plid: l.plid, ax: l.ax, ay: l.ay });   // a species' label, to drag or hide
   const qtyTxt = (l, n) => l.o.bold || !S.prefs.labelQty || n < 2 || l.name == null ? (l.name ?? l.txt) : n + ' ' + l.name;
   const sideD = q => Math.min(q.ax, W - q.ax), endD = q => Math.min(q.ay, D - q.ay);
   /* where each species is labelled: in a side column if a patch is within REACH of a side (as on most gardens), else in a
      row along the top or bottom if one is within REACH of those, else on the plan in full beside its biggest patch */
   const all = [], rows = { T: [], B: [] }, inner = [];
-  const others = (gp, lead) => { for (const q of gp.pts) if (q !== lead) extra.push({ i: q.i, ax: q.ax, ay: q.ay, txt: q.l.name ?? q.l.txt }); };
+  const others = (gp, lead) => { for (const q of gp.pts) if (q !== lead) extra.push({ i: q.i, ax: q.ax, ay: q.ay, txt: q.l.name ?? q.l.txt, plid: q.l.plid }); };
   const onPlan = gp => { const B = gp.pts.reduce((b, q) => q.n > b.n ? q : b); inner.push({ i: B.i, l: B.l, txt: qtyTxt(B.l, gp.n) }); others(gp, B); };
+  /* a species whose label was dragged is drawn where it was put, joined to its nearest patch; a hidden one is left out (its
+     other patches keep their codes) */
+  const LA = S.g?.labelAt || {}, LH = S.g?.labelHide || {}, moved = [];
   for (const gp of groups.values()) {
+    const pid = gp.pts[0].l.pid;
+    if (pid != null && LH[pid]) { others(gp, leadPatch(gp.pts, sideD)); continue; }
+    if (pid != null && LA[pid]) { const at = LA[pid], dd = q => Math.hypot(q.ax - at.x, q.ay - at.y), lead = gp.pts.reduce((b, q) => dd(q) < dd(b) ? q : b); others(gp, lead); moved.push({ gp, lead, at, pid }); continue; }
     let lead = leadPatch(gp.pts, sideD);
     if (sideD(lead) <= REACH) {
       Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, side: lead.ax < W / 2 ? 'L' : 'R' }); others(gp, lead);
@@ -10621,7 +10677,7 @@ function edgeLayout(LBL, halo, e) {
       const l = gp.l, isN = !!l.o.bold, size = (isN ? NUM : NAME) * Math.max(0.55, k), yc = c2.y0 + j * pitch + pitch / 2;
       const txt = qtyTxt(l, gp.n);
       const x = c === 'L' ? -gx : W + gx, sx = c === 'L' ? x + size * 0.3 : x - size * 0.3, edge = c === 'L' ? 0 : W;
-      out[gp.at] = halo(f(x), f(yc + size * 0.34), f(size), txt, { ...l.o, anchor: c === 'L' ? 'end' : 'start' });
+      out[gp.at] = halo(f(x), f(yc + size * 0.34), f(size), txt, { ...l.o, anchor: c === 'L' ? 'end' : 'start', ...skey(l) });
       for (const [ax, ay] of gp.pts) {
         const dy = ay - yc, ad = Math.abs(dy), sg = Math.sign(dy);
         const xk = c === 'L' ? Math.max(edge, ax - ad) : Math.min(edge, ax + ad), run = Math.abs(ax - xk);
@@ -10656,7 +10712,7 @@ function edgeLayout(LBL, halo, e) {
       let x = c2.x0;
       for (const { gp, size, txt, w } of c2.items) {
         const cx = x + w / 2, yb = r === 'T' ? -fs * 2.4 : D + fs * 1.5; x += w;
-        out[gp.at] = halo(f(cx), f(yb), f(size), txt, { ...gp.l.o, anchor: 'middle' });
+        out[gp.at] = halo(f(cx), f(yb), f(size), txt, { ...gp.l.o, anchor: 'middle', ...skey(gp.l) });
         const sy = r === 'T' ? yb + size * 0.3 : yb - size * 0.95, { ax, ay } = gp, ad = Math.abs(ax - cx), sg = Math.sign(ax - cx);
         const yk = r === 'T' ? Math.max(0, ay - ad) : Math.min(D, ay + ad), run = Math.abs(ay - yk);
         const pts = [[cx, sy], [cx, yk], [cx + sg * run, ay], [ax, ay]].filter((q, i, A) => !i || Math.hypot(q[0] - A[i - 1][0], q[1] - A[i - 1][1]) > 1e-6);
@@ -10666,8 +10722,27 @@ function edgeLayout(LBL, halo, e) {
       }
     }
   }
-  const sans = planType().sans, dots = lines.filter(d => d.includes('a')).join('');
-  return { out, extra, inner, lines: lines.length ? `<g class="leaders" opacity="${sans ? 0.8 : 0.65}" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="${sans ? 0.7 : 0.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${sans ? `<path d="${dots}" fill="none" style="stroke:var(--panel)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}<path d="${dots}" style="fill:var(--label)"/></g>` : '' };
+  const PT = planType(), obst = [];
+  for (const { gp, lead, at, pid } of moved) {
+    const l = lead.l, isN = !!l.o.bold, size = isN ? NUM : NAME, txt = qtyTxt(l, gp.n), w = textW(plainText(txt), isN ? PT.bold : PT.name) * size, ex = e.ex || 0;
+    const x = clamp(at.x, -pad - ex + w / 2, W + pad + ex - w / 2), y = clamp(at.y, -pad + size, D + pad);   // never off the sheet
+    out[lead.i] = halo(f(x), f(y), f(size), txt, { ...l.o, anchor: 'middle', key: 's' + pid, plid: l.plid, ax: lead.ax, ay: lead.ay });
+    obst.push({ x, y, size, w: w * 1.04, h: size * 1.2 });
+    const { ax, ay } = lead, cy = y - size * 0.34, hw = w / 2 + size * 0.3, adx = Math.abs(ax - x), ady = Math.abs(ay - cy);
+    if (adx < hw && ady < size * 0.9) continue;   // sitting on its own plants: no line needed
+    const hFirst = adx - hw > ady, sx = hFirst ? x + Math.sign(ax - x) * hw : x, sy = hFirst ? cy : ay > cy ? y + size * 0.3 : y - size * 0.95;
+    lines.push(metroPath(sx, sy, ax, ay, hFirst, f));
+    lines.push(`M${f(ax)} ${f(ay)}m${f(-fs * 0.1)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(fs * 0.2)} 0a${f(fs * 0.1)} ${f(fs * 0.1)} 0 1 0 ${f(-fs * 0.2)} 0`);
+  }
+  const sans = PT.sans, dots = lines.filter(d => d.includes('a')).join('');
+  return { out, extra, inner, moved: obst, lines: lines.length ? `<g class="leaders" opacity="${sans ? 0.8 : 0.65}" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="${sans ? 0.7 : 0.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${sans ? `<path d="${dots}" fill="none" style="stroke:var(--panel)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}<path d="${dots}" style="fill:var(--label)"/></g>` : '' };
+}
+/* a leader line like a metro map: straight, then at 45°, then straight, from (sx, sy) to (ax, ay); across first or down first */
+function metroPath(sx, sy, ax, ay, hFirst, f) {
+  const dx = ax - sx, dy = ay - sy, r = Math.min(Math.abs(dx), Math.abs(dy)), gx = Math.sign(dx), gy = Math.sign(dy);
+  const pts = (hFirst ? [[sx, sy], [ax - gx * r, sy], [ax, sy + gy * r], [ax, ay]] : [[sx, sy], [sx, ay - gy * r], [sx + gx * r, ay], [ax, ay]])
+    .filter((q, i, A) => !i || Math.hypot(q[0] - A[i - 1][0], q[1] - A[i - 1][1]) > 1e-6);
+  return `M${pts.map(q => f(q[0]) + ' ' + f(q[1])).join('L')}`;
 }
 /* place labels on the plan so none overlap: each keeps its spot if it can, else the nearest free spot, with a fine
    leader line back to its plant if it moved far; returns the markup for each, in the order given */
@@ -10708,7 +10783,8 @@ function placeOnPlan(LBL, halo, ls) {
     const f = v => +v.toFixed(3);
     let s = '';
     const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, dx = cx - l.ax, dy = cy - l.ay, dist = Math.hypot(dx, dy);
-    if (!l.noLeader && (x !== l.x || y !== l.y) && Math.hypot(x - l.x, y - l.y) > d.h * 0.9 && dist > 1e-6) {   // a leader line from the plant to the label's edge
+    const far = l.forceLead ? dist > d.h * 0.9 : (x !== l.x || y !== l.y) && Math.hypot(x - l.x, y - l.y) > d.h * 0.9;
+    if (!l.noLeader && far && dist > 1e-6) {   // a leader line from the plant to the label's edge
       const ux = dx / dist, uy = dy / dist, hw = d.w / 2 + l.size * 0.15, hh = d.h / 2 + l.size * 0.1;
       const t = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
       if (dist > t) s += `<line x1="${f(l.ax)}" y1="${f(l.ay)}" x2="${f(cx - ux * t)}" y2="${f(cy - uy * t)}" style="stroke:var(--label)" stroke-opacity="0.55" stroke-width="0.8" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
@@ -10721,11 +10797,14 @@ function spreadLabels(html, LBL, halo, ls, pr, edge) {
   if (edge && LBL.length) {
     const r = edgeLayout(LBL, halo, edge);
     /* a species' other patches: its code, small, in the middle of each, kept clear of one another */
-    const cs = edge.NAME * 0.85, small = r.extra.map(x => ({ x: x.ax, y: x.ay + cs * 0.34, size: cs, txt: x.txt, o: {}, ax: x.ax, ay: x.ay, fixed: false, pri: 0 }));
+    const cs = edge.NAME * 0.85, plm = new Map((S.g?.plantings || []).map(q => [q.id, q])), codes = r.extra.filter(x => !plm.get(x.plid)?.lhide);
+    const small = codes.map(x => { const q = plm.get(x.plid), mv = q?.kx != null && q?.ky != null, o = x.plid ? { key: 'p' + x.plid, plid: x.plid, ax: x.ax, ay: x.ay } : {};
+      return { x: x.ax + (mv ? q.kx : 0), y: x.ay + (mv ? q.ky : cs * 0.34), size: cs, txt: x.txt, o, ax: x.ax, ay: x.ay, fixed: mv, forceLead: mv, pri: 0 }; });   // a code dragged by hand stays put, with a line back to its plants
+    const held = (r.moved || []).map(m => ({ ...m, raw: ' ', fixed: true, pri: 2000, ax: m.x, ay: m.y, noLeader: true }));   // labels dragged into place: the rest keep clear of them
     /* and the species labelled on the plan, in full, placed first so their codes keep clear of them */
-    const full = r.inner.map(({ l, txt }) => { const size = l.o.bold ? edge.NUM : edge.NAME; return { ...l, txt, len: undefined, size, x: l.ax, y: l.ay + size * 0.34, pri: (l.pri || 0) + 1 }; });
-    const areas = LBL.map((l, i) => ({ l, i })).filter(x => x.l.raw), idx = [...areas, ...r.inner, ...r.extra].map(x => x.i);
-    placeOnPlan([...areas.map(x => x.l), ...full, ...small], halo, ls).forEach((m, j) => { r.out[idx[j]] = m; });
+    const full = r.inner.map(({ l, txt }) => { const size = l.o.bold ? edge.NUM : edge.NAME; return { ...l, o: { ...l.o, key: l.pid != null ? 's' + l.pid : undefined, plid: l.plid, ax: l.ax, ay: l.ay }, txt, len: undefined, size, x: l.ax, y: l.ay + size * 0.34, pri: (l.pri || 0) + 1 }; });
+    const areas = LBL.map((l, i) => ({ l, i })).filter(x => x.l.raw), idx = [...areas, ...r.inner, ...codes, ...held.map(() => ({ i: -1 }))].map(x => x.i);
+    placeOnPlan([...areas.map(x => x.l), ...full, ...small, ...held], halo, ls).forEach((m, j) => { if (idx[j] >= 0) r.out[idx[j]] = m; });
     return html.replace('\u0002', r.lines).replace(/\u0001(\d+)\u0001/g, (_, n) => r.out[n] ?? '');
   }
   html = html.replace('\u0002', '');
@@ -10746,13 +10825,15 @@ function renderMap() {
   const halo = (x, y, size, txt, o = {}) => {
     const base = `x="${x}" y="${y}" font-size="${size}" text-anchor="${o.anchor || 'middle'}"`, fw = `font-weight:${o.bold ? PT.bold : PT.name}`;
     const body = PT.sans ? String(txt).replace(/^(\d+) /, `<tspan style="font-weight:${PT.num}">$1</tspan> `) : txt;
-    return `<text ${base} style="fill:var(--label);${fw}" pointer-events="${o.live ? 'auto' : 'none'}">${body}</text>`;   // plain lettering, no outline
+    /* on screen, a plant label can be grabbed and moved (o.key says which label it is: 's' + species, or 'p' + planting) */
+    const lk = o.key && !pr ? ` data-kind="lbl" data-lk="${esc(o.key)}"${o.plid ? ` data-plid="${esc(o.plid)}"` : ''}${o.ax != null ? ` data-ax="${+(+o.ax).toFixed(3)}" data-ay="${+(+o.ay).toFixed(3)}"` : ''}` : '';
+    return `<text ${base}${lk} style="fill:var(--label);${fw}" pointer-events="${o.live ? 'auto' : 'none'}">${body}</text>`;   // plain lettering, no outline
   };
   /* plant and bed labels are gathered as the plan is drawn and spread apart at the end so none overlap.
      m.ax/m.ay is what the label belongs to (a leader line runs back to it if the label had to move far);
      m.fixed keeps a label where it is (one the designer dragged); m.pri decides who keeps their spot first */
   const LBL = [];
-  const tag = (x, y, size, txt, o = {}, m = {}) => { LBL.push({ x, y, size, txt, o, ax: m.ax ?? x, ay: m.ay ?? y, fixed: !!m.fixed, pri: m.pri || 0, raw: m.raw, wk: m.wk, len: m.len, w: m.w, h: m.h, noLeader: m.noLeader, pid: m.pid, n: m.n, name: m.name }); return `\u0001${LBL.length - 1}\u0001`; };
+  const tag = (x, y, size, txt, o = {}, m = {}) => { LBL.push({ x, y, size, txt, o, ax: m.ax ?? x, ay: m.ay ?? y, fixed: !!m.fixed, pri: m.pri || 0, raw: m.raw, wk: m.wk, len: m.len, w: m.w, h: m.h, noLeader: m.noLeader, pid: m.pid, n: m.n, name: m.name, plid: m.plid }); return `\u0001${LBL.length - 1}\u0001`; };
   let px = (M / 900) / S.zoom;
   if (S.cx == null) { S.cx = W / 2; S.cy = D / 2; }
   S.cx = clamp(S.cx, -pad, W + pad); S.cy = clamp(S.cy, -pad, D + pad);
@@ -10814,7 +10895,7 @@ function renderMap() {
       const rp = mem.find(q => q.lx != null) || mem[(mem.length - 1) >> 1], n = mem.reduce((t, q) => t + Math.max(1, q.qty || 1), 0);
       for (const q of mem) blockLab.set(q.id, q === rp ? n : 0);
     }
-    for (const pl of g.plantings) { const p = plantById(pl.plantId); if (!p || (pl.qty || 1) > 1 || !isVisible(p) || pl.lx != null || blockLab.has(pl.id)) continue; if (!by.has(p.id)) by.set(p.id, []); by.get(p.id).push(pl); }
+    for (const pl of g.plantings) { const p = plantById(pl.plantId); if (!p || (pl.qty || 1) > 1 || !isVisible(p) || blockLab.has(pl.id)) continue; if (!by.has(p.id)) by.set(p.id, []); by.get(p.id).push(pl); }
     for (const [pid, list] of by) {
       if (list.length < 2) continue;
       const P0 = plantById(pid), lim = onGrid(P0) ? spacingOf(P0) * 1.2 : num(P0.spread, 0.5) * 1.05,   /* grid plants a spacing apart; shrubs and trees whose canopies touch */ up = list.map((_, i) => i), find = i => { while (up[i] !== i) i = up[i] = up[up[i]]; return i; }, H = new Map(), key = (a, b) => a + ',' + b;
@@ -10826,6 +10907,7 @@ function renderMap() {
         const mx = mem.reduce((t, q) => t + q.x, 0) / mem.length, my = mem.reduce((t, q) => t + q.y, 0) / mem.length;
         const ay = kindOf(plantById(pid)) === 'bulb' ? Math.max(...mem.map(q => q.y)) : my;   // bulb labels sit below their block, clear of the planting's
         let rep = mem[0]; for (const q of mem) if (Math.hypot(q.x - mx, q.y - ay) < Math.hypot(rep.x - mx, rep.y - ay)) rep = q;
+        rep = mem.find(q => q.lx != null) || rep;   // a block's label that was dragged stays the block's label
         for (const q of mem) blockLab.set(q.id, q === rep ? mem.length : 0);
       }
     }
@@ -10845,6 +10927,7 @@ function renderMap() {
   const pls = [...g.plantings].sort((a, b) => radiusOf(b) - radiusOf(a));
   const f3m = v => +v.toFixed(3);
   const L = { under: [], field: [], bulb: [], over: [] }, act = S.tool === 'plant' && !pr ? kindOf(plantById(S.activePlant)) : null, od = anyOudolf() ? oudolfRegions() : null;
+  const plMap = new Map(g.plantings.map(x => [x.id, x]));
   if (od) {
     for (const r of od.regions) {
       const p = plantById(r.pid); if (!isVisible(p)) continue;
@@ -10859,7 +10942,7 @@ function renderMap() {
       const sr = spacingOf(p) / 2;
       const se = S.season && !pr ? seasonOf(p, S.season) : null, f = se ? { fill: se.col || 'var(--muted)', op: se.op } : spFill(p), sel = !pr && isSelected('planting', c.id);
       L.field.push(`<g data-kind="planting" data-id="${c.id}" style="cursor:move"><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:var(--ground)"/><circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr}" style="fill:${f.fill};stroke:var(--label)" fill-opacity="${f.op}" stroke-opacity="0.8" stroke-width="1.1" vector-effect="non-scaling-stroke"/>${sel ? `<circle cx="${f3m(c.x)}" cy="${f3m(c.y)}" r="${sr + fs * 0.5}" fill="none" style="stroke:var(--accent)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>` : ''}</g>`);
-      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; L.over.push(tag(c.x, c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number' }, { ax: c.x, ay: c.y, pri: 5, pid: p.id, n: 1, name: esc(t) })); }
+      if (showL) { const t = S.prefs.labelMode === 'number' ? String(paletteNumber(p.id) || '') : plantLabel(p), size = S.prefs.labelMode === 'number' ? NUM : NAME; const cp = plMap.get(c.id); if (!(cp?.lhide && !edgeLabels())) L.over.push(tag(c.x + (cp?.lx ?? 0), cp?.lx != null ? c.y + cp.ly : c.y + sr + size * 0.95, size, esc(t), { bold: S.prefs.labelMode === 'number', key: 'p' + c.id, plid: c.id, ax: c.x, ay: c.y }, { plid: c.id, fixed: cp?.lx != null, ax: c.x, ay: c.y, pri: 5, pid: p.id, n: 1, name: esc(t) })); }
     }
   }
   for (const pl of pls) {
@@ -10906,7 +10989,7 @@ function renderMap() {
     /* the label: above or inside the plant by default, or wherever it has been dragged, with a leader line back to the plant */
     let lab = '';
     const blk = blockLab?.get(pl.id);
-    if (showL && blk !== 0) {
+    if (showL && blk !== 0 && !(pl.lhide && !edgeLabels())) {
       const isNum = S.prefs.labelMode === 'number', moved = pl.lx != null && pl.ly != null, inside = isNum || grid;
       if (blk > 1) lbl = (S.prefs.labelQty ? blk + ' ' : '') + plantLabel(p);
       /* inside the plant, a label is sized to fit it; a block's one label may spread across its neighbours */
@@ -10922,7 +11005,7 @@ function renderMap() {
         }
       }
       const handle = !pr && !edgeLabels() && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id;
-      lab += tag(bx, by, size, esc(lbl), { bold: /^\d+$/.test(lbl), live: true }, { ax: pl.x, ay: pl.y, fixed: moved || handle, pri: blk > 1 ? 50 + Math.min(40, blk) : grid ? 10 : 20 + Math.min(30, ringR), pid: p?.id, n: blk > 1 ? blk : qty, name: esc(/^\d+$/.test(lbl) ? lbl : plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '')) });   // only palette numbers are bold
+      lab += tag(bx, by, size, esc(lbl), { bold: /^\d+$/.test(lbl), live: true, key: 'p' + pl.id, plid: pl.id, ax: pl.x, ay: pl.y }, { plid: pl.id, ax: pl.x, ay: pl.y, fixed: moved || handle, pri: blk > 1 ? 50 + Math.min(40, blk) : grid ? 10 : 20 + Math.min(30, ringR), pid: p?.id, n: blk > 1 ? blk : qty, name: esc(/^\d+$/.test(lbl) ? lbl : plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '')) });   // only palette numbers are bold
       if (handle)
         lab += `<circle data-kind="lblh" data-id="${pl.id}" data-lx="${+(bx - pl.x).toFixed(3)}" data-ly="${+(by - pl.y).toFixed(3)}" cx="${bx + tw / 2 + px * 10}" cy="${cy}" r="${px * 5}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"><title>Drag to move this label</title></circle>`;
     }
@@ -11024,7 +11107,24 @@ function renderMap() {
     if (sb && !B.length && !(S.drag?.bed && S.drag.vert == null)) segs(sb.pts, true, sb.straight ? 0 : BED_K).forEach(([p1, c1, c2, p2], i) => { const mx = +((p1[0] + 3 * c1[0] + 3 * c2[0] + p2[0]) / 8).toFixed(3), my = +((p1[1] + 3 * c1[1] + 3 * c2[1] + p2[1]) / 8).toFixed(3); parts.push(`<circle data-kind="bedm" data-id="${sb.id}" data-i="${i}" data-x="${mx}" data-y="${my}" cx="${mx}" cy="${my}" r="${px * 4}" style="fill:var(--accent);stroke:var(--panel);cursor:copy" fill-opacity="0.75" stroke-width="1.5" vector-effect="non-scaling-stroke"><title>Drag to add a point here</title></circle>`); });
     if (sb && !B.length) sb.pts.forEach((q, i) => parts.push(`<circle data-kind="bedh" data-id="${sb.id}" data-i="${i}" cx="${q[0]}" cy="${q[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
   }
-  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, fs: lfs, NAME, NUM, sbEnd: showScale ? (M > 20 ? 5 : 2) + fs * 3 : 0 } : null);
+  svg.innerHTML = spreadLabels(parts.join(''), LBL, halo, ls, pr, edgeLabels() ? { W, D, pad, ex, fs: lfs, NAME, NUM, sbEnd: showScale ? (M > 20 ? 5 : 2) + fs * 3 : 0 } : null);
+  /* on screen each plant label gets a clear box over it to grab (the browser picks tiny scaled text badly), and the one
+     you clicked is outlined, so Delete clearly hides that label and nothing else */
+  if (!pr) {
+    const NS = 'http://www.w3.org/2000/svg', box = (b, q, at) => { const r = document.createElementNS(NS, 'rect'); for (const [k, v] of Object.entries({ x: b.x - q, y: b.y - q, width: b.width + q * 2, height: b.height + q * 2, rx: q, ...at })) r.setAttribute(k, v); return r; };
+    let found = false;
+    for (const t of svg.querySelectorAll('text[data-kind=lbl]')) {
+      /* measured from the text, not getBBox: the browser's boxes for tiny scaled text are far too big */
+      const size = num(t.getAttribute('font-size')), w = textW(t.textContent, num(t.style.fontWeight, 400)) * size, a = t.getAttribute('text-anchor'), x = num(t.getAttribute('x')), y = num(t.getAttribute('y'));
+      if (!(w > 0)) continue;
+      const b = { x: a === 'end' ? x - w : a === 'middle' ? x - w / 2 : x, y: y - size * 0.82, width: w, height: size * 1.06 };
+      t.dataset.cx = +(b.x + w / 2).toFixed(3);
+      const r = box(b, px * 2, { class: 'lblhit', 'data-kind': 'lbl', 'pointer-events': 'all', style: `fill:none${S.tool === 'select' ? ';cursor:grab' : ''}` });
+      Object.assign(r.dataset, t.dataset); t.after(r);
+      if (S.lblSel?.key === t.dataset.lk) { found = true; r.after(box(b, px * 3, { class: 'lblsel', style: `fill:none;stroke:var(--accent);stroke-width:${px * 1.5};pointer-events:none` })); }
+    }
+    if (S.lblSel && !found) S.lblSel = null;
+  }
   $('dims').textContent = `${(W * D).toFixed(1).replace(/\.0$/, '')} m²`;
 }
 
@@ -11236,8 +11336,9 @@ function renderInspector() {
   }
   const it = S.g ? findSel() : null;
   hint.hidden = !!it; el.hidden = !it;
+  renderLblActs(!it);
   if (!it) { el.innerHTML = ''; return; }
-  const acts = (extra = '') => `<span class="acts">${extra}${it.lx != null ? '<button class="btn sm" type="button" data-act="resetLabel" title="Put the label back on the plant">Reset label</button>' : ''}<button class="btn sm" type="button" data-act="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
+  const acts = (extra = '') => `<span class="acts">${extra}${S.sel.kind === 'planting' ? labelActs(it) : ''}<button class="btn sm" type="button" data-act="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
   if (S.sel.kind === 'planting') {
     const p = plantById(it.plantId);
     const fl = p?.crop ? (flowerMonths(p).length ? 'harvest ' + spanText(flowerMonths(p)) : 'crop') : p?.flowerFrom ? `${MONTHS[p.flowerFrom - 1]}–${MONTHS[(p.flowerTo || p.flowerFrom) - 1]}` : 'no flowers';
@@ -11964,6 +12065,11 @@ svg.addEventListener('pointerdown', e => {
       plants: vert == null ? S.g.plantings.filter(pl => onGrid(plantById(pl.plantId)) && pointInPoly(pl.x, pl.y, P0)).map(pl => ({ pl, x: pl.x, y: pl.y })) : [] };
     return;
   }
+  /* a plant label: drag it anywhere, click it to select it (Delete hides it), double-click it to put it back */
+  if (hit?.dataset.kind === 'lbl') {
+    if (S.tool === 'select' && !e.shiftKey) { startLabelDrag(hit, p); return; }
+    hit = hit.parentElement?.closest('[data-kind]');
+  }
   if (hit?.dataset.kind === 'over') hit = svg.querySelector(`[data-kind=planting][data-id="${hit.dataset.id}"]`);   // a tree's outline and label, drawn over the planting
   const tool = S.tool;
   if (hit?.dataset.kind === 'north') { S.drag = { north: true, moved: false, before: JSON.stringify(S.g) }; renderMap(); return; }
@@ -12050,6 +12156,12 @@ svg.addEventListener('pointermove', e => {
     if (!d.moved) { pushHistory(d.before); d.moved = true; }
     S.g.north = deg; renderMapSoon(); renderGardenFields(); return;
   }
+  if (d.lbl) {
+    const dx = p.x - d.start.x, dy = p.y - d.start.y;
+    if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
+    if (!d.moved) { pushHistory(d.before); d.moved = true; S.lblTap = null; }
+    setLabelPos(d.key, d.x0 + dx, d.y0 + dy, d); renderMapSoon(); return;
+  }
   if (d.label) {
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
@@ -12093,6 +12205,12 @@ function endDrag() {
   if (d.rowBend) { if (d.moved) { S.sel = null; S.multi = S.g.plantings.filter(p => p.row === d.rowBend).map(p => ({ kind: 'planting', id: p.id })); saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }   // the whole bent row stays selected, plants added included   // S.drag is cleared first, so the areas are worked out afresh
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
   if (d.north) { if (d.moved) saveGarden(); renderMap(); return; }
+  if (d.lbl) {
+    if (d.moved) saveGarden();
+    const pl = d.plid && S.g.plantings.find(x => x.id === d.plid);
+    if (pl) select('planting', pl.id); else select(null);
+    S.lblSel = { key: d.key, plid: pl ? pl.id : null }; renderInspector(); renderMap(); return;
+  }
   if (d.pending) {
     if (d.marquee && d.moved) {
       const r = normRect(d.start, d.cur), inR = (x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
@@ -12110,6 +12228,14 @@ function endDrag() {
   if (d.moved && d.items) settleMoved(d.items.map(x => x.m).filter(m => m?.kind === 'planting').map(m => m.it.id));
   if (d.moved) { saveGarden(); renderInspector(); }
   refreshDerived();
+}
+function startLabelDrag(h, p) {
+  const key = h.dataset.lk, now = Date.now(), t = [...svg.querySelectorAll('text[data-kind=lbl]')].find(x => x.dataset.lk === key) || h;
+  if (S.lblTap && S.lblTap.key === key && now - S.lblTap.t < 400) { S.lblTap = null; resetLabelAt([key]); return; }   // a double-click puts it back
+  S.lblTap = { key, t: now };
+  const x0 = num(t.dataset.cx, num(t.getAttribute('x'))), y0 = num(t.getAttribute('y'));
+  S.drag = { lbl: true, key, plid: t.dataset.plid || null, start: p, moved: false, before: JSON.stringify(S.g), x0, y0,
+    ax: num(t.dataset.ax), ay: num(t.dataset.ay) };
 }
 /* after a move, planting on the grid behaves as if painted there: it sits on its bed's grid, takes the spot from any
    plant of its own kind already there (as painting over a neighbour does); anything moved out of the beds stays where it was put */
@@ -12977,7 +13103,11 @@ app.addEventListener('click', async e => {
   if (act === 'bedNoCol') { const b = beds().find(x => x.id === S.bedSel); if (b) { checkpoint(); delete b.color; saveGarden(); renderInspector(); renderMap(); } }
   if (act === 'bedOff') setTool('select');
   if (act === 'blkCancel') setTool('select');
-  if (act === 'resetLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lx; delete it.ly; saveGarden(); renderInspector(); renderMap(); } }
+  if (act === 'resetLabel') { const it = findSel(); if (it) resetLabelAt(['p' + it.id, 's' + it.plantId]); }
+  if (act === 'hideLabel' && S.lblSel) labelState(S.lblSel.key, true);
+  if (act === 'showLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lhide; if (S.g.labelHide) { delete S.g.labelHide[it.plantId]; if (!Object.keys(S.g.labelHide).length) delete S.g.labelHide; } saveGarden(); renderInspector(); renderMap(); } }
+  if (act === 'showAllLabels' && S.g) { checkpoint(); delete S.g.labelHide; for (const x of S.g.plantings) delete x.lhide; saveGarden(); renderInspector(); renderMap(); }
+  if (act === 'resetAllLabels' && S.g) { checkpoint(); delete S.g.labelAt; for (const x of S.g.plantings) for (const k of ['lx', 'ly', 'kx', 'ky']) delete x[k]; saveGarden(); renderInspector(); renderMap(); }
   if (act === 'rowCancel') { S.row = null; S.hover = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'measClear') { S.meas = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'bkpGarden') downloadBackup('garden');
@@ -13179,6 +13309,7 @@ document.addEventListener('keydown', e => {
   if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
   if (e.key === '0') { resetView(); renderMap(); return; }
   if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setTool('select'); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && S.lblSel) { e.preventDefault(); labelState(S.lblSel.key, true); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel || S.multi.length || S.blockSel || (S.bedSel && S.tool === 'bed')) { e.preventDefault(); removeSel(); } return; }
   if (e.key === 'Enter' && S.tool === 'block') { e.preventDefault(); finishBlock(false); return; }
   if (e.key === 'Enter' && S.tool === 'bed') { e.preventDefault(); finishBed(); return; }
@@ -13200,7 +13331,8 @@ function normGarden(id, d) {
     beds: Array.isArray(d.beds) ? d.beds.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 3) : undefined,
     aerial: d.aerial && Number.isFinite(d.aerial.lat) && Number.isFinite(d.aerial.lon) ? d.aerial : undefined,
     rows: Array.isArray(d.rows) ? d.rows.filter(r => r && Array.isArray(r.a) && Array.isArray(r.b) && Array.isArray(r.c)) : undefined,
-    palette: Array.isArray(d.palette) ? d.palette.filter(x => typeof x === 'string') : undefined, oudolf: typeof d.oudolf === 'boolean' ? d.oudolf : undefined };
+    palette: Array.isArray(d.palette) ? d.palette.filter(x => typeof x === 'string') : undefined, oudolf: typeof d.oudolf === 'boolean' ? d.oudolf : undefined,
+    labelAt: d.labelAt && typeof d.labelAt === 'object' ? d.labelAt : undefined, labelHide: d.labelHide && typeof d.labelHide === 'object' ? d.labelHide : undefined };
 }
 function openGarden(id) {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -13915,7 +14047,8 @@ function cleanGarden(d) {
     if (STATUS[x.status]) pl.status = x.status;
     if (safeId(x.row)) { pl.row = x.row; pl.rowI = clamp(Math.round(numOrNull(x.rowI) ?? 0), 0, 400); }
     if (x.note) pl.note = str(x.note, 300);
-    for (const k of ['height', 'spread', 'lx', 'ly']) { const n = numOrNull(x[k]); if (n != null) pl[k] = clamp(n, -500, 500); }
+    for (const k of ['height', 'spread', 'lx', 'ly', 'kx', 'ky']) { const n = numOrNull(x[k]); if (n != null) pl[k] = clamp(n, -500, 500); }
+    if (x.lhide === true) pl.lhide = true;
     g.plantings.push(pl);
   }
   for (const a of Array.isArray(d.areas) ? d.areas : []) {
@@ -13944,6 +14077,9 @@ function cleanGarden(d) {
     const rows = d.rows.slice(0, 500).map(r => ({ id: safeId(r?.id), a: pt(r?.a), b: pt(r?.b), c: pt(r?.c), gap: clamp(numOrNull(r?.gap) ?? 0.3, 0.05, 20) })).filter(r => r.id && r.a && r.b && r.c); if (rows.length) g.rows = rows; }
   if (Array.isArray(d.palette)) g.palette = [...new Set(d.palette.map(safeId).filter(Boolean))].slice(0, 2000);
   if (typeof d.oudolf === 'boolean') g.oudolf = d.oudolf;
+  /* labels moved or hidden by hand: where each species' label sits, in plan metres, and which are hidden */
+  if (d.labelAt && typeof d.labelAt === 'object') { const o = {}; for (const [k, v] of Object.entries(d.labelAt)) if (safeId(k) && numOrNull(v?.x) != null && numOrNull(v?.y) != null) o[k] = { x: xy(v.x), y: xy(v.y) }; if (Object.keys(o).length) g.labelAt = o; }
+  if (d.labelHide && typeof d.labelHide === 'object') { const o = {}; for (const [k, v] of Object.entries(d.labelHide)) if (safeId(k) && v === true) o[k] = true; if (Object.keys(o).length) g.labelHide = o; }
   return g;
 }
 const blobToB64 = blob => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
