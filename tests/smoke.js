@@ -1308,4 +1308,39 @@ test('any plant label can be dragged, hidden and put back', async open => {
   eq(app.errors, [], 'no errors');
 });
 
+test('the plot can be cropped to a box, or trimmed to the design, and undone', async open => {
+  const seed = sample(), g0 = seed['gardens/g1'];
+  g0.plantings.push({ id: 'z', plantId: 'p1', x: 11.6, y: 8.2, qty: 1 });
+  g0.aerial = { lat: 51.38, lon: -2.36, opacity: 0.9 }; g0.north = 0;
+  const app = await open(seed), pg = app.page, g = async () => { await pg.waitForTimeout(900); return app.store('gardens/g1'); };
+  await pg.click('#ulMenuBtn'); await pg.click('#cropTool');
+  ok((await pg.textContent('#hint')).startsWith('Crop the plot'), 'the hint explains the crop');
+  const a = await app.planXY(1, 1), b = await app.planXY(11, 7);
+  await pg.mouse.move(a.x, a.y); await pg.mouse.down(); await pg.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+  ok(await pg.locator('#map path[fill-rule=evenodd]').count() >= 1, 'outside the box is shaded while dragging');
+  await pg.mouse.move(b.x, b.y, { steps: 4 }); await pg.mouse.up();
+  const said = await pg.textContent('#status');
+  let gd = await g();
+  eq([gd.width, gd.depth], [10, 6], 'the plot is the box');
+  eq(gd.plantings.find(p => p.id === 'a'), { id: 'a', plantId: 'p0', x: 3, y: 0.4, qty: 5 }, 'plants moved with the new corner');
+  ok(!gd.plantings.some(p => p.id === 'z'), 'a plant left outside is removed');
+  eq([gd.underlay.ox, gd.underlay.oy], [-1, -1], 'the site plan moves with it');
+  ok(gd.aerial.lat < 51.38 && gd.aerial.lon > -2.36, 'the aerial photo anchor moves to the new corner, got ' + JSON.stringify(gd.aerial));
+  eq(await pg.getAttribute('#map image.ul', 'x'), '-1', 'the site plan is drawn shifted');
+  ok(said.includes('10 × 6 m') && said.includes('1 item'), 'the new size is reported, got ' + said);
+  await pg.keyboard.press('Control+z'); gd = await g();
+  eq([gd.width, gd.depth, gd.plantings.length, gd.underlay.ox], [12, 8.6, 8, undefined], 'undo puts the plot back');
+  eq(app.errors, [], 'no errors');
+  await app.close?.();
+  // a big empty plot is trimmed down to the planting on it, with a margin
+  const s2 = sample(), g2 = s2['gardens/g1']; g2.width = 30; g2.depth = 20; delete g2.underlay;
+  for (const p of g2.plantings) { p.x += 6; p.y += 5; }
+  const app2 = await open(s2), p2 = app2.page;
+  await p2.click('#ulMenuBtn'); await p2.click('#cropTrim'); await p2.waitForTimeout(900);
+  gd = await app2.store('gardens/g1');
+  ok(gd.width < 14 && gd.depth < 12 && gd.plantings.every(p => p.x > 0 && p.x < gd.width && p.y > 0 && p.y < gd.depth), 'trimmed round the design, got ' + gd.width + ' × ' + gd.depth);
+  eq(gd.plantings.length, 7, 'trimming keeps every plant');
+  eq(app2.errors, [], 'no errors');
+});
+
 run();

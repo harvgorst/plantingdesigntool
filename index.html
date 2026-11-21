@@ -740,6 +740,8 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
         <button class="mi" id="ulImport" type="button">Import plan…</button>
         <input type="file" id="ulFile" accept=".svg,.pdf,image/svg+xml,application/pdf,image/png,image/jpeg,image/webp" hidden>
         <button class="mi" id="ulScale" type="button">Set scale</button>
+        <button class="mi" id="cropTool" type="button" title="Drag a box round the part of the plan to keep">Crop plot…</button>
+        <button class="mi" id="cropTrim" type="button" title="Shrink the plot to everything drawn on it, with a half-metre margin">Trim to the design</button>
         <label class="mi ulop"><span>Transparency</span><input type="range" id="ulOpacity" min="10" max="100" step="5" value="60" aria-label="Plan opacity"></label>
         <button class="mi" id="ulToggle" type="button">Hide plan</button>
         <button class="mi danger" id="ulRemove" type="button">Remove plan</button>
@@ -853,6 +855,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <label class="field"><span>Client</span><input id="g-client" type="text" data-g="client"></label>
     <div class="field"><span>Size</span><div class="row" style="flex-wrap:nowrap"><input id="g-w" aria-label="Width in metres" type="number" min="1" max="500" step="0.01" data-g="width" style="width:5.5em"> × <input id="g-d" aria-label="Depth in metres" type="number" min="1" max="500" step="0.01" data-g="depth" style="width:5.5em"> m</div></div>
     <div class="field"><span>Area</span><output id="dims">—</output></div>
+    <div class="field"><span>Crop</span><div class="row"><button class="btn sm" type="button" id="cropTool2">Crop on the plan…</button><button class="btn sm" type="button" id="cropTrim2">Trim to the design</button></div></div>
     <div class="field"><span>North</span><div class="row" style="flex-wrap:nowrap"><input type="range" id="g-north-r" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="flex:1;accent-color:var(--accent)"><input id="g-north" type="number" min="0" max="359" step="1" data-g="north" aria-label="North direction in degrees" style="width:4.8em"><span class="pv">°</span><svg id="g-north-dial" width="30" height="30" viewBox="-15 -15 30 30" aria-hidden="true"><circle r="13" fill="none" style="stroke:var(--line)"/><path id="g-north-needle" d="M0 -11 L4 5 L0 2 L-4 5 Z" style="fill:var(--ink)"/></svg></div></div>
     <p class="note" style="margin:0">0° means north is straight up. You can also drag the north arrow on the plan.</p>
     <div class="field"><span>Aerial photo</span><div class="row"><button class="btn sm" type="button" id="aerPick2">Find the garden on the map…</button></div></div>
@@ -9704,6 +9707,7 @@ const HINTS = {
   bed: 'Area: click round the edge, then click the first point again to close it. Click an area to choose what it is (planting bed, existing woodland, building, path or water), name it, move it or reshape it. Planting goes only in beds and woodland, never on buildings, paths or water. Areas can only be changed with this tool.',
   block: 'Click each corner of the building, wall or fence. Click the first corner again to close a building. Enter finishes an open fence; Esc cancels.',
   plant: 'Pick a species in the library, then click the plan to place a single plant or a group.',
+  crop: 'Crop the plot: drag a box round the part of the plan you want to keep. Everything outside it is trimmed off; Ctrl+Z puts it back. Esc cancels.',
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
@@ -10882,7 +10886,7 @@ function renderMap() {
   const parts = [];
   parts.push(`<rect x="0" y="0" width="${W}" height="${D}" style="fill:var(--ground)"/>`);
   if (aerialOn()) parts.push(aerialLayer(W, D, pad, px, pr));
-  if (showUl) parts.push(`<image class="ul" href="${esc(ulUrl(u))}" x="0" y="0" width="${u.natW * u.mPerPx}" height="${u.natH * u.mPerPx}" preserveAspectRatio="none" opacity="${num(u.opacity, 0.6)}" pointer-events="none"/>`);
+  if (showUl) parts.push(`<clipPath id="ulclip"><rect x="0" y="0" width="${W}" height="${D}"/></clipPath><image class="ul" clip-path="url(#ulclip)" href="${esc(ulUrl(u))}" x="${num(u.ox, 0)}" y="${num(u.oy, 0)}" width="${u.natW * u.mPerPx}" height="${u.natH * u.mPerPx}" preserveAspectRatio="none" opacity="${num(u.opacity, 0.6)}" pointer-events="none"/>`);
   // grid
   const step = S.prefs.gridStep === 'auto' ? (M > 30 ? 5 : 1) : num(S.prefs.gridStep, 1);
   const gop = showUl ? 0.35 : 1, maj = v => Math.abs(v / 5 - Math.round(v / 5)) < 1e-6;
@@ -11098,7 +11102,11 @@ function renderMap() {
   }).join('');
   const bedLines = beds().filter(plantable).map(b => `<path d="${bedPath(b)}" fill="none" style="stroke:${S.tool === 'bed' && !pr && S.bedSel === b.id ? 'var(--accent)' : 'var(--ink)'}" stroke-width="${S.tool === 'bed' && S.bedSel === b.id ? 2.5 : b.wood ? 1.2 : 1.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>`).join('');   // the bed edge, crisp over the planting
   parts.push(`<g${fade(act === 'bulb')}>${hardAreas}${L.under.join('')}${L.field.join('')}${bedLines}${bedNames}</g>`, `<g${fade(act === 'field')}>${L.bulb.join('')}</g>`, '\u0002', `<g${fade(act === 'bulb')}>${L.over.join('')}</g>`);
-  if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
+  if (S.drag?.pending === 'crop' && S.drag.moved && !pr) { const r = cropRect(normRect(S.drag.start, S.drag.cur)), bigR = M * 20;
+    parts.push(`<path d="M${-bigR} ${-bigR}H${bigR}V${bigR}H${-bigR}ZM${r.x} ${r.y}v${r.h}h${r.w}v${-r.h}Z" fill-rule="evenodd" style="fill:var(--ink)" fill-opacity="0.28" pointer-events="none"/>`,
+      `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="none" style="stroke:var(--accent)" stroke-width="2" stroke-dasharray="6 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`,
+      `<text x="${r.x + r.w / 2}" y="${r.y + r.h / 2}" text-anchor="middle" dominant-baseline="middle" font-size="${M / 30 / S.zoom}" style="fill:var(--accent);font-weight:600;paint-order:stroke;stroke:var(--paper, #fff);stroke-width:${M / 200 / S.zoom}" pointer-events="none">${+r.w.toFixed(2)} × ${+r.h.toFixed(2)} m</text>`); }
+  else if (S.drag?.marquee && S.drag.moved && !S.drag.pan) { const r = normRect(S.drag.start, S.drag.cur); parts.push(`<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" style="fill:var(--accent);stroke:var(--accent)" fill-opacity="0.08" stroke-width="1.5" stroke-dasharray="5 3" vector-effect="non-scaling-stroke" pointer-events="none"/>`); }
   // handles for the selected curve
   const sa = S.sel?.kind === 'area' ? findSel() : null;
   if (sa && S.tool === 'select') sa.pts.forEach((pt, i) => parts.push(`<circle data-kind="handle" data-id="${sa.id}" data-i="${i}" cx="${pt[0]}" cy="${pt[1]}" r="${px * 6}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"/>`));
@@ -11215,6 +11223,7 @@ function renderTools() {
   updateClear();
   $('ulScale').disabled = !u; $('ulRemove').disabled = !u; $('ulToggle').disabled = !u; $('ulOpacity').disabled = !u;
   $('ulScale').setAttribute('aria-pressed', S.tool === 'scale');
+  $('cropTool').setAttribute('aria-pressed', S.tool === 'crop'); $('cropTool').disabled = $('cropTrim').disabled = !S.g;
   $('ulToggle').textContent = S.ulHidden ? 'Show plan' : 'Hide plan';
   { const a = S.g?.aerial; $('aerPick').disabled = !S.g; $('aerPick').textContent = a ? 'Move on the map…' : 'Aerial photo from map…'; for (const id of ['aerOpacity', 'aerToggle', 'aerRemove']) $(id).disabled = !a; $('aerToggle').textContent = S.aerHidden ? 'Show aerial photo' : 'Hide aerial photo'; if (a && document.activeElement !== $('aerOpacity')) $('aerOpacity').value = Math.round(num(a.opacity, 0.9) * 100); }
   if (u && document.activeElement !== $('ulOpacity')) $('ulOpacity').value = Math.round(num(u.opacity, 0.6) * 100);
@@ -11889,13 +11898,62 @@ function applyScale(real) {
   const k = real / cur;
   checkpoint();
   const g = S.g;
-  if (g.underlay) { g.underlay.mPerPx *= k; g.underlay.calibrated = true; }
+  if (g.underlay) { const u = g.underlay; u.mPerPx *= k; u.calibrated = true; if (u.ox) u.ox = r2(u.ox * k); if (u.oy) u.oy = r2(u.oy * k); }
   g.width = r2(g.width * k); g.depth = r2(g.depth * k);
   for (const pl of g.plantings) { pl.x = r2(pl.x * k); pl.y = r2(pl.y * k); }
   for (const ar of g.areas) ar.pts = ar.pts.map(([x, y]) => [r2(x * k), r2(y * k)]);
   S.cal = null; S.tool = 'select'; resetView(); saveGarden();
   setStatus(`Scale set. The plan is ${g.width} × ${g.depth} m.`);
   renderAll();
+}
+
+/* crop the plot: the box becomes the whole plot. Everything is moved so its top-left corner is the new origin, the site plan
+   and aerial photo with it, and anything left wholly outside is dropped. One checkpoint, so Ctrl+Z puts it all back. */
+function cropRect(r) {
+  const W = S.g.width, D = S.g.depth, sn = v => Math.round(v * 10) / 10;
+  const x0 = clamp(sn(r.x), 0, W), y0 = clamp(sn(r.y), 0, D), x1 = clamp(sn(r.x + r.w), 0, W), y1 = clamp(sn(r.y + r.h), 0, D);
+  return { x: x0, y: y0, w: r2(x1 - x0), h: r2(y1 - y0) };
+}
+function cropPlot(box, how = 'Cropped') {
+  const g = S.g; if (!g) return false;
+  const r = cropRect(box);
+  if (r.w < 1 || r.h < 1) { setStatus('Drag a larger box: the plot needs to be at least 1 m each way.', true); renderMap(); return false; }
+  if (r.x === 0 && r.y === 0 && r.w === g.width && r.h === g.depth) { setStatus('The plot is already that size.'); renderMap(); return false; }
+  checkpoint();
+  const dx = r.x, dy = r.y, mv = ([x, y]) => [r2(x - dx), r2(y - dy)];
+  const hits = pts => { const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]); return Math.max(...xs) > 0 && Math.min(...xs) < r.w && Math.max(...ys) > 0 && Math.min(...ys) < r.h; };
+  let gone = 0;
+  const keep = (arr, ok) => { const out = arr.filter(ok); gone += arr.length - out.length; return out; };
+  for (const pl of g.plantings) { pl.x = r2(pl.x - dx); pl.y = r2(pl.y - dy); }
+  g.plantings = keep(g.plantings, pl => pl.x >= 0 && pl.x <= r.w && pl.y >= 0 && pl.y <= r.h);
+  for (const a of g.areas) a.pts = a.pts.map(mv);
+  g.areas = keep(g.areas, a => hits(a.pts));
+  if (g.beds) { for (const b of g.beds) b.pts = b.pts.map(mv); g.beds = keep(g.beds, b => hits(b.pts)); }
+  if (g.blocks) { for (const b of g.blocks) b.pts = b.pts.map(mv); g.blocks = keep(g.blocks, b => hits(b.pts)); }
+  if (g.rows) { for (const rw of g.rows) for (const k of ['a', 'b', 'c']) rw[k] = mv(rw[k]); const live = new Set(g.plantings.map(p => p.row).filter(Boolean)); g.rows = g.rows.filter(rw => live.has(rw.id)); }
+  if (g.labelAt) for (const v of Object.values(g.labelAt)) { v.x = r2(v.x - dx); v.y = r2(v.y - dy); }
+  if (g.underlay) { const u = g.underlay; u.ox = r2(num(u.ox, 0) - dx); u.oy = r2(num(u.oy, 0) - dy); if (!u.ox) delete u.ox; if (!u.oy) delete u.oy; }
+  if (g.aerial && (dx || dy)) {
+    const a = g.aerial, z = 20, m = MERC.mpp(a.lat, z), [ax, ay] = MERC.px(a.lat, a.lon, z), th = -num(g.north, 0) * Math.PI / 180;
+    const [lat, lon] = MERC.ll(ax + (dx * Math.cos(th) - dy * Math.sin(th)) / m, ay + (dx * Math.sin(th) + dy * Math.cos(th)) / m, z);
+    g.aerial = { ...a, lat: +lat.toFixed(7), lon: +lon.toFixed(7) };
+  }
+  g.width = r.w; g.depth = r.h;
+  S.sel = null; S.multi = []; S.lblSel = null; S.tool = 'select';
+  resetView(); saveGarden();
+  setStatus(`${how}. The plot is now ${r.w} × ${r.h} m${gone ? `; ${gone} item${gone === 1 ? '' : 's'} outside it ${gone === 1 ? 'was' : 'were'} removed` : ''}. Ctrl+Z undoes it.`);
+  renderAll(); return true;
+}
+/* the box round everything drawn on the plan, with a margin */
+function trimPlot(margin = 0.5) {
+  const g = S.g; if (!g) return false;
+  const xs = [], ys = [], add = (x, y, rr = 0) => { xs.push(x - rr, x + rr); ys.push(y - rr, y + rr); };
+  for (const pl of g.plantings) add(pl.x, pl.y, radiusOf(pl));
+  for (const a of [...g.areas, ...(g.beds || []), ...(g.blocks || [])]) for (const [x, y] of a.pts) add(x, y);
+  if (!xs.length) { setStatus('There is nothing on the plan to trim to yet.', true); return false; }
+  const x0 = Math.floor((Math.min(...xs) - margin) * 10) / 10, y0 = Math.floor((Math.min(...ys) - margin) * 10) / 10;
+  const x1 = Math.ceil((Math.max(...xs) + margin) * 10) / 10, y1 = Math.ceil((Math.max(...ys) + margin) * 10) / 10;
+  return cropPlot({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, 'Trimmed to the design');
 }
 
 /* ---------- map interaction ---------- */
@@ -12159,7 +12217,7 @@ svg.addEventListener('pointerdown', e => {
     return;
   }
   // empty space (or any click with a drawing tool): a click acts, a drag selects or pans, a press-and-hold pans
-  const d = { pending: tool, marquee: e.shiftKey, start: p, cur: p, sx: e.clientX, sy: e.clientY, moved: false, add: e.ctrlKey || e.metaKey };
+  const d = { pending: tool, marquee: e.shiftKey || tool === 'crop', start: p, cur: p, sx: e.clientX, sy: e.clientY, moved: false, add: e.ctrlKey || e.metaKey };
   S.drag = d;
 });
 svg.addEventListener('pointermove', e => {
@@ -12268,6 +12326,7 @@ function endDrag() {
     S.lblSel = { key: d.key, plid: pl ? pl.id : null }; renderInspector(); renderMap(); return;
   }
   if (d.pending) {
+    if (d.pending === 'crop') { if (d.moved && S.tool === 'crop') cropPlot(normRect(d.start, d.cur)); else renderMap(); return; }
     if (d.marquee && d.moved) {
       const r = normRect(d.start, d.cur), inR = (x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
       const found = [
@@ -13023,6 +13082,8 @@ function openPlantEditor(id) {
 $('ulImport').addEventListener('click', () => { closeUlMenu(); $('ulFile').click(); });
 $('ulFile').addEventListener('change', e => { const f = e.target.files?.[0]; e.target.value = ''; importPlan(f); });
 $('ulScale').addEventListener('click', () => { closeUlMenu(); setTool(S.tool === 'scale' ? 'select' : 'scale'); });
+for (const id of ['cropTool', 'cropTool2']) $(id).addEventListener('click', () => { closeUlMenu(); if (!$('detailsModal').hidden) closeDetails(); if (S.g) setTool(S.tool === 'crop' ? 'select' : 'crop'); });
+for (const id of ['cropTrim', 'cropTrim2']) $(id).addEventListener('click', () => { closeUlMenu(); if (!$('detailsModal').hidden) closeDetails(); trimPlot(); });
 $('ulToggle').addEventListener('click', () => { S.ulHidden = !S.ulHidden; renderTools(); renderMap(); });
 $('aerPick').addEventListener('click', () => { closeUlMenu(); openMapPicker(); });
 $('aerToggle').addEventListener('click', () => { S.aerHidden = !S.aerHidden; renderTools(); renderMap(); });
@@ -14123,7 +14184,7 @@ function cleanGarden(d) {
   }
   const u = d.underlay;
   if (u && typeof u === 'object' && numOrNull(u.natW) > 0 && numOrNull(u.natH) > 0)
-    g.underlay = { assetId: safeId(u.assetId), kind: str(u.kind, 20), name: str(u.name, 200), natW: +u.natW, natH: +u.natH, mPerPx: numOrNull(u.mPerPx) > 0 ? +u.mPerPx : 0.01, opacity: clamp(numOrNull(u.opacity) ?? 0.6, 0.1, 1), calibrated: !!u.calibrated };
+    g.underlay = { assetId: safeId(u.assetId), kind: str(u.kind, 20), name: str(u.name, 200), natW: +u.natW, natH: +u.natH, mPerPx: numOrNull(u.mPerPx) > 0 ? +u.mPerPx : 0.01, opacity: clamp(numOrNull(u.opacity) ?? 0.6, 0.1, 1), calibrated: !!u.calibrated, ...(numOrNull(u.ox) ? { ox: +u.ox } : {}), ...(numOrNull(u.oy) ? { oy: +u.oy } : {}) };
   const b = d.booklet;
   if (b && typeof b === 'object') g.booklet = { subtitle: str(b.subtitle, 200), designer: str(b.designer, 200), site: str(b.site, 300), date: str(b.date, 80), intro: str(b.intro, 2000), notes: str(b.notes, 4000),
     numberPlan: !!b.numberPlan, includeSupply: !!b.includeSupply, vat: clamp(numOrNull(b.vat) ?? 0, 0, 50),
