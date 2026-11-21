@@ -10346,20 +10346,32 @@ function edgeEx(fs, pad, numbered) {
   }
   return n ? Math.max(0, pad * 0.8 + n * size * 0.52 + fs * 0.6 - pad) : 0;
 }
-/* Labels in a column down each side of the plan, in the order of what they label, each joined to its plants by fine lines
-   that run straight, then at 45°, then straight, like a metro map. A species is labelled once per side, with its total,
-   and its line branches to each of its groups. */
+/* Labels in a column down each side of the plan, in the order of what they label, each joined to its plants by a fine line
+   that runs straight, then at 45°, then straight, like a metro map. A species is labelled once, with its total for the whole
+   plan, and its one line goes to its lead patch (see leadPatch); its other patches carry its code, small, on the plan. */
+const edgeDist = (ax, W) => Math.min(ax, W - ax);
+/* the patch a species' line goes to: its biggest, unless a patch at least half that size sits at most half as far from a side */
+function leadPatch(pts, W) {
+  const B = pts.reduce((b, q) => q.n > b.n || (q.n === b.n && edgeDist(q.ax, W) < edgeDist(b.ax, W)) ? q : b);
+  const C = pts.filter(q => q !== B && q.n >= B.n / 2 && edgeDist(q.ax, W) <= edgeDist(B.ax, W) * 0.5);
+  return C.length ? C.reduce((b, q) => edgeDist(q.ax, W) < edgeDist(b.ax, W) ? q : b) : B;
+}
 function edgeLayout(LBL, halo, e) {
-  const { W, D, pad, fs, NAME, NUM } = e, gx = pad * 0.8, out = [], f = v => +v.toFixed(3), groups = new Map();
+  const { W, D, pad, fs, NAME, NUM } = e, gx = pad * 0.8, out = [], extra = [], f = v => +v.toFixed(3), groups = new Map();
   LBL.forEach((l, i) => {
     if (l.raw) { out[i] = l.raw; return; }
     out[i] = '';
-    const side = l.ax < W / 2 ? 'L' : 'R', k = side + '|' + (l.pid ?? 'x' + i) + '|' + (l.name ?? l.txt);
-    if (!groups.has(k)) groups.set(k, { side, at: i, l, n: 0, pts: [] });
-    const gp = groups.get(k); gp.n += l.n ?? 1; gp.pts.push([l.ax, l.ay]);
+    const k = (l.pid ?? 'x' + i) + '|' + (l.name ?? l.txt);
+    if (!groups.has(k)) groups.set(k, { n: 0, pts: [] });
+    const gp = groups.get(k); gp.n += l.n ?? 1; gp.pts.push({ ax: l.ax, ay: l.ay, n: l.n ?? 1, i, l });
   });
   const all = [...groups.values()];
-  all.forEach(gp => { gp.ay = gp.pts.reduce((t, q) => t + q[1], 0) / gp.pts.length; gp.ax = gp.pts.reduce((t, q) => t + q[0], 0) / gp.pts.length; });
+  all.forEach(gp => {
+    const lead = leadPatch(gp.pts, W);
+    Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, side: lead.ax < W / 2 ? 'L' : 'R' });
+    for (const q of gp.pts) if (q !== lead) extra.push({ i: q.i, ax: q.ax, ay: q.ay, txt: q.l.name ?? q.l.txt });
+    gp.pts = [[lead.ax, lead.ay]];
+  });
   const pitch0 = NAME * 1.3, top = -pad * 0.6, bot = D + pad * 0.6, cap = Math.max(1, Math.floor((bot - top) / pitch0));
   const side = c => all.filter(gp => gp.side === c);
   /* keep the two columns about even: if one side is full, the labels nearest the middle cross over */
@@ -10402,12 +10414,13 @@ function edgeLayout(LBL, halo, e) {
       }
     });
   }
-  return { out, lines: lines.length ? `<g opacity="0.65" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="0.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${lines.filter(d => d.includes('a')).join('')}" style="fill:var(--label)"/></g>` : '' };
+  return { out, extra, lines: lines.length ? `<g opacity="0.65" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="0.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="${lines.filter(d => d.includes('a')).join('')}" style="fill:var(--label)"/></g>` : '' };
 }
-function spreadLabels(html, LBL, halo, ls, pr, edge) {
-  if (edge && LBL.length) { const r = edgeLayout(LBL, halo, edge); return html.replace('\u0002', r.lines).replace(/\u0001(\d+)\u0001/g, (_, n) => r.out[n] ?? ''); }
-  html = html.replace('\u0002', '');
-  if (!LBL.length) return html;
+/* place labels on the plan so none overlap: each keeps its spot if it can, else the nearest free spot, with a fine
+   leader line back to its plant if it moved far; returns the markup for each, in the order given */
+function placeOnPlan(LBL, halo, ls) {
+  const out = new Array(LBL.length);
+  if (!LBL.length) return out;
   const size = l => { const n = l.len ?? l.txt.replace(/<[^>]*>/g, '').replace(/&\w+;|&#\d+;/g, 'x').length; return { w: Math.max(1, n) * l.size * (l.wk || 0.52), h: l.size * 1.1 }; };
   const cell = Math.max(ls, 1e-6) * 2.5, H = new Map(), gap = ls * 0.06;
   const cells = (b, f) => { for (let i = Math.floor(b.x0 / cell); i <= Math.floor(b.x1 / cell); i++) for (let j = Math.floor(b.y0 / cell); j <= Math.floor(b.y1 / cell); j++) f(i + ',' + j); };
@@ -10415,7 +10428,6 @@ function spreadLabels(html, LBL, halo, ls, pr, edge) {
   const keep = b => cells(b, k => { if (!H.has(k)) H.set(k, []); H.get(k).push(b); });
   const boxAt = (l, x, y, d) => ({ x0: x - d.w / 2, x1: x + d.w / 2, y0: y - l.size * 0.82, y1: y - l.size * 0.82 + d.h });
   const order = LBL.map((l, i) => i).sort((a, b) => (LBL[b].fixed - LBL[a].fixed) || (LBL[b].pri - LBL[a].pri) || (LBL[a].y - LBL[b].y) || (LBL[a].x - LBL[b].x));
-  const out = new Array(LBL.length);
   for (const i of order) {
     const l = LBL[i], d = size(l);
     let x = l.x, y = l.y, b = boxAt(l, x, y, d);
@@ -10437,6 +10449,19 @@ function spreadLabels(html, LBL, halo, ls, pr, edge) {
     }
     out[i] = s + halo(f(x), f(y), l.size, l.txt, l.o);
   }
+  return out;
+}
+function spreadLabels(html, LBL, halo, ls, pr, edge) {
+  if (edge && LBL.length) {
+    const r = edgeLayout(LBL, halo, edge);
+    /* a species' other patches: its code, small, in the middle of each, kept clear of one another */
+    const small = r.extra.map(x => ({ x: x.ax, y: x.ay + ls * 0.7 * 0.34, size: ls * 0.7, txt: x.txt, o: {}, ax: x.ax, ay: x.ay, fixed: false, pri: 0 }));
+    placeOnPlan(small, halo, ls).forEach((m, j) => { r.out[r.extra[j].i] = m; });
+    return html.replace('\u0002', r.lines).replace(/\u0001(\d+)\u0001/g, (_, n) => r.out[n] ?? '');
+  }
+  html = html.replace('\u0002', '');
+  if (!LBL.length) return html;
+  const out = placeOnPlan(LBL, halo, ls);
   return html.replace(/\u0001(\d+)\u0001/g, (_, n) => out[n] ?? '');
 }
 function renderMapSoon() { if (rafPending) return; rafPending = true; requestAnimationFrame(() => { rafPending = false; renderMap(); }); }

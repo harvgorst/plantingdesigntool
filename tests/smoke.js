@@ -818,7 +818,7 @@ test('labels: a row is labelled once, crowded labels never overlap, and winter r
   ok(/grid-column:12\/13[^>]*>Winter</.test(html), 'December sits under Winter, got ' + html);
 });
 
-test('labels around the edge: one per species and side, in columns outside the plan, joined by metro-style lines', async open => {
+test('labels around the edge: one per species, in columns outside the plan, joined by metro-style lines', async open => {
   const seed = sample(); seed['gardens/g1'].underlay = null;
   seed['gardens/g1'].plantings.push({ id: 'z1', plantId: 'p2', x: 9, y: 7, qty: 1 }, { id: 'z2', plantId: 'p2', x: 11, y: 6, qty: 1 });
   const app = await open(seed);
@@ -829,8 +829,34 @@ test('labels around the edge: one per species and side, in columns outside the p
   const d = await app.page.$eval('#map g[opacity="0.65"] path', p => p.getAttribute('d'));
   const segs = d.split('M').filter(Boolean).flatMap(m => { const n = m.split('L').map(q => q.trim().split(' ').map(Number)); return n.slice(1).map((q, i) => [q[0] - n[i][0], q[1] - n[i][1]]); });
   ok(segs.length && segs.every(([dx, dy]) => Math.abs(dx) < 1e-3 || Math.abs(dy) < 1e-3 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 2e-3), 'leader lines only run level, upright or at 45°');
+  ok(d.split('M').filter(Boolean).length <= labs.length, `at most one line per edge label, got ${d.split('M').filter(Boolean).length} lines for ${labs.length} labels`);
   await app.page.click('#navPrefs'); await app.page.selectOption('#pf-place', 'plan'); await app.page.click('#navPlan'); await app.page.waitForTimeout(200);
   ok(await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.some(t => +t.getAttribute('x') > 0 && +t.getAttribute('x') < 12)), 'Preferences can put them back on the plan');
+});
+
+test('busy plan: one edge label and one line per species, its code small on its other patches', async open => {
+  const seed = sample(); const g = seed['gardens/g1']; g.underlay = null;
+  g.plantings = g.plantings.filter(q => q.plantId !== 'p2');
+  let k = 0; const add = (x, y, qty) => g.plantings.push({ id: 'r' + k++, plantId: 'p2', x, y, qty });
+  add(6, 5, 6);                     // the biggest patch, deep in the middle
+  add(11.2, 7, 3);                  // half its size, close to the right edge: this one gets the line
+  for (const [x, y] of [[2.5, 6.5], [4, 3], [8.5, 3], [9.5, 7.8]]) add(x, y, 1);
+  const app = await open(seed); await app.page.waitForTimeout(300);
+  if (process.env.SHOT) await app.page.locator('#map').screenshot({ path: process.env.SHOT });
+  const labs = await app.page.$$eval('#map text[pointer-events=auto]', ts => ts.map(t => ({ t: t.textContent, x: +t.getAttribute('x'), y: +t.getAttribute('y') })));
+  const ros = labs.filter(l => /Ros oli/.test(l.t));
+  eq(ros.map(l => l.t), ['13 Ros oli'], 'one edge label for the species, with its whole-plan total');
+  ok(ros[0].x > 12, 'on the side of its lead patch (the right)');
+  const lines = await app.page.$eval('#map g[opacity="0.65"] path', p => p.getAttribute('d').split('M').filter(Boolean).map(m => m.split('L').map(q => q.trim().split(' ').map(Number))));
+  ok(lines.length <= labs.length, `one line per edge label at most, got ${lines.length} for ${labs.length}`);
+  const ends = lines.map(n => n[n.length - 1]);
+  ok(ends.some(([x, y]) => Math.hypot(x - 11.2, y - 7) < 0.6), 'its line goes to the half-size patch near the edge, ends ' + JSON.stringify(ends));
+  ok(!ends.some(([x, y]) => Math.hypot(x - 6, y - 5) < 0.6), 'not to the big patch in the middle');
+  const codes = await app.page.$$eval('#map text:not([pointer-events=auto])', ts => ts.filter(t => /^Ros oli$/.test(t.textContent.trim())).map(t => { const b = t.getBBox(); return { x: b.x, y: b.y, width: b.width, height: b.height }; }));
+  eq(codes.length, 5, 'its five other patches carry its code, small');
+  ok(codes.every(b => b.x > 0 && b.x + b.width < 12), 'the codes sit on the plan, got ' + JSON.stringify(codes.map(b => [b.x, b.width])));
+  ok(codes.every((a, i) => codes.every((b, j) => i >= j || a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y)), 'no two codes overlap');
+  eq(app.errors, [], 'no page errors');
 });
 
 test('existing woodland: a bed set as woodland is drawn with a crown edge, casts canopy shade, and is listed but never counted', async open => {
