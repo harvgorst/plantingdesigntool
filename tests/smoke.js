@@ -198,6 +198,28 @@ test('area labels can be dragged too, move with their area, and reset', async op
   eq([a.lx, a.ly], [undefined, undefined], 'label reset');
 });
 
+test('names of areas drawn with the Area tool can be dragged, hidden and put back', async open => {
+  const seed = sample();
+  seed['gardens/g1'].beds = [{ id: 'bPond', kind: 'water', name: 'Pond', pts: [[8, 5], [11, 5], [11, 8], [8, 8]] }];
+  const app = await open(seed);
+  const hit = app.page.locator('#map rect.lblhit[data-lk=bbPond]').first();
+  eq(await hit.count(), 1, 'the pond name can be grabbed');
+  const h = await hit.boundingBox(), to = await app.planXY(4, 2);
+  await app.page.mouse.move(h.x + h.width / 2, h.y + h.height / 2); await app.page.mouse.down(); await app.page.mouse.move(to.x, to.y, { steps: 6 }); await app.page.mouse.up();
+  await app.page.waitForTimeout(900);
+  let b = (await app.store('gardens/g1')).beds[0];
+  ok(b.lx < -3 && b.ly < -2, 'offset stored on the area, got ' + JSON.stringify([b.lx, b.ly]));
+  eq(b.pts[0], [8, 5], 'the pond itself has not moved');
+  const [x, y] = await app.page.$eval('#map text[data-lk=bbPond]', t => [+t.getAttribute('x'), +t.getAttribute('y')]);
+  ok(Math.abs(x - 4) < 0.6 && Math.abs(y - 2) < 0.6, 'drawn where it was dropped, got ' + [x, y]);
+  await app.page.keyboard.press('Delete'); await app.page.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).beds[0].lhide, true, 'Delete hides it');
+  eq(await app.page.locator('#map text[data-lk=bbPond]').count(), 0, 'and it is gone from the plan');
+  await app.page.click('[data-act=showAllLabels]'); await app.page.click('[data-act=resetAllLabels]'); await app.page.waitForTimeout(900);
+  b = (await app.store('gardens/g1')).beds[0];
+  eq([b.lx, b.lhide], [undefined, undefined], 'shown again and put back');
+});
+
 test('season view colours the plan by month', async open => {
   const seed = sample(); Object.assign(seed['plants/p0'], { foliage: 'evergreen' });
   const app = await open(seed);

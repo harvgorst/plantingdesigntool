@@ -10534,10 +10534,12 @@ function removeSel() {
    a label's key is 's' + species id for a species' one label (around the edge, or on the plan in full), or 'p' + planting id
    for a planting's own label (its code on the plan, or its label when labels sit on the plan) */
 function lblPlanting(key) { return key?.[0] === 'p' ? S.g?.plantings.find(x => x.id === key.slice(1)) || null : null; }
-function lblArea(key) { return key?.[0] === 'a' ? S.g?.areas.find(x => x.id === key.slice(1)) || null : null; }   // an area's label, 'a' + area id
+function lblArea(key) { return key?.[0] === 'a' ? S.g?.areas.find(x => x.id === key.slice(1)) || null : null; }   // a plant drift's label, 'a' + area id
+function lblBed(key) { return key?.[0] === 'b' ? beds().find(x => x.id === key.slice(1)) || null : null; }   // the name of an area drawn with the Area tool, 'b' + its id
 function setLabelPos(key, x, y, d) {
   const g = S.g; if (!g) return;
   if (key[0] === 's') { g.labelAt = { ...(g.labelAt || {}), [key.slice(1)]: { x: r2(x), y: r2(y) } }; return; }
+  const bd = lblBed(key); if (bd) { bd.lx = r2(x - d.bx); bd.ly = r2(y - d.by); return; }   // kept relative to where it goes on its own, so it moves with the area
   const ar = lblArea(key); if (ar) { const c = centreOf(ar); ar.lx = r2(x - c.x); ar.ly = r2(y - c.y); return; }   // kept relative to the area, so it moves with it
   const pl = lblPlanting(key); if (!pl) return;
   if (edgeLabels()) { pl.kx = +(x - d.ax).toFixed(3); pl.ky = +(y - d.ay).toFixed(3); }
@@ -10547,7 +10549,7 @@ function labelState(key, hide) {   // hide or show one label
   const g = S.g; if (!g) return;
   checkpoint();
   if (key[0] === 's') { const h = { ...(g.labelHide || {}) }; if (hide) h[key.slice(1)] = true; else delete h[key.slice(1)]; g.labelHide = Object.keys(h).length ? h : undefined; }
-  else { const pl = lblPlanting(key) || lblArea(key); if (pl) { if (hide) pl.lhide = true; else delete pl.lhide; } }
+  else { const pl = lblPlanting(key) || lblArea(key) || lblBed(key); if (pl) { if (hide) pl.lhide = true; else delete pl.lhide; } }
   if (hide) S.lblSel = null;
   saveGarden(); renderInspector(); renderMap();
 }
@@ -10556,13 +10558,13 @@ function resetLabelAt(keys) {   // put labels back where they are placed automat
   checkpoint();
   for (const key of keys) {
     if (key[0] === 's') { if (g.labelAt) { delete g.labelAt[key.slice(1)]; if (!Object.keys(g.labelAt).length) delete g.labelAt; } }
-    else { const pl = lblPlanting(key) || lblArea(key); if (pl) for (const k of ['lx', 'ly', 'kx', 'ky']) delete pl[k]; }
+    else { const pl = lblPlanting(key) || lblArea(key) || lblBed(key); if (pl) for (const k of ['lx', 'ly', 'kx', 'ky']) delete pl[k]; }
   }
   saveGarden(); renderInspector(); renderMap();
 }
 function labelCounts() {
   const g = S.g; if (!g) return { moved: 0, hidden: 0 };
-  const own = [...g.plantings, ...g.areas];
+  const own = [...g.plantings, ...g.areas, ...beds()];
   return { moved: Object.keys(g.labelAt || {}).length + own.filter(x => x.lx != null || x.kx != null).length,
     hidden: Object.keys(g.labelHide || {}).length + own.filter(x => x.lhide).length };
 }
@@ -11064,24 +11066,29 @@ function renderMap() {
   /* an area's name and what it is, as one unit: measured in the plan face (capitals tracked 0.08em), placed at the widest point inside the area,
      and free to move off it (with the other labels) when a plant's name is already there */
   const capW = t => textW(t, 400) + t.length * 0.08;
-  const areaTag = (x, y, nm, s1, sub, s2, at) => {
+  const areaTag = (x, y, nm, s1, sub, s2, at, b) => {
+    /* on screen the name can be dragged (and hidden or put back) like a plant's label; it stays where it was put */
+    const mv = b && b.lx != null && b.ly != null, x1 = mv ? +(x + b.lx).toFixed(3) : x, y1 = mv ? +(y + b.ly).toFixed(3) : y;
+    const live = b && !pr ? ` data-kind="lbl" data-lk="b${esc(b.id)}" data-bx="${x}" data-by="${y}"` : '', pe = live ? 'auto' : 'none';
+    ({ x, y } = { x: x1, y: y1 });
     const w = Math.max(capW(nm) * s1, sub ? textW(sub, 400) * s2 * 1.05 : 0) * 1.04, h = s1 * 1.15 + (sub ? s2 * 1.6 : 0);
-    const raw = `<text x="${x}" y="${y}" font-size="${+s1.toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="none">${esc(nm)}</text>`
-      + (sub ? `<text x="${x}" y="${+(y + s2 * 1.5).toFixed(3)}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label);font-style:italic" pointer-events="none">${esc(sub)}</text>` : '');
-    return tag(x, y, s1, '', {}, { pri: 1000, raw, w, h, ax: at[0], ay: at[1], noLeader: true });
+    const raw = `<text x="${x}" y="${y}"${live} font-size="${+s1.toFixed(4)}" text-anchor="middle" style="fill:var(--label);letter-spacing:0.08em" pointer-events="${pe}">${esc(nm)}</text>`
+      + (sub ? `<text x="${x}" y="${+(y + s2 * 1.5).toFixed(3)}"${live} font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label);font-style:italic" pointer-events="${pe}">${esc(sub)}</text>` : '');
+    return tag(x, y, s1, '', {}, { pri: 1000, raw, w, h, ax: mv ? x : at[0], ay: mv ? y : at[1], noLeader: true, fixed: mv });
   };
-  const bedNames = showL ? beds().filter(b => areaKind(b) !== 'bed' || (b.name || '').trim()).map(b => { const P = bedPoly(b);
+  const bedNames = showL ? beds().filter(b => (areaKind(b) !== 'bed' || (b.name || '').trim()) && !b.lhide).map(b => { const P = bedPoly(b);
     if (areaKind(b) !== 'bed' && areaKind(b) !== 'guild') {   // woodland, buildings, paths and water are named in their middle, with what they are beneath
       const [cx, cy] = innerPoint(P).map(v => +v.toFixed(3)), nm = ((b.name || '').trim() || areaDefault(b)).toUpperCase(), sub = areaSub(b), s1 = ls * 0.85, s2 = ls * 0.62;
-      if (areaKind(b) === 'hedge') { const t2 = nm + '  ' + sub, y = +(cy + s2 * 0.35).toFixed(3);
-        return tag(cx, y, s2, '', {}, { pri: 1000, w: (capW(nm) + textW('  ' + sub, 400)) * s2 * 1.04, ax: cx, ay: cy, noLeader: true, raw: `<text x="${cx}" y="${y}" font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label)" pointer-events="none"><tspan style="letter-spacing:0.08em">${esc(nm)}</tspan>  <tspan style="font-style:italic">${esc(sub)}</tspan></text>` }); }
-      return areaTag(cx, cy, nm, s1, sub, s2, [cx, cy]);
+      if (areaKind(b) === 'hedge') { const y0 = +(cy + s2 * 0.35).toFixed(3), mv = b.lx != null && b.ly != null, x = mv ? +(cx + b.lx).toFixed(3) : cx, y = mv ? +(y0 + b.ly).toFixed(3) : y0;
+        const live = !pr ? ` data-kind="lbl" data-lk="b${esc(b.id)}" data-bx="${cx}" data-by="${y0}"` : '';
+        return tag(x, y, s2, '', {}, { pri: 1000, w: (capW(nm) + textW('  ' + sub, 400)) * s2 * 1.04, ax: mv ? x : cx, ay: mv ? y : cy, fixed: mv, noLeader: true, raw: `<text x="${x}" y="${y}"${live} font-size="${+s2.toFixed(4)}" text-anchor="middle" style="fill:var(--label)" pointer-events="${live ? 'auto' : 'none'}"><tspan style="letter-spacing:0.08em">${esc(nm)}</tspan>  <tspan style="font-style:italic">${esc(sub)}</tspan></text>` }); }
+      return areaTag(cx, cy, nm, s1, sub, s2, [cx, cy], b);
     }
     const top = P.reduce((m, q) => q[1] < m[1] ? q : m, P[0]), xs = P.map(q => q[0]);
     const s1 = ls * 0.85, x = +(((Math.min(...xs) + Math.max(...xs)) / 2 + top[0]) / 2).toFixed(3);
     // above the bed, unless that would run into the rulers over the drawing: then just inside its top edge
     const y = +(top[1] - ls * 0.35 - s1 * 0.8 < 0 ? top[1] + s1 * 1.15 : top[1] - ls * 0.35).toFixed(3), nm = (areaKind(b) === 'guild' ? guildName(b) : b.name.trim()).toUpperCase();
-    return areaTag(x, y, nm, s1, '', 0, [x, top[1]]); }).join('') : '';
+    return areaTag(x, y, nm, s1, '', 0, [x, top[1]], b); }).join('') : '';
   const psc = +Math.max(1, M / 30).toFixed(3), apats = new Set();
   const hardAreas = beds().filter(b => !plantable(b)).map(b => {
     const k = areaKind(b), d = bedPath(b), sel = S.tool === 'bed' && !pr && S.bedSel === b.id, pid = 'apat-' + (k === 'path' ? surfOf(b) : k);
@@ -12282,9 +12289,10 @@ function startLabelDrag(h, p) {
   const key = h.dataset.lk, now = Date.now(), t = [...svg.querySelectorAll('text[data-kind=lbl]')].find(x => x.dataset.lk === key) || h;
   if (S.lblTap && S.lblTap.key === key && now - S.lblTap.t < 400) { S.lblTap = null; resetLabelAt([key]); return; }   // a double-click puts it back
   S.lblTap = { key, t: now };
-  const x0 = num(t.dataset.cx, num(t.getAttribute('x'))), y0 = num(t.getAttribute('y'));
+  const sh = key[0] === 'b' && t.parentElement?.getAttribute('transform')?.match(/translate\(([-\d.e]+) ([-\d.e]+)\)/), tx = sh ? +sh[1] : 0, ty = sh ? +sh[2] : 0;   // an area name moved aside to clear other labels
+  const x0 = num(t.dataset.cx, num(t.getAttribute('x'))) + tx, y0 = num(t.getAttribute('y')) + ty;
   S.drag = { lbl: true, key, plid: t.dataset.plid || null, start: p, moved: false, before: JSON.stringify(S.g), x0, y0,
-    ax: num(t.dataset.ax), ay: num(t.dataset.ay) };
+    ax: num(t.dataset.ax), ay: num(t.dataset.ay), bx: num(t.dataset.bx), by: num(t.dataset.by) };
 }
 /* after a move, planting on the grid behaves as if painted there: it sits on its bed's grid, takes the spot from any
    plant of its own kind already there (as painting over a neighbour does); anything moved out of the beds stays where it was put */
@@ -13164,8 +13172,8 @@ app.addEventListener('click', async e => {
   if (act === 'resetLabel') { const it = findSel(); if (it) resetLabelAt([(S.sel?.kind === 'area' ? 'a' : 'p') + it.id, 's' + it.plantId]); }
   if (act === 'hideLabel' && S.lblSel) labelState(S.lblSel.key, true);
   if (act === 'showLabel') { const it = findSel(); if (it) { checkpoint(); delete it.lhide; if (S.g.labelHide) { delete S.g.labelHide[it.plantId]; if (!Object.keys(S.g.labelHide).length) delete S.g.labelHide; } saveGarden(); renderInspector(); renderMap(); } }
-  if (act === 'showAllLabels' && S.g) { checkpoint(); delete S.g.labelHide; for (const x of [...S.g.plantings, ...S.g.areas]) delete x.lhide; saveGarden(); renderInspector(); renderMap(); }
-  if (act === 'resetAllLabels' && S.g) { checkpoint(); delete S.g.labelAt; for (const x of [...S.g.plantings, ...S.g.areas]) for (const k of ['lx', 'ly', 'kx', 'ky']) delete x[k]; saveGarden(); renderInspector(); renderMap(); }
+  if (act === 'showAllLabels' && S.g) { checkpoint(); delete S.g.labelHide; for (const x of [...S.g.plantings, ...S.g.areas, ...beds()]) delete x.lhide; saveGarden(); renderInspector(); renderMap(); }
+  if (act === 'resetAllLabels' && S.g) { checkpoint(); delete S.g.labelAt; for (const x of [...S.g.plantings, ...S.g.areas, ...beds()]) for (const k of ['lx', 'ly', 'kx', 'ky']) delete x[k]; saveGarden(); renderInspector(); renderMap(); }
   if (act === 'rowCancel') { S.row = null; S.hover = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'measClear') { S.meas = null; renderTools(); renderInspector(); renderMap(); }
   if (act === 'bkpGarden') downloadBackup('garden');
