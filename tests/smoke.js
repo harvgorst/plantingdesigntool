@@ -1451,4 +1451,19 @@ test('labels stack: drop one label on another and both plants lead to one place;
   eq(app.errors, [], 'no errors');
 });
 
+test('a stacked label leaves no line or handle of its own behind on its plant', async open => {
+  const s = sample(), g0 = s['gardens/g1'];
+  // a second lavender, its label once dragged aside, then dropped on the first lavender's label
+  const g = { ...g0, plantings: [...g0.plantings, { ...g0.plantings[0], id: 'h', x: 9, y: 7, lx: 1.2, ly: -0.8 }], labelJoin: { ph: 'pa' } };
+  const app = await open({ ...s, 'gardens/g1': g, 'settings/prefs': { labelPlace: 'plan' } }), pg = app.page;
+  const from = () => pg.$$eval('#map line', ls => ls.filter(l => l.getAttribute('vector-effect') && Math.hypot(+l.getAttribute('x1') - 9, +l.getAttribute('y1') - 7) < 0.8).map(l => l.getAttribute('stroke-opacity')));
+  eq(await from(), ['0.55'], 'one line from the plant, to the label it joined');
+  ok((await pg.textContent('#map text[data-lk="pa"]')).includes('10 '), 'the label counts both');
+  eq(await pg.locator('#map text[data-lk="ph"]').count(), 0, 'not drawn on its own');
+  await app.clickPlan(9, 7);
+  eq(await pg.locator('#map [data-kind=lblh]').count(), 0, 'no handle for a label drawn elsewhere');
+  eq(await from(), ['0.55'], 'still one line once selected');
+  eq(app.errors, [], 'no errors');
+});
+
 run();

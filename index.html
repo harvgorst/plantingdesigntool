@@ -11148,7 +11148,9 @@ function renderMap() {
       const size = /^\d+$/.test(lbl) ? NUM : !moved && !(blk > 1) && inside ? Math.min(NAME, Math.max(ls * 0.2, ringR * 1.8 / Math.max(2, lbl.length * 0.5 * planWk()))) : NAME;   // a name inside a lone plant on the grid still shrinks to fit it
       const bx = pl.x + (moved ? pl.lx : 0), by = pl.y + (moved ? pl.ly : kind === 'bulb' && !isNum ? spacingOf(p) * 0.3 + size * 0.95 : inside ? size * 0.34 : -(planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32));
       const tw = lbl.length * size * 0.5 * planWk(), cy = by - size * 0.32;
-      if (moved) {
+      /* stacked on another label (see planJoin): drawn there, with its own line to it, so no leader or handle of its own here */
+      const jr = !edgeLabels() && joinRoot('p' + pl.id), joined = !!jr && jr !== 'p' + pl.id && plMap.has(jr.slice(1));
+      if (moved && !joined) {
         const dx = bx - pl.x, dy = cy - pl.y, dist = Math.hypot(dx, dy);
         if (dist > ringR + size * 0.9) {
           const ux = dx / dist, uy = dy / dist, hw = tw / 2 + size * 0.25, hh = size * 0.62;
@@ -11156,7 +11158,7 @@ function renderMap() {
           lab += `<line x1="${+(pl.x + ux * ringR).toFixed(3)}" y1="${+(pl.y + uy * ringR).toFixed(3)}" x2="${+(bx - ux * t).toFixed(3)}" y2="${+(cy - uy * t).toFixed(3)}" style="stroke:var(--label)" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
         }
       }
-      const handle = !pr && !edgeLabels() && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id;
+      const handle = !pr && !joined && !edgeLabels() && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id;
       lab += tag(bx, by, size, esc(lbl), { bold: /^\d+$/.test(lbl), live: true, key: 'p' + pl.id, plid: pl.id, ax: pl.x, ay: pl.y }, { plid: pl.id, ax: pl.x, ay: pl.y, fixed: moved || handle, pri: blk > 1 ? 50 + Math.min(40, blk) : grid ? 10 : 20 + Math.min(30, ringR), pid: p?.id, n: blk > 1 ? blk : qty, name: esc(/^\d+$/.test(lbl) ? lbl : plantLabel(p) + (ex && st === 'prune' ? ' · prune' : '')) });   // only palette numbers are bold
       if (handle)
         lab += `<circle data-kind="lblh" data-id="${pl.id}" data-lx="${+(bx - pl.x).toFixed(3)}" data-ly="${+(by - pl.y).toFixed(3)}" cx="${bx + tw / 2 + px * 10}" cy="${cy}" r="${px * 5}" style="fill:var(--panel);stroke:var(--accent);cursor:grab" stroke-width="2" vector-effect="non-scaling-stroke"><title>Drag to move this label</title></circle>`;
@@ -12387,7 +12389,7 @@ svg.addEventListener('pointermove', e => {
   if (d.label) {
     const dx = p.x - d.start.x, dy = p.y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
-    if (!d.moved) { pushHistory(d.before); d.moved = true; }
+    if (!d.moved) { pushHistory(d.before); d.moved = true; unjoinLabel('p' + d.pl.id); }   // a stacked label dragged by its handle comes out of the stack
     d.pl.lx = r2(d.orig.x + dx); d.pl.ly = r2(d.orig.y + dy); renderMapSoon(); return;
   }
   if (d.handle) {
