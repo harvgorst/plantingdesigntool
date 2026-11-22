@@ -1482,4 +1482,19 @@ test('leader lines from labels on the plan run like a metro map: level, upright 
   eq(app.errors, [], 'no errors');
 });
 
+test('every plant label is one font size: names, numbers, codes, drifts and names inside small plants', async open => {
+  for (const prefs of [{}, { labelPlace: 'plan' }, { labelPlace: 'plan', labelMode: 'number' }]) {
+    const s = sample(), g0 = s['gardens/g1'];
+    const g = { ...g0, areas: [{ id: 'ar1', kind: 'drift', plantId: 'p1', pts: [[2, 6], [5, 6], [5, 8], [2, 8]], density: 5 }],
+      plantings: [...g0.plantings, { ...g0.plantings[1], id: 'h', x: 9, y: 7.5, qty: 1 }, { ...g0.plantings[4], id: 'i', x: 7, y: 6, qty: 1 }] };
+    const app = await open({ ...s, 'gardens/g1': g, 'settings/prefs': prefs });
+    const sizes = await app.page.$$eval('#map text[data-kind=lbl]', ts => ts.map(t => t.textContent + '=' + (+t.getAttribute('font-size')).toFixed(4)));
+    ok(sizes.length >= 8, JSON.stringify(prefs) + ': labels drawn, got ' + sizes.length);
+    const v = sizes.map(x => +x.split('=')[1]);
+    ok(Math.max(...v) / Math.min(...v) < 1.01, JSON.stringify(prefs) + ': one size, got ' + sizes.join(' | '));
+    eq(app.errors, [], 'no errors');
+    await app.close();
+  }
+});
+
 run();

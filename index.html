@@ -10940,7 +10940,7 @@ function spreadLabels(html, LBL, halo, ls, pr, edge) {
   if (edge && LBL.length) {
     const r = edgeLayout(LBL, halo, edge);
     /* a species' other patches: its code, small, in the middle of each, kept clear of one another */
-    const cs = edge.NAME * 0.85, plm = new Map((S.g?.plantings || []).map(q => [q.id, q])), codes = r.extra.filter(x => !plm.get(x.plid)?.lhide);
+    const cs = edge.NAME, plm = new Map((S.g?.plantings || []).map(q => [q.id, q])), codes = r.extra.filter(x => !plm.get(x.plid)?.lhide);
     const small = codes.map(x => { const q = plm.get(x.plid), mv = q?.kx != null && q?.ky != null, o = x.plid ? { key: 'p' + x.plid, plid: x.plid, ax: x.ax, ay: x.ay } : {};
       return { x: x.ax + (mv ? q.kx : 0), y: x.ay + (mv ? q.ky : cs * 0.34), size: cs, txt: x.txt, o, ax: x.ax, ay: x.ay, fixed: mv, forceLead: mv, pri: 0 }; });   // a code dragged by hand stays put, with a line back to its plants
     const held = (r.moved || []).map(m => ({ ...m, raw: ' ', fixed: true, pri: 2000, ax: m.x, ay: m.y, noLeader: true }));   // labels dragged into place: the rest keep clear of them
@@ -11015,7 +11015,7 @@ function renderMap() {
   if (S.prefs.showRulers) for (let y = lab; y <= D + 1e-6; y += lab) parts.push(`<text x="${-fs * 0.6}" y="${y + fs * 0.3}" font-size="${fs * 0.9}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${y}</text>`);
   if (S.prefs.showRulers) parts.push(`<text x="${W}" y="${-fs * 0.7}" dx="${fs * 1.2}" font-size="${fs * 0.9}" style="fill:var(--muted)" pointer-events="none">m</text>`);
   const ls = lfs * num(S.prefs.labelSize, 1), showL = S.prefs.showLabels;
-  const NUM = ls * 0.62, NAME = ls * 0.68;   // every number on the plan is one size, and every name another
+  const NAME = ls * 0.68, NUM = NAME;   // every plant label on the plan, name, number or code, is one size
   if (aerialOn()) parts.push(`<text x="${W}" y="${D + fs * 1.25}" font-size="${fs * 0.5}" text-anchor="end" style="fill:var(--muted)" pointer-events="none">${esc(ESRI_ATTR)}</text>`);
   if (S.sun.on && !pr) parts.push(sunLayer(W, D, M, pad, fs, px, halo));
   {
@@ -11074,7 +11074,7 @@ function renderMap() {
     const d = pathD(a.pts, a.smooth), isSel = isSelected('area', a.id), c = centreOf(a);
     const ex = !!p?.existing && !onGrid(p), sea = S.season && !pr ? seasonOf(p, S.season) : null, col = sea ? (sea.col || 'var(--muted)') : p ? speciesStyle(p).col : 'var(--muted)';
     const dots = planted && !ex ? driftDots(a) : null, potr = potR(p);
-    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL && !(a.lhide && !edgeLabels()) ? (amv => tag(c.x + (amv ? a.lx : 0), c.y + (amv ? a.ly : ls * 0.25), ls * 0.72, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true, key: 'a' + a.id, ax: c.x, ay: c.y }, { ax: c.x, ay: c.y, fixed: amv, pri: 60, pid: p?.id, n: driftQty(a), name: esc(plantLabel(p)) }))(a.lx != null && a.ly != null) : ''}</g>`);
+    parts.push(`<g data-kind="area" data-id="${a.id}" style="cursor:move"><path d="${d}" style="fill:${col};stroke:${isSel ? 'var(--accent)' : col}" fill-opacity="${sea ? sea.op : ex ? 0.13 : planted ? 0.07 : 0.32}" stroke-width="${isSel ? 2.5 : planted ? 1 : 1.5}" ${ex || planted ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>${dots ? dots.map(([x, y]) => `<circle cx="${+x.toFixed(3)}" cy="${+y.toFixed(3)}" r="${potr}" style="fill:${col}" fill-opacity="0.75"/>`).join('') : ''}${showL && !(a.lhide && !edgeLabels()) ? (amv => tag(c.x + (amv ? a.lx : 0), c.y + (amv ? a.ly : ls * 0.25), NAME, (S.prefs.labelQty ? driftQty(a) + ' ' : '') + esc(plantLabel(p)), { bold: S.prefs.labelMode === 'number', italic: ex, live: true, key: 'a' + a.id, ax: c.x, ay: c.y }, { ax: c.x, ay: c.y, fixed: amv, pri: 60, pid: p?.id, n: driftQty(a), name: esc(plantLabel(p)) }))(a.lx != null && a.ly != null) : ''}</g>`);
   }
   /* single plants and groups, in three layers: structure under the planting (with its outline and label drawn again on top),
      then the planting, then bulbs; largest first within each. While placing bulbs the rest fades back, and the other way round */
@@ -11159,7 +11159,7 @@ function renderMap() {
       const isNum = S.prefs.labelMode === 'number', moved = pl.lx != null && pl.ly != null, inside = isNum || grid;
       if (blk > 1) lbl = (S.prefs.labelQty ? blk + ' ' : '') + plantLabel(p);
       /* inside the plant, a label is sized to fit it; a block's one label may spread across its neighbours */
-      const size = /^\d+$/.test(lbl) ? NUM : !moved && !(blk > 1) && inside ? Math.min(NAME, Math.max(ls * 0.2, ringR * 1.8 / Math.max(2, lbl.length * 0.5 * planWk()))) : NAME;   // a name inside a lone plant on the grid still shrinks to fit it
+      const size = /^\d+$/.test(lbl) ? NUM : NAME;   // one size everywhere: a name too long for its plant is moved clear rather than shrunk
       const bx = pl.x + (moved ? pl.lx : 0), by = pl.y + (moved ? pl.ly : kind === 'bulb' && !isNum ? spacingOf(p) * 0.3 + size * 0.95 : inside ? size * 0.34 : -(planted && !ex && qty === 1 ? ringR + ls * 0.25 : ls * 0.32));
       const tw = lbl.length * size * 0.5 * planWk(), cy = by - size * 0.32;
       /* stacked on another label (see planJoin): drawn there, with its own line to it, so no leader or handle of its own here */
