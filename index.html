@@ -10828,12 +10828,30 @@ function edgeLayout(LBL, halo, e) {
   return { out, extra, inner, moved: obst, wires: lines.filter(d => !d.includes('a')), lines: lines.length ? `<g class="leaders" opacity="${sans ? 0.8 : 0.65}" pointer-events="none"><path d="${lines.filter(d => !d.includes('a')).join('')}" fill="none" style="stroke:var(--label)" stroke-width="${sans ? 0.7 : 0.8}" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${sans ? `<path d="${dots}" fill="none" style="stroke:var(--panel)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}<path d="${dots}" style="fill:var(--label)"/></g>` : '' };
 }
 /* a leader line like a metro map: straight, then at 45°, then straight, from (sx, sy) to (ax, ay); across first or down first */
-function metroPath(sx, sy, ax, ay, hFirst, f) {
+function metroPts(sx, sy, ax, ay, hFirst) {
   const dx = ax - sx, dy = ay - sy, r = Math.min(Math.abs(dx), Math.abs(dy)), gx = Math.sign(dx), gy = Math.sign(dy);
-  const pts = (hFirst ? [[sx, sy], [ax - gx * r, sy], [ax, sy + gy * r], [ax, ay]] : [[sx, sy], [sx, ay - gy * r], [sx + gx * r, ay], [ax, ay]])
+  return (hFirst ? [[sx, sy], [ax - gx * r, sy], [ax, sy + gy * r], [ax, ay]] : [[sx, sy], [sx, ay - gy * r], [sx + gx * r, ay], [ax, ay]])
     .filter((q, i, A) => !i || Math.hypot(q[0] - A[i - 1][0], q[1] - A[i - 1][1]) > 1e-6);
-  return `M${pts.map(q => f(q[0]) + ' ' + f(q[1])).join('L')}`;
 }
+function metroPath(sx, sy, ax, ay, hFirst, f) {
+  return `M${metroPts(sx, sy, ax, ay, hFirst).map(q => f(q[0]) + ' ' + f(q[1])).join('L')}`;
+}
+/* a metro leader from the edge of a label's box (centre cx, cy; half-sizes hw, hh) to a plant at (ax, ay): out of the
+   box's side when the plant lies more across than up or down, else out of its top or bottom; the last leg stops trim
+   short of the plant (its ring). '' when the plant sits under the box */
+function metroLead(ax, ay, cx, cy, hw, hh, f, trim = 0) {
+  const adx = Math.abs(ax - cx), ady = Math.abs(ay - cy);
+  if (adx < hw && ady < hh) return '';
+  const hFirst = adx - hw > ady, sx = hFirst ? cx + Math.sign(ax - cx) * hw : cx, sy = hFirst ? cy : cy + Math.sign(ay - cy) * hh;
+  const pts = metroPts(sx, sy, ax, ay, hFirst);
+  if (trim > 0 && pts.length > 1) {
+    const a = pts[pts.length - 2], b = pts[pts.length - 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len > trim) pts[pts.length - 1] = [b[0] - (b[0] - a[0]) / len * trim, b[1] - (b[1] - a[1]) / len * trim];
+    else pts.pop();
+  }
+  return pts.length > 1 ? `M${pts.map(q => f(q[0]) + ' ' + f(q[1])).join('L')}` : '';
+}
+const leadPath = (d, op, w) => d ? `<path class="lead" d="${d}" fill="none" style="stroke:var(--label)" stroke-opacity="${op}" stroke-width="${w}" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>` : '';
 /* place labels on the plan so none overlap: each keeps its spot if it can, else the nearest free spot, with a fine
    leader line back to its plant if it moved far; returns the markup for each, in the order given */
 /* a label's text as it reads, without markup or entities, for measuring */
@@ -10870,9 +10888,7 @@ function placeOnPlan(LBL, halo, ls, wires = []) {
   const block = l => { const d = size(l), st = (l.stack || []).filter(m => !m.merged).map(size); return st.length ? { w: Math.max(d.w, ...st.map(q => q.w)), h: d.h + st.reduce((t, q) => t + q.h, 0) } : d; };
   const f = v => +v.toFixed(3);
   const leadTo = (ax, ay, cx, cy, hw, hh, op = 0.55) => {   // a leader line from a plant to the edge of a label's box
-    const dx = cx - ax, dy = cy - ay, dist = Math.hypot(dx, dy); if (dist < 1e-6) return '';
-    const ux = dx / dist, uy = dy / dist, t = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
-    return dist > t ? `<line x1="${f(ax)}" y1="${f(ay)}" x2="${f(cx - ux * t)}" y2="${f(cy - uy * t)}" style="stroke:var(--label)" stroke-opacity="${op}" stroke-width="0.8" vector-effect="non-scaling-stroke" pointer-events="none"/>` : '';
+    return leadPath(metroLead(ax, ay, cx, cy, hw, hh, f), op, 0.8);
   };
   for (const i of order) {
     if (LBL[i].joined) { out[i] = ''; continue; }   // drawn with the label it was dropped on
@@ -10904,9 +10920,7 @@ function placeOnPlan(LBL, halo, ls, wires = []) {
     const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2, dx = cx - l.ax, dy = cy - l.ay, dist = Math.hypot(dx, dy);
     const far = l.forceLead ? dist > d.h * 0.9 : (x !== l.x || y !== l.y) && Math.hypot(x - l.x, y - l.y) > d.h * 0.9;
     if (!l.noLeader && far && dist > 1e-6) {   // a leader line from the plant to the label's edge
-      const ux = dx / dist, uy = dy / dist, hw = d.w / 2 + l.size * 0.15, hh = d.h / 2 + l.size * 0.1;
-      const t = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
-      if (dist > t) s += `<line x1="${f(l.ax)}" y1="${f(l.ay)}" x2="${f(cx - ux * t)}" y2="${f(cy - uy * t)}" style="stroke:var(--label)" stroke-opacity="0.55" stroke-width="0.8" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
+      s += leadPath(metroLead(l.ax, l.ay, cx, cy, d.w / 2 + l.size * 0.15, d.h / 2 + l.size * 0.1, f), 0.55, 0.8);
     }
     out[i] = s + halo(f(x), f(y), l.size, l.txt, l.o);
     if (l.stack) {   // each plant joined to this label keeps a line to it: the same plant's to this line, another's to its own line below
@@ -11153,9 +11167,7 @@ function renderMap() {
       if (moved && !joined) {
         const dx = bx - pl.x, dy = cy - pl.y, dist = Math.hypot(dx, dy);
         if (dist > ringR + size * 0.9) {
-          const ux = dx / dist, uy = dy / dist, hw = tw / 2 + size * 0.25, hh = size * 0.62;
-          const t = Math.min(Math.abs(ux) > 1e-6 ? hw / Math.abs(ux) : Infinity, Math.abs(uy) > 1e-6 ? hh / Math.abs(uy) : Infinity);
-          lab += `<line x1="${+(pl.x + ux * ringR).toFixed(3)}" y1="${+(pl.y + uy * ringR).toFixed(3)}" x2="${+(bx - ux * t).toFixed(3)}" y2="${+(cy - uy * t).toFixed(3)}" style="stroke:var(--label)" stroke-opacity="0.6" stroke-width="1" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
+          lab += leadPath(metroLead(pl.x, pl.y, bx, cy, tw / 2 + size * 0.25, size * 0.62, v => +v.toFixed(3), ringR), 0.6, 1);
         }
       }
       const handle = !pr && !joined && !edgeLabels() && S.tool === 'select' && !S.multi.length && S.sel?.kind === 'planting' && S.sel.id === pl.id;

@@ -172,7 +172,7 @@ test('labels can be dragged, with a leader line, and reset', async open => {
   const pl = (await app.store('gardens/g1')).plantings.find(p => p.id === 'c');
   ok(pl.lx > 1 && pl.ly > 0.5, 'label offset stored, got ' + JSON.stringify([pl.lx, pl.ly]));
   eq([pl.x, pl.y], [8, 1.4], 'the plant itself has not moved');
-  eq(await app.page.locator('#map [data-id=c] line').count(), 1, 'leader line drawn');
+  eq(await app.page.locator('#map [data-id=c] path.lead').count(), 1, 'leader line drawn');
   await app.page.click('[data-act=resetLabel]'); await app.page.waitForTimeout(900);
   eq((await app.store('gardens/g1')).plantings.find(p => p.id === 'c').lx, undefined, 'label reset');
 });
@@ -881,7 +881,7 @@ test('labels: a row is labelled once, crowded labels never overlap, and winter r
   boxes.forEach((a, i) => boxes.slice(i + 1).forEach(b => { if (a.x0 < b.x1 - a.e && b.x0 < a.x1 - a.e && a.y0 < b.y1 - a.e && b.y0 < a.y1 - a.e) bad.push(a.t + ' / ' + b.t); }));
   if (process.env.SHOT) await app.page.locator('#map').screenshot({ path: process.env.SHOT });
   eq(bad, [], 'no two plant labels overlap');
-  ok(await app.page.locator('#map line[stroke-width="0.8"]').count() > 0, 'labels moved well away get a leader line');
+  ok(await app.page.locator('#map path.lead[stroke-width="0.8"]').count() > 0, 'labels moved well away get a leader line');
   await app.page.click('#navCal'); await app.page.waitForTimeout(200);
   const html = await app.page.evaluate(() => document.querySelector('.cal-seasons')?.innerHTML || '');
   ok(/grid-column:12\/13[^>]*>Winter</.test(html), 'December sits under Winter, got ' + html);
@@ -1433,12 +1433,12 @@ test('labels stack: drop one label on another and both plants lead to one place;
   const sp = k => gd.plantings.find(p => p.id === k.slice(1))?.plantId;
   const [p1, p2] = [ks[0], ks.find(k => sp(k) !== sp(ks[0]))];
   ok(p1 && p2, 'two plantings of different plants, got ' + JSON.stringify(ks));
-  const lines0 = await pg.locator('#map line').count();
+  const lines0 = await pg.locator('#map path.lead').count();
   await dropOn(lbl(p1), p2); gd = await g();
   eq(gd.labelJoin, { [p1]: p2 }, 'joined on the plan');
   A = await ctr(lbl(p1)); B = await ctr(lbl(p2));
   ok(A.y > B.y && Math.abs(A.x - B.x) < 3 && A.y - B.y < B.h * 2, 'stacked on the line below, got ' + JSON.stringify([A, B]));
-  ok(await pg.locator('#map line').count() > lines0, 'with a leader back to its plant');
+  ok(await pg.locator('#map path.lead').count() > lines0, 'with a leader back to its plant');
   const same = ks.find(k => k !== p2 && k !== p1 && sp(k) === sp(p2));
   if (same) {
     const t0 = await txt(p2).textContent();
@@ -1456,13 +1456,29 @@ test('a stacked label leaves no line or handle of its own behind on its plant', 
   // a second lavender, its label once dragged aside, then dropped on the first lavender's label
   const g = { ...g0, plantings: [...g0.plantings, { ...g0.plantings[0], id: 'h', x: 9, y: 7, lx: 1.2, ly: -0.8 }], labelJoin: { ph: 'pa' } };
   const app = await open({ ...s, 'gardens/g1': g, 'settings/prefs': { labelPlace: 'plan' } }), pg = app.page;
-  const from = () => pg.$$eval('#map line', ls => ls.filter(l => l.getAttribute('vector-effect') && Math.hypot(+l.getAttribute('x1') - 9, +l.getAttribute('y1') - 7) < 0.8).map(l => l.getAttribute('stroke-opacity')));
+  const from = () => pg.$$eval('#map path.lead', ls => ls.filter(l => { const P = l.getAttribute('d').match(/-?[\d.]+/g).map(Number); return Math.hypot(P[P.length - 2] - 9, P[P.length - 1] - 7) < 0.8; }).map(l => l.getAttribute('stroke-opacity')));
   eq(await from(), ['0.55'], 'one line from the plant, to the label it joined');
   ok((await pg.textContent('#map text[data-lk="pa"]')).includes('10 '), 'the label counts both');
   eq(await pg.locator('#map text[data-lk="ph"]').count(), 0, 'not drawn on its own');
   await app.clickPlan(9, 7);
   eq(await pg.locator('#map [data-kind=lblh]').count(), 0, 'no handle for a label drawn elsewhere');
   eq(await from(), ['0.55'], 'still one line once selected');
+  eq(app.errors, [], 'no errors');
+});
+
+test('leader lines from labels on the plan run like a metro map: level, upright or at 45°', async open => {
+  const s = sample(), g0 = s['gardens/g1'];
+  const g = { ...g0, plantings: g0.plantings.map(p => p.id === 'c' ? { ...p, lx: 2.6, ly: 1.7 } : p.id === 'e' ? { ...p, lx: -1.3, ly: 2.4 } : p),
+    labelJoin: { pb: 'pf' } };
+  const app = await open({ ...s, 'gardens/g1': g, 'settings/prefs': { labelPlace: 'plan' } }), pg = app.page;
+  const leads = await pg.$$eval('#map path.lead', ls => ls.map(l => l.getAttribute('d').split('L').map(q => q.replace('M', '').trim().split(' ').map(Number))));
+  ok(leads.length >= 3, 'two dragged labels and a stacked one each get a line, got ' + leads.length);
+  const bad = leads.filter(P => P.slice(1).some((q, i) => { const dx = q[0] - P[i][0], dy = q[1] - P[i][1]; return !(Math.abs(dx) < 1e-3 || Math.abs(dy) < 1e-3 || Math.abs(Math.abs(dx) - Math.abs(dy)) < 2e-3); }));
+  eq(bad, [], 'every leg level, upright or at 45°');
+  ok(leads.some(P => P.length >= 3), 'a diagonal drag bends rather than running straight');
+  const end = P => P[P.length - 1], near = (P, x, y, r) => Math.hypot(end(P)[0] - x, end(P)[1] - y) < r;
+  ok(leads.some(P => near(P, 8, 1.4, 0.8) && !near(P, 8, 1.4, 0.01)), 'the dragged rose label\'s line stops at its ring');
+  ok(leads.some(P => near(P, 6, 1.4, 0.05)), 'the stacked salvia keeps a line to the apple label');
   eq(app.errors, [], 'no errors');
 });
 
