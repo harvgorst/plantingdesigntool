@@ -87,7 +87,8 @@ input[type=number] { font-variant-numeric: tabular-nums; }
 /* properties bar */
 .props { display: flex; flex-wrap: nowrap; align-items: center; gap: 16px; height: 48px; padding: 0 14px; border-bottom: 1px solid var(--line); overflow: hidden; }
 .hint { color: var(--muted); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
-.insp { display: flex; flex-wrap: nowrap; align-items: center; gap: 18px; flex: 1; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; white-space: nowrap; }
+.insp { display: flex; flex-wrap: nowrap; align-items: center; gap: 18px; flex: 1; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; white-space: nowrap; }   /* no scrollbar: the wheel scrolls it sideways */
+.insp::-webkit-scrollbar { display: none; }
 .insp > * { flex: none; }
 .insp > .pv { flex: 0 1 auto; min-width: 60px; overflow: hidden; text-overflow: ellipsis; }
 .pk { white-space: nowrap; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; font-family: var(--f-display); font-size: 19px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
@@ -520,8 +521,6 @@ html[data-skin=drafting] .pv-sample { background: #F8F9F5; color: #1F2B26; borde
 html[data-skin=drafting] fieldset.pref legend { font-size: 16px; }
 html[data-skin=drafting] fieldset.pref, html[data-skin=drafting] .thopt { border-radius: 4px; }
 /* critique fixes: a thinner hint band, toggles that still read as buttons, quieter library rows, tidier tables */
-html[data-skin=drafting] .props { height: 34px; }
-html[data-skin=drafting] .props:has(.insp:not([hidden])) { height: 48px; }
 html[data-skin=drafting] .hint { font-size: 13px; }
 html[data-skin=drafting] .toolbar > .btn.sm[aria-pressed]::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: -1px; border: 1px solid currentColor; border-radius: 2px; }
 html[data-skin=drafting] .toolbar > .btn.sm[aria-pressed=true]::before { background: var(--ink) linear-gradient(45deg, transparent 0 40%, var(--panel) 40% 55%, transparent 55%); border-color: var(--ink); }
@@ -12504,6 +12503,8 @@ function onUp(e) { ptrs.delete(e.pointerId); if (S.pinch) { if (ptrs.size < 2) S
 svg.addEventListener('pointerup', onUp);
 svg.addEventListener('pointercancel', onUp);
 svg.addEventListener('pointerleave', () => { S.ptr = null; if (S.hover && !S.drag) { S.hover = null; renderMapSoon(); updateLive(); } });
+/* the bar above the plan keeps one height: fields that run past its edge scroll sideways with the wheel, with no scrollbar */
+$('inspector').addEventListener('wheel', e => { const el = e.currentTarget; if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; el.scrollLeft += e.deltaY; e.preventDefault(); }, { passive: false });
 svg.addEventListener('wheel', e => {
   if (!S.g) return;
   e.preventDefault();

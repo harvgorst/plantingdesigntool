@@ -1497,4 +1497,18 @@ test('every plant label is one font size: names, numbers, codes, drifts and name
   }
 });
 
+test('selecting on the plan never moves the plan', async open => {
+  const app = await open(sample(), { hash: '#/g/g1', viewport: { width: 1000, height: 900 } });
+  const pg = app.page, at = () => pg.evaluate(() => { const i = document.getElementById('inspector'); return { top: Math.round(document.getElementById('map').getBoundingClientRect().top), bar: i.offsetHeight - i.clientHeight, over: i.scrollWidth > i.clientWidth }; });
+  const a = await at(); await app.clickPlan(4, 1.4); await pg.waitForTimeout(100); const b = await at();
+  eq(b.top, a.top, 'plan stays put when a plant is selected');
+  ok(b.over, 'the fields run past the edge at this width');
+  eq(b.bar, 0, 'no scrollbar in the bar');
+  const ib = await pg.locator('#inspector').boundingBox(); await pg.mouse.move(ib.x + ib.width / 2, ib.y + ib.height / 2); await pg.mouse.wheel(0, 300); await pg.waitForTimeout(50);
+  ok(await pg.evaluate(() => document.getElementById('inspector').scrollLeft) > 0, 'the wheel scrolls the bar sideways');
+  await app.clickPlan(11.5, 8.2); eq((await at()).top, a.top, 'and when deselected');
+  eq(app.errors, [], 'no errors');
+  await app.close();
+});
+
 run();
