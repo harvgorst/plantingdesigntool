@@ -804,7 +804,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div id="dbMine" style="display:flex;flex-direction:column;gap:14px">
       <div class="row"><input type="text" id="dbSearch" placeholder="Search common or botanical name, supplier…" aria-label="Search the plant database" style="flex:1;min-width:200px;max-width:420px">
         <select id="dbLayer" aria-label="Filter by layer"></select>
-        <span class="spacer"></span><span class="note" id="dbCount"></span><button class="btn sm quiet" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm quiet" type="button" id="dbListBtn">Add a list</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div>
+        <span class="spacer"></span><span class="note" id="dbCount"></span><button class="btn sm quiet" type="button" id="dbUndo" title="Undo the last change (Ctrl+Z)" disabled>Undo</button><button class="btn sm quiet" type="button" id="dbRedo" title="Redo (Ctrl+Shift+Z or Ctrl+Y)" disabled>Redo</button><button class="btn sm quiet" type="button" id="dbCopy">Copy all for spreadsheet</button><button class="btn sm quiet" type="button" id="dbListBtn">Add a list</button><button class="btn sm primary" type="button" id="dbAdd">Add species</button></div>
       <div class="dblist" id="dbList" hidden><label class="note" for="dbListText">Paste botanical names, one per line. Each new species is filled in from <a href="https://pfaf.org" target="_blank" rel="noopener">Plants For A Future</a> (CC BY 4.0) where it’s listed, a cultivar from its parent species; names already in your database are skipped. Check each one, and choose its colour.</label>
         <textarea id="dbListText" rows="8" placeholder="Malus domestica 'Sunset'&#10;Ribes nigrum&#10;Symphytum officinale"></textarea>
         <div class="row"><button class="btn sm primary" type="button" id="dbListGo">Add these</button><button class="btn sm" type="button" id="dbListCancel">Close</button><span class="note" id="dbListMsg" aria-live="polite"></span></div></div>
@@ -10410,8 +10410,9 @@ function driftQty(a) { return Math.max(1, Math.round(areaOf(a) * num(a.density, 
 
 /* ---------- history & saving ---------- */
 function pushHistory(entry) { S.history.push(entry); if (S.history.length > 60) S.history.shift(); S.future = []; updateUndo(); }
-function clearHistory() { S.history = []; S.future = []; updateUndo(); }
-function updateUndo() { $('undoBtn').disabled = !S.history.length; $('redoBtn').disabled = !S.future.length; }
+/* a garden's own edits go when another garden opens; species and database changes (objects) stay undoable */
+function clearHistory() { S.history = S.history.filter(e => typeof e !== 'string'); S.future = S.future.filter(e => typeof e !== 'string'); updateUndo(); }
+function updateUndo() { for (const id of ['undoBtn', 'dbUndo']) { const b = $(id); if (b) b.disabled = !S.history.length; } for (const id of ['redoBtn', 'dbRedo']) { const b = $(id); if (b) b.disabled = !S.future.length; } }
 function checkpoint() { if (S.g) pushHistory(JSON.stringify(S.g)); }
 function restoreGarden(json) { S.g = JSON.parse(json); S.multi = []; if (S.sel && !findSel()) S.sel = null; if (S.bedSel && !beds().some(b => b.id === S.bedSel)) S.bedSel = null; if (S.blockSel && !(S.g.blocks || []).some(b => b.id === S.blockSel)) S.blockSel = null;   /* nothing left selected that undo took away */ saveGarden(); renderAll(); }
 /* species edits are kept in the same undo list as { plants: [{ id, before, after }] } */
@@ -10425,6 +10426,23 @@ async function applyPlantChange(entry, side) {
     } catch { failed++; }
   }
   if (entry.garden && S.g?.id === entry.garden.id) restoreGarden(entry.garden[side]);   /* a species copied for this garden only: the garden goes back too */
+  else if (entry.garden) entry.gardens = [...(entry.gardens || []).filter(c => c.id !== entry.garden.id), { id: entry.garden.id, before: JSON.parse(entry.garden.before), after: JSON.parse(entry.garden.after) }], delete entry.garden;   /* that garden isn't open any more: put it back as a stored one */
+  for (const c of entry.gardens || []) {   /* other gardens a change reached (plants taken off their plans, gardens a backup restored) */
+    const rec = c[side];
+    try {
+      unsaved.delete(c.id);
+      if (rec) {
+        const body = JSON.parse(JSON.stringify(rec)); delete body.id; body.updatedAt = Date.now();
+        if (S.online) await S.db.doc('gardens/' + c.id).set(body);
+        const g = normGarden(c.id, body); S.gardens = [...S.gardens.filter(x => x.id !== c.id), g].sort((a, b) => a.name.localeCompare(b.name));
+        if (S.g?.id === c.id) { S.g = JSON.parse(JSON.stringify(g)); S.sel = null; S.multi = []; }
+      } else {
+        if (S.online) await S.db.doc('gardens/' + c.id).delete();
+        S.gardens = S.gardens.filter(x => x.id !== c.id);
+        if (S.g?.id === c.id) { S.g = null; S.sel = null; S.multi = []; const next = S.gardens.find(x => !x.example) || S.gardens[0]; if (next) { S.g = JSON.parse(JSON.stringify(next)); store.set('gpm.last', next.id); } resetView(); }
+      }
+    } catch { failed++; }
+  }
   setStatus(failed ? 'Some species changes couldn’t be ' + (side === 'before' ? 'undone' : 'redone') : (side === 'before' ? 'Species change undone' : 'Species change redone'), !!failed);
   if (S.editPlant) { S.editPlant = null; S.confirm = null; }
   renderAll();
@@ -11680,7 +11698,7 @@ function renderPlantEditor(el) {
     </div></details>
     <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing trees and shrubs are drawn dashed at that size; existing perennials, ground cover and bulbs are painted on the grid like new ones. Existing plants are left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets the plant’s size on the plan and the starting spacing for a row.'}</p>
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new && S.g && getPage() !== 'database' && libIds().has(p.id) ? `<button class="btn" type="button" data-act="unLibrary"${usedHere().has(p.id) ? ' disabled title="It’s on the plan: take it off the plan first"' : ''}>Remove from this garden</button>` : ''}${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
-    ${S.confirm === 'plant' ? `<div class="confirm">${used ? 'This species is used in the current garden. Remove those plants from the plan first.' : `Delete ${esc(p.common)} from your library? Gardens that use it will show it as missing.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
+    ${S.confirm === 'plant' ? `<div class="confirm">${used ? (u => `${esc(p.common)} is on the plan in ${u.map(g => '“' + esc(g.name) + '”').join(', ')}. Take it off ${u.length === 1 ? 'that plan' : 'those plans'} first, or tick it in the Plant database and use Remove from gardens too.`)(gardensUsing(p.id)) : `Delete ${esc(p.common)} from the plant database? It goes from every garden’s library. You can undo this.`}<div class="row">${used ? '' : '<button class="btn danger sm" type="button" data-act="deletePlant">Delete species</button>'}<button class="btn sm" type="button" data-act="cancelConfirm">Keep it</button></div></div>` : ''}
     <p class="note" id="plantErr" style="margin:0;color:var(--crit)"></p>`;
   paintMonthSlider();
   const mo2 = $('sp-more'); if (mo2) mo2.addEventListener('toggle', () => { S.moreOpen = mo2.open; });
@@ -12184,6 +12202,9 @@ function relayRow(r) {
   pts.forEach(([x, y], i) => { const pl = mine[i]; if (pl) { pl.x = r2(x); pl.y = r2(y); pl.rowI = i; } else g.plantings.push({ id: uid(), plantId: pid, x: r2(x), y: r2(y), qty: 1, row: r.id, rowI: i }); });
   if (mine.length > pts.length) { const drop = new Set(mine.slice(pts.length).map(p => p.id)); g.plantings = g.plantings.filter(p => !drop.has(p.id)); }
 }
+/* placements stay on the plot: a point is pulled to its edge */
+const inPlot = (x, y) => !!S.g && x >= 0 && y >= 0 && x <= S.g.width && y <= S.g.depth;
+const toPlot = q => ({ x: clamp(q.x, 0, S.g.width), y: clamp(q.y, 0, S.g.depth) });
 function rowGap() { return clamp(S.rowGap || r2(spacingOf(plantById(S.activePlant))), 0.05, 20); }
 function rowEnd(a, p, straight) {
   if (!straight) return { x: snap(p.x), y: snap(p.y) };
@@ -12295,8 +12316,8 @@ function toolClick(tool, p, shift) {
   }
   if (tool === 'row') {
     if (!S.activePlant) { renderTools(); return; }
-    if (!S.row?.a) { S.row = { a: sp }; S.hover = null; S.rowMade = 0; renderTools(); renderInspector(); renderMap(); return; }
-    const b = rowEnd(S.row.a, p, shift), rid = uid();
+    if (!S.row?.a) { if (!inPlot(p.x, p.y)) { setStatus('Start the row inside the plot'); return; } S.row = { a: toPlot(sp) }; S.hover = null; S.rowMade = 0; renderTools(); renderInspector(); renderMap(); return; }
+    const b = toPlot(rowEnd(S.row.a, p, shift)), rid = uid();
     const made = rowPoints(S.row.a, b).map(([x, y], i) => ({ id: uid(), plantId: S.activePlant, x: r2(x), y: r2(y), qty: 1, row: rid, rowI: i }));
     checkpoint(); S.g.plantings.push(...made);
     S.g.rows = [...(S.g.rows || []), { id: rid, a: [S.row.a.x, S.row.a.y], b: [b.x, b.y], c: [r2((S.row.a.x + b.x) / 2), r2((S.row.a.y + b.y) / 2)], gap: rowGap() }];
@@ -12310,8 +12331,9 @@ function toolClick(tool, p, shift) {
   }
   if (tool === 'plant') {
     if (!S.activePlant) { renderTools(); return; }
+    if (!inPlot(p.x, p.y)) { setStatus('Plants go inside the plot: click within its edge'); return; }
     checkpoint();
-    const pl = { id: uid(), plantId: S.activePlant, x: sp.x, y: sp.y, qty: 1 };
+    const q = toPlot(sp), pl = { id: uid(), plantId: S.activePlant, x: q.x, y: q.y, qty: 1 };
     S.g.plantings.push(pl);
     S.sel = { kind: 'planting', id: pl.id }; S.multi = [];
     saveGarden(); renderInspector(); refreshDerived();
@@ -12401,7 +12423,8 @@ svg.addEventListener('pointermove', e => {
     const p = toM(e), r = (S.g.rows || []).find(x => x.id === d.rowBend); if (!r) return;
     if (!d.moved && Math.hypot(p.x - d.start.x, p.y - d.start.y) * pxPerM() < 3) return;
     if (!d.moved) { pushHistory(d.before); d.moved = true; }
-    const mx = snap(p.x), my = snap(p.y); r.c = [r2(2 * mx - (r.a[0] + r.b[0]) / 2), r2(2 * my - (r.a[1] + r.b[1]) / 2)];   // the curve passes through the dot
+    const mx = snap(p.x), my = snap(p.y), was = r.c; r.c = [r2(2 * mx - (r.a[0] + r.b[0]) / 2), r2(2 * my - (r.a[1] + r.b[1]) / 2)];   // the curve passes through the dot
+    if (!rowCurvePoints(r).every(([x, y]) => inPlot(x, y)) && rowCurvePoints({ ...r, c: was }).every(([x, y]) => inPlot(x, y))) { r.c = was; return; }   /* a bend that would carry the row off the plot stops at the edge */
     relayRow(r); renderMapSoon(); return;
   }
   if (d.bed) {
@@ -12462,11 +12485,12 @@ svg.addEventListener('pointermove', e => {
     a.pts[d.i] = [r2(p.x), r2(p.y)]; renderMapSoon(); return;
   }
   if (d.move) {
-    const dx = p.x - d.start.x, dy = p.y - d.start.y;
+    let dx = p.x - d.start.x, dy = p.y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) * pxPerM() < 3) return;
     if (!d.moved && d.before) pushHistory(d.before);
     d.moved = true;
     const one = d.items.length === 1;
+    ({ dx, dy } = plotShift(d, dx, dy));
     if (d.lattice) {   // an area moves a whole number of grid steps, so it stays on the grid
       const s = gridSpace(), ry = s * Math.sqrt(3) / 2, j = Math.round(dy / ry), i = Math.round((dx - j * s / 2) / s), qx = i * s + j * s / 2, qy = j * ry;
       for (const { m, orig } of d.items) if (m.kind === 'planting') { m.it.x = +(orig.x + qx).toFixed(3); m.it.y = +(orig.y + qy).toFixed(3); }
@@ -12475,12 +12499,20 @@ svg.addEventListener('pointermove', e => {
     for (const { m, orig } of d.items) {
       if (m.kind === 'area') m.it.pts = orig.map(([x, y]) => [r2(x + dx), r2(y + dy)]);
       else if (one && !e.shiftKey && gridFor(plantById(m.it.plantId)) && m.kind === 'planting' && (m.it.qty || 1) === 1) { const q = latticeSnap(orig.x + dx, orig.y + dy, latticeOf(plantById(m.it.plantId))); m.it.x = q.x; m.it.y = q.y; }
-      else if (one) { m.it.x = snap(orig.x + dx); m.it.y = snap(orig.y + dy); }
+      else if (one) { m.it.x = snap(orig.x + dx); m.it.y = snap(orig.y + dy); if (inPlot(orig.x, orig.y)) Object.assign(m.it, toPlot(m.it)); }
       else { m.it.x = r2(orig.x + dx); m.it.y = r2(orig.y + dy); }
     }
     renderMapSoon();
   }
 });
+/* how far a selection may move: never further off the plot than it started */
+function plotShift(d, dx, dy) {
+  if (!S.g) return { dx, dy };
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const { m, orig } of d.items) for (const [x, y] of m.kind === 'area' ? orig : [[orig.x, orig.y]]) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  if (!(x1 >= x0)) return { dx, dy };
+  return { dx: clamp(dx, Math.min(0, -x0), Math.max(0, S.g.width - x1)), dy: clamp(dy, Math.min(0, -y0), Math.max(0, S.g.depth - y1)) };
+}
 function endDrag() {
   const d = S.drag; if (!d) return;
   S.drag = null;
@@ -13490,7 +13522,7 @@ app.addEventListener('click', async e => {
   }
 });
 $('vPlanted').addEventListener('click', () => { S.view = S.view === 'planted' ? 'mature' : 'planted'; renderAll(); });   // mature spread is the usual view; As planted switches to pot size and back
-$('undoBtn').addEventListener('click', undo);
+$('undoBtn').addEventListener('click', undo); $('dbUndo').addEventListener('click', undo); $('dbRedo').addEventListener('click', redo);
 $('redoBtn').addEventListener('click', redo);
 $('zIn').addEventListener('click', () => zoomBy(1.4));
 $('zOut').addEventListener('click', () => zoomBy(1 / 1.4));
@@ -13745,17 +13777,18 @@ $('dbListCancel').addEventListener('click', () => { $('dbList').hidden = true; }
 $('dbListGo').addEventListener('click', async () => {
   const names = [...new Set($('dbListText').value.split(/\r?\n/).map(v => v.replace(/^[\s•*\-–\d.)]+/, '').replace(/\s+/g, ' ').trim()).filter(Boolean))].slice(0, 500);
   if (!names.length) { $('dbListMsg').textContent = 'Paste some botanical names first.'; return; }
-  const b = $('dbListGo'), have = new Set(S.plants.map(p => (p.botanical || '').trim().toLowerCase())), changes = [], missed = [];
+  const b = $('dbListGo'), have = new Set(S.plants.filter(p => !p.existing).map(p => avName(p.botanical, p.cultivar))), changes = [], missed = [];   /* botanical and cultivar together; plants on one site don't count */
   let added = 0, filled = 0, skipped = 0, failed = 0;
   b.disabled = true;
   for (const nm of names) {
-    if (have.has(nm.toLowerCase())) { skipped++; continue; }
+    const sp = splitCv(nm), key = avName(sp.b, sp.cv);
+    if (have.has(key)) { skipped++; continue; }
     $('dbListMsg').textContent = `Adding ${added + 1} of ${names.length - skipped}…`;
-    const base = { _new: true, common: '', botanical: nm, role: 'herbaceous', spread: 0.5, potSpread: 0.2, height: 0.5, light: ['sun'], moisture: ['moist'], cost: null }, r = pfafFind(nm);
+    const base = { _new: true, common: '', botanical: sp.b, ...(sp.cv ? { cultivar: sp.cv } : {}), role: 'herbaceous', spread: 0.5, potSpread: 0.2, height: 0.5, light: ['sun'], moisture: ['moist'], cost: null }, r = pfafFind(nm);
     if (r) { pfafFill(base, r); filled++; } else missed.push(nm);
     delete base._new; if (!base.common) base.common = nm;
     const id = uid();
-    try { if (S.online) await S.db.doc('plants/' + id).set(base); upsertPlant({ id, ...base }); changes.push({ id, before: null, after: { id, ...base } }); have.add(nm.toLowerCase()); added++; }
+    try { if (S.online) await S.db.doc('plants/' + id).set(base); upsertPlant({ id, ...base }); changes.push({ id, before: null, after: { id, ...base } }); have.add(key); added++; }
     catch { failed++; }
   }
   if (changes.length) pushHistory({ plants: changes });
@@ -13785,7 +13818,7 @@ function splitCv(b, cv) {
   if (m && (!cv || normName(m[2]) === normName(cv))) return { b: (m[1] + ' ' + m[3]).trim(), cv: cv || m[2].trim() };
   return { b, cv };
 }
-const avName = (b, cv) => { const n = normName(b), c = normName(cv); return c && !n.includes(c) ? n + ' ' + c : n; };
+const avName = (b, cv) => { const n = normName(b), c = normName(cv); return c && !(' ' + n + ' ').includes(' ' + c + ' ') ? n + ' ' + c : n; };   /* whole words: cultivar 'Rose' isn't already in Rosa 'Roseum' */
 const avKey = it => avName(it.b, it.cv) + '|' + normName(it.sz);
 let mineIndex = null, mineIndexOf = null;
 function myPlantFor(it, supplier) {
@@ -13830,11 +13863,18 @@ async function parseSheetFile(file) {
   if (/\.(xlsx|xls|ods)$/i.test(file.name)) {
     if (!window.XLSX) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js').catch(() => { throw new Error('The spreadsheet reader could not load. Save the list as CSV and import that instead.'); });
     const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
-    let best = null;
-    for (const n of wb.SheetNames) { const r = window.XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' }); if (!best || r.length > best.length) best = r; }
-    return best || [];
+    /* every sheet is kept, so one that isn't the longest can be chosen; the longest is used first */
+    const sheets = wb.SheetNames.map(name => ({ name, rows: window.XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' }) }));
+    let pick = 0; sheets.forEach((x, i) => { if (x.rows.length > sheets[pick].rows.length) pick = i; });
+    const out = sheets[pick]?.rows || []; out.sheets = sheets; out.sheet = pick; return out;
   }
   return parseDelimited(await file.text());
+}
+/* takes a sheet's rows for the import, finding its heading row and columns; false when it has none */
+function useRows(I, rows) {
+  const r = rows.map(x => x.map(c => String(c ?? ''))).filter(x => x.some(c => c.trim()));
+  if (!r.length) return false;
+  I.rows = r; I.header = guessHeader(r); I.map = guessMap(I.header >= 0 ? r[I.header] : r[0].map(() => ''), r.slice(I.header + 1)); return true;
 }
 function guessHeader(rows) {
   let best = 0, bestScore = -1;
@@ -13879,7 +13919,7 @@ function guessMap(head, data = []) {
   return map;
 }
 /* a flowering group as written in a list: "3", "3 to 4", "C", or taken out of "Flowering group 3, self fertile"; anything else ("Self fertile") is not one */
-const fgOf = v => { v = String(v || '').trim(); const g = '[0-9A-H](?:\\s*(?:to|-|–|/)\\s*[0-9A-H])?'; return (v.match(new RegExp('\\bgr(?:ou)?p\\.?\\s*(' + g + ')\\b', 'i')) || v.match(new RegExp('^(' + g + ')$', 'i')) || [])[1] || ''; };
+const fgOf = v => { v = String(v || '').trim(); const g = '[0-9A-H](?:\\s*(?:to|-|–|/)\\s*[0-9A-H])?'; return (v.match(new RegExp('\\b(?:flowering\\s+)?gr(?:ou)?p[.:#]?\\s*(' + g + ')\\b', 'i')) || v.match(new RegExp('^(' + g + ')$', 'i')) || [])[1] || ''; };
 /* the first number in a cell: "£3.50 (3 for £9)" is 3.5, "1,250" is 1250, "3,50" is 3.5 */
 const toNum = v => { const t = String(v ?? '').replace(/(\d),(\d{3})(?!\d)/g, '$1$2').replace(/(\d),(\d)/g, '$1.$2').match(/-?\d+(?:\.\d+)?|-?\.\d+/); const n = t ? parseFloat(t[0]) : NaN; return Number.isFinite(n) ? n : null; };
 /* a height or spread in metres: "60 cm" is 0.6, "30–60cm" takes the mature 0.6, "1.5m" 1.5, "3 ft" 0.91; a bare number takes the heading's unit,
@@ -13922,6 +13962,7 @@ function renderImport() {
       <textarea id="imp-paste" rows="6" style="width:100%;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--panel)" placeholder="Paste the list here, including the heading row"></textarea>
       <div class="row"><button class="btn primary" type="button" data-imp="parse">Next: check columns</button><span class="note" style="color:var(--crit)">${esc(I.err)}</span></div>`
     : `<p class="note" style="margin:0">Match the list’s columns to what they mean. Leave anything the list doesn’t have as “Not in list”.</p>
+      ${I.sheets?.length > 1 ? `<div class="row"><label class="pf"><span>Sheet</span><select id="imp-sheet">${I.sheets.map((x, i) => `<option value="${i}"${i === I.sheet ? ' selected' : ''}>${esc(String(x.name).slice(0, 40))} (${plural(x.rows.filter(r => r.some(c => String(c ?? '').trim())).length, 'row')})</option>`).join('')}</select></label><span class="note">This file has ${I.sheets.length} sheets.</span></div>` : ''}
       <div class="row"><label class="checks"><input type="checkbox" id="imp-hashead"${I.header >= 0 ? ' checked' : ''}> The list has a heading row</label>${I.header >= 0 ? `<label class="pf"><span>Heading row</span><input id="imp-hrow" class="n" type="number" min="1" max="${I.rows.length}" value="${I.header + 1}"></label>` : ''}</div>
       <div class="mapgrid">${AV_FIELDS.map(([k, l]) => `<label><span>${l}</span><select data-impmap="${k}"><option value="">Not in list</option>${cols}</select></label>`).join('')}</div>
       <div style="overflow-x:auto"><table class="sched preview"><thead><tr><th>Botanical name</th><th>Common</th><th>Pot size</th><th>Flowering group</th><th class="n">Price</th><th>Stock</th><th>Code</th></tr></thead><tbody>${items.slice(0, 8).map(it => `<tr><td><i>${esc(it.b)}</i>${it.cv ? ` ‘${esc(it.cv)}’` : ''}</td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td>${esc(it.fg)}</td><td class="n">${it.pr != null ? money(it.pr) : ''}</td><td>${esc(it.st)}</td><td>${esc(it.code)}</td></tr>`).join('') || '<tr><td class="empty" colspan="7">No plant lines found with these columns.</td></tr>'}</tbody></table></div>
@@ -13934,6 +13975,7 @@ $('importBody').addEventListener('input', e => {
   else if (t.id === 'imp-name') I.name = t.value;
   else if (t.dataset.impmap) { I.map[t.dataset.impmap] = t.value === '' ? null : +t.value; renderImport(); }
   else if (t.id === 'imp-hashead') { I.header = t.checked ? Math.max(0, guessHeader(I.rows)) : -1; I.map = guessMap(I.header >= 0 ? I.rows[I.header] : I.rows[0].map(() => ''), I.rows.slice(I.header + 1)); renderImport(); }
+  else if (t.id === 'imp-sheet') { const x = I.sheets[+t.value]; if (x && !useRows(I, x.rows)) I.err = 'That sheet has no rows.'; else I.err = ''; I.sheet = +t.value; renderImport(); }
   else if (t.id === 'imp-hrow') { I.header = clamp(Math.round(num(t.value, 1)) - 1, 0, I.rows.length - 1); I.map = guessMap(I.rows[I.header], I.rows.slice(I.header + 1)); renderImport(); }
 });
 $('importBody').addEventListener('click', async e => {
@@ -13947,10 +13989,10 @@ $('importBody').addEventListener('click', async e => {
       const f = $('imp-file').files?.[0], pasted = $('imp-paste').value;
       const rows = (f ? await parseSheetFile(f) : pasted.trim() ? parseDelimited(pasted) : null);
       if (!rows) { I.err = 'Choose a file or paste the list first.'; renderImport(); return; }
-      I.rows = rows.map(r => r.map(c => String(c ?? ''))).filter(r => r.some(c => c.trim()));
-      if (!I.rows.length) { I.rows = null; I.err = 'That file has no rows.'; renderImport(); return; }
+      I.sheets = rows.sheets || null; I.sheet = rows.sheet || 0;
+      if (!useRows(I, rows) && !(I.sheets?.length > 1)) { I.rows = null; I.err = 'That file has no rows.'; renderImport(); return; }
+      if (!I.rows) { const i = I.sheets.findIndex(x => useRows(I, x.rows)); if (i < 0) { I.rows = null; I.err = 'That file has no rows.'; renderImport(); return; } I.sheet = i; }
       if (!I.supplier && f) I.supplier = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\b(availability|stock|list|price ?list)\b/ig, '').trim();
-      I.header = guessHeader(I.rows); I.map = guessMap(I.header >= 0 ? I.rows[I.header] : I.rows[0].map(() => ''), I.rows.slice(I.header + 1));
     } catch (err) { I.rows = null; I.err = err?.message || 'That file could not be read.'; }
     renderImport(); return;
   }
@@ -14115,10 +14157,10 @@ $('dbSelRemove').addEventListener('click', async () => {
   $('dbForce').hidden = !keep.length;
   renderDatabase(); renderLibrary();
 });
-async function deletePlants(ids) {
+async function deletePlants(ids, also) {
   let removed = 0, failed = 0; const gone = new Set(), was = [];
   for (const id of ids) { const p = plantById(id); try { if (S.online) await S.db.doc('plants/' + id).delete(); gone.add(id); removed++; if (p) was.push({ id, before: { ...p }, after: null }); } catch { failed++; } }
-  if (was.length) pushHistory({ plants: was });
+  if (was.length || also?.garden || also?.gardens?.length) pushHistory({ plants: was, ...also });   /* one undo puts the species and the plans they were taken off back together */
   S.plants = S.plants.filter(p => !gone.has(p.id)); if (gone.has(S.activePlant)) S.activePlant = null;
   return { removed, failed };
 }
@@ -14127,25 +14169,27 @@ $('dbForce').addEventListener('click', async () => {
   const b = $('dbForce');
   if (!DB.forceArm) { DB.forceArm = true; b.textContent = 'Click again: remove them from every garden and delete'; setTimeout(() => { if (DB.forceArm) { DB.forceArm = false; b.textContent = 'Remove from gardens too'; } }, 5000); return; }
   DB.forceArm = false; b.disabled = true; b.textContent = 'Removing…';
-  let changed = 0;
+  let changed = 0; const also = { gardens: [] };
   try {
     for (const g of S.gardens) {
       const cur = S.g && S.g.id === g.id ? S.g : g;
       const uses = cur.plantings.some(x => ids.has(x.plantId)) || cur.areas.some(x => ids.has(x.plantId));
       if (!uses) continue;
       if (cur === S.g) {
-        checkpoint();
+        const before = JSON.stringify(S.g);
         S.g.plantings = S.g.plantings.filter(x => !ids.has(x.plantId)); S.g.areas = S.g.areas.filter(x => !ids.has(x.plantId)); S.sel = null; S.multi = [];
+        also.garden = { id: S.g.id, before, after: JSON.stringify(S.g) };
         saveGarden(); if (saveTimer) { clearTimeout(saveTimer); await flushSave(); }
       } else {
         const body = JSON.parse(JSON.stringify(g)); delete body.id;
         body.plantings = body.plantings.filter(x => !ids.has(x.plantId)); body.areas = body.areas.filter(x => !ids.has(x.plantId)); body.updatedAt = Date.now();
         if (S.online) await S.db.doc('gardens/' + g.id).set(body);
+        also.gardens.push({ id: g.id, before: JSON.parse(JSON.stringify(g)), after: { id: g.id, ...body } });
         S.gardens = S.gardens.map(x => x.id === g.id ? { id: g.id, ...body } : x);
       }
       changed++;
     }
-    const { removed, failed } = await deletePlants([...ids]);
+    const { removed, failed } = await deletePlants([...ids], also);
     DB.sel.clear();
     $('dbBarMsg').textContent = `${removed} species removed${changed ? `, and taken off the plan in ${plural(changed, 'garden')}` : ''}.${failed ? ` ${failed} couldn’t be removed.` : ''}`;
   } catch (e) { $('dbBarMsg').textContent = 'Couldn’t finish removing: ' + (e?.message || 'try again'); }
@@ -14367,6 +14411,7 @@ function bedSnap(x, y, bedId, skip) {
 }
 function finishBed() {
   const b = S.bedDraw; if (!b || b.pts.length < 3 || !S.g) return;
+  if (Math.abs(b.pts.reduce((t, [x1, y1], i) => { const [x2, y2] = b.pts[(i + 1) % b.pts.length]; return t + x1 * y2 - x2 * y1; }, 0)) / 2 < 0.01) { setStatus('That area has no size: place its points apart', true); return; }
   checkpoint();
   const rec = { id: uid(), pts: b.pts, oudolf: false }; [rec.ox, rec.oy] = bedCentre(rec);
   S.g.beds = [...beds(), rec]; S.bedDraw = { pts: [] }; S.bedSel = rec.id; S.hover = null;
@@ -14457,7 +14502,8 @@ function cleanGarden(d) {
   }
   for (const a of Array.isArray(d.areas) ? d.areas : []) {
     const pid = safeId(a?.plantId); if (!pid || a.kind !== 'drift' || !Array.isArray(a.pts) || a.pts.length < 3) continue;
-    g.areas.push({ id: safeId(a.id) || uid(), kind: 'drift', plantId: pid, pts: a.pts.slice(0, 200).map(q => [xy(q?.[0]), xy(q?.[1])]), smooth: !!a.smooth, density: clamp(numOrNull(a.density) ?? 1, 0.1, 100) });
+    const ar = { id: safeId(a.id) || uid(), kind: 'drift', plantId: pid, pts: a.pts.slice(0, 200).map(q => [xy(q?.[0]), xy(q?.[1])]), smooth: !!a.smooth, density: clamp(numOrNull(a.density) ?? 1, 0.1, 100) };
+    if (areaOf(ar) >= 0.01) g.areas.push(ar);   /* an area with no size would still count a plant */
   }
   const u = d.underlay;
   if (u && typeof u === 'object' && numOrNull(u.natW) > 0 && numOrNull(u.natH) > 0)
@@ -14544,7 +14590,7 @@ async function restoreBackup(file) {
     };
     const plants = (Array.isArray(data.plants) ? data.plants : []).map(cleanPlant).filter(Boolean);
     const gardens = (Array.isArray(data.gardens) ? data.gardens : []).map(cleanGarden).filter(Boolean);
-    let addedP = 0, keptP = 0, addedG = 0, first = null; const changes = [];
+    let addedP = 0, keptP = 0, addedG = 0, first = null; const changes = [], restoredG = [];
     for (const p of plants) {
       if (plantById(p.id)) { keptP++; continue; }
       setBackupMsg(`Restoring species (${addedP + 1})…`);
@@ -14557,7 +14603,7 @@ async function restoreBackup(file) {
       if (S.gardens.some(x => x.id === g.id)) { g.id = uid(); g.name += ' (restored)'; }
       if (g.underlay) { g.underlay.assetId = await asset(g.underlay.assetId); if (!g.underlay.assetId) g.underlay = null; }
       const body = { ...g }; delete body.id;
-      await S.db.doc('gardens/' + g.id).set(body);
+      await S.db.doc('gardens/' + g.id).set(body); restoredG.push({ id: g.id, before: null, after: { id: g.id, ...body } });
       S.gardens = [...S.gardens.filter(x => x.id !== g.id), normGarden(g.id, body)].sort((a, b) => a.name.localeCompare(b.name)); addedG++; first = first || g.id;
     }
     if (data.kind === 'all' && data.prefs && typeof data.prefs === 'object' && !S.prefsExist) {
@@ -14569,8 +14615,8 @@ async function restoreBackup(file) {
       const logo = await asset(p.logoId); if (logo) S.prefs.logoId = logo;
       applyRoleColours(); applyTheme(S.prefs.theme); savePrefs();
     }
-    if (changes.length) pushHistory({ plants: changes });
     if (first) openGarden(first);
+    if (changes.length || restoredG.length) pushHistory({ plants: changes, gardens: restoredG });   /* Undo takes the restored gardens and species away again */
     renderAll(); if (getPage() === 'preferences') renderPrefs();
     const bits = [addedG && plural(addedG, 'garden'), addedP && addedP + ' species'].filter(Boolean).join(' and ');
     setBackupMsg(`${bits ? 'Restored ' + bits + '.' : 'Nothing new to restore.'}${keptP ? ` ${keptP} species were already in your library and were left as they are.` : ''}${lost ? ` ${plural(lost, 'picture')} or site plan${lost === 1 ? '' : 's'} couldn’t be restored.` : ''}`);

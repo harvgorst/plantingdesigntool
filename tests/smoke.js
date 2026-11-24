@@ -1355,9 +1355,9 @@ test('Plants For A Future: look up a species as you type, fill only what you hav
   const msg = await app.page.textContent('#dbListMsg');
   ok(/Added 2 species, 1 filled in from Plants For A Future/.test(msg) && /1 already in your database/.test(msg) && /Sanguisorba 'Red Thunder'/.test(msg), 'reports what it did, got ' + msg);
   const all = await app.page.evaluate(() => [...window.__mock.store.entries()].filter(([k]) => k.startsWith('plants/')).map(([, v]) => v));
-  const hz = all.find(v => v.botanical === 'Corylus avellana'), sv = all.find(v => /Red Thunder/.test(v.botanical || ''));
+  const hz = all.find(v => v.botanical === 'Corylus avellana'), sv = all.find(v => /Red Thunder/.test((v.botanical || '') + (v.cultivar || '')));
   ok(hz && hz.common === 'Common Hazel' && hz.role === 'understory' && hz.height === 6 && hz.spread === 3 && hz.pfaf, 'hazel filled in, got ' + JSON.stringify(hz));
-  ok(sv && !sv.pfaf, 'the sanguisorba added with just its name');
+  ok(sv && !sv.pfaf && sv.botanical === 'Sanguisorba' && sv.cultivar === 'Red Thunder', 'the sanguisorba added with just its name, its cultivar apart, got ' + JSON.stringify(sv));
   ok(/Common Hazel/.test(await app.page.textContent('#dbTable')), 'listed in the database');
 });
 
@@ -1769,6 +1769,72 @@ test('ticking On site keeps the species as an existing plant in this garden only
   const g2 = await app.store('gardens/g1');
   ok(g2.palette.includes('p0') && g2.plantings.some(x => x.plantId === 'p0'), 'undo puts the garden back');
   ok(!(await app.store('plants/' + nid)), 'and removes the copy');
+  eq(app.errors, [], 'no errors');
+});
+
+test('database undo: a visible button, plans put back with their species, restores undone; lists match whole names; plants stay on the plot', async open => {
+  const seed = sample(); seed['gardens/g2'] = { ...JSON.parse(JSON.stringify(seed['gardens/g1'])), name: 'Yew Close', plantings: [{ id: 'y1', plantId: 'p1', x: 3, y: 3, qty: 2 }] };
+  const app = await open(seed), p = app.page;
+  await app.go('database');
+  ok(await p.isVisible('#dbUndo') && await p.isDisabled('#dbUndo'), 'an Undo button on the database page, nothing to undo yet');
+  // the confirmation names the gardens using a species
+  await p.click('#dbTable [data-edit=p1]'); await p.click('[data-act=askDeletePlant]');
+  const conf = await p.textContent('.confirm');
+  ok(/“Elm Road”/.test(conf) && /“Yew Close”/.test(conf) && !/current garden/.test(conf), 'the delete confirmation names both gardens: ' + conf);
+  await p.click('[data-act=cancelConfirm]'); await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+  // remove a species from every garden, then undo it in one go
+  await p.check('#dbTable [data-dbsel=p1]'); await p.click('#dbSelRemove'); await p.click('#dbSelRemove'); await p.waitForTimeout(300);
+  await p.click('#dbForce'); await p.click('#dbForce'); await p.waitForTimeout(1500);
+  ok(!(await app.store('plants/p1')), 'the species is deleted');
+  ok(!(await app.store('gardens/g2')).plantings.some(x => x.plantId === 'p1') && !(await app.store('gardens/g1')).plantings.some(x => x.plantId === 'p1'), 'and taken off both plans');
+  await p.click('#dbUndo'); await p.waitForTimeout(1500);
+  ok(await app.store('plants/p1'), 'undo brings the species back');
+  ok((await app.store('gardens/g1')).plantings.some(x => x.plantId === 'p1'), 'and its plants on the open garden');
+  ok((await app.store('gardens/g2')).plantings.some(x => x.id === 'y1'), 'and on the other garden');
+  await p.click('#dbRedo'); await p.waitForTimeout(1500);
+  ok(!(await app.store('plants/p1')) && !(await app.store('gardens/g2')).plantings.some(x => x.id === 'y1'), 'redo takes them away again');
+  await p.click('#dbUndo'); await p.waitForTimeout(1500);
+  // Add a list matches botanical name and cultivar together, and whole words
+  await p.click('#dbListBtn');
+  await p.fill('#dbListText', "Salvia nemorosa 'Caradonna'\nSalvia nemorosa 'Caradonna Pink'\nBetula pendula\n");
+  await p.click('#dbListGo'); await p.waitForTimeout(500);
+  const all = await p.evaluate(() => [...window.__mock.store.entries()].filter(([k]) => k.startsWith('plants/')).map(([, v]) => v));
+  ok(all.some(v => v.botanical === 'Salvia nemorosa' && v.cultivar === 'Caradonna Pink'), 'a different cultivar is new');
+  eq(all.filter(v => /Caradonna'?$/.test(v.botanical + (v.cultivar ? " '" + v.cultivar + "'" : ''))).length, 1, 'the cultivar already there is skipped');
+  ok(all.some(v => v.botanical === 'Betula pendula' && !v.existing), 'an existing plant on one site doesn’t count as in the database');
+  // "Group: 3" is read as a flowering group
+  await p.click('#dbTabAvail'); await p.click('#avImport'); await p.fill('#imp-sup', 'Colon nursery');
+  await p.fill('#imp-paste', 'Botanical name\tPollination\nMalus domestica\tGroup: 3\n');
+  await p.click('[data-imp=parse]'); await p.waitForSelector('[data-impmap]');
+  eq(await p.$$eval('.preview tbody tr', rs => rs.map(r => r.cells[3].textContent)), ['3'], '"Group: 3" is group 3');
+  await p.click('[data-imp=cancel]');
+  // plants and rows stay on the plot
+  await app.go('plan'); await p.waitForTimeout(200);
+  const n0 = (await app.store('gardens/g1')).plantings.length;
+  await p.click('#lib [data-pid=p0]'); await p.keyboard.press('p');
+  await app.clickPlan(12.6, 4); await p.waitForTimeout(900);
+  eq((await app.store('gardens/g1')).plantings.length, n0, 'a click off the plot places nothing');
+  await p.click('[data-tool=row]'); await p.fill('#row-gap', '1');
+  await app.clickPlan(9, 7.5); await app.clickPlan(13, 7.5); await p.waitForTimeout(900);
+  const row = (await app.store('gardens/g1')).plantings.filter(x => x.row);
+  ok(row.length && row.every(x => x.x <= 12 && x.x >= 0), 'a row dragged past the edge stops at it: ' + row.map(x => x.x));
+  await p.keyboard.press('Escape'); await p.keyboard.press('v');
+  const c = (await app.store('gardens/g1')).plantings.find(x => x.id === 'c');
+  await app.dragPlan(c.x, c.y, c.x + 6, c.y); await p.waitForTimeout(900);
+  const c2 = (await app.store('gardens/g1')).plantings.find(x => x.id === 'c');
+  ok(c2.x <= 12 && c2.x > c.x, 'a plant dragged off the edge stops at it, got ' + c2.x);
+  eq(app.errors, [], 'no errors');
+});
+
+test('restoring a backup can be undone', async open => {
+  const app = await open(sample()), p = app.page;
+  const backup = { app: 'SevenLayers', format: 1, kind: 'garden', plants: [{ id: 'bk1', common: 'Comfrey', botanical: 'Symphytum officinale', role: 'herbaceous', spread: 0.6, height: 0.8 }],
+    gardens: [{ id: 'gb1', name: 'Backed up', width: 6, depth: 5, areas: [], plantings: [{ id: 'q', plantId: 'bk1', x: 1, y: 1, qty: 1 }] }] };
+  await app.go('preferences'); await p.waitForTimeout(200);
+  await p.setInputFiles('[data-restore]', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) }); await p.waitForTimeout(1500);
+  ok(await app.store('gardens/gb1') && await app.store('plants/bk1'), 'restored');
+  await p.keyboard.press('Control+z'); await p.waitForTimeout(1500);
+  ok(!(await app.store('gardens/gb1')) && !(await app.store('plants/bk1')), 'undo takes the restored garden and species away');
   eq(app.errors, [], 'no errors');
 });
 
