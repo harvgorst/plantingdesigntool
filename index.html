@@ -112,6 +112,10 @@ body.resizing, body.resizing * { cursor: col-resize !important; user-select: non
 .card > * { flex-shrink: 0; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; overflow: auto; }
 .card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* the library's header (Add plants) and the database's toolbar (Add species) stay in view while their lists scroll */
+.side > .card > .card-h { position: sticky; top: -14px; z-index: 3; margin: -14px -14px 0; padding: 14px 14px 6px; background: inherit; border-radius: 12px 12px 0 0; }
+#dbMine > .row:first-child { position: sticky; top: -20px; z-index: 3; margin: -8px -20px -8px; padding: 8px 20px; background: var(--panel); }
+html[data-skin=xp] #dbMine > .row:first-child { background: #FFF; }
 
 #libSearch { width: 100%; }
 .libchips { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -546,7 +550,7 @@ html[data-skin=drafting] .dbt tbody .sw.round { display: none !important; }
 html[data-skin=drafting] .dbt .cnm { font-weight: 500; }
 html[data-skin=drafting] .dbt i { font-family: "Source Serif 4", Georgia, serif; color: var(--ink); }
 html[data-skin=drafting] .dbt .nil { color: var(--muted); }
-html[data-skin=drafting] .dbt thead th { position: sticky; top: 0; z-index: 1; background: var(--panel); border-bottom-color: var(--ink); }
+html[data-skin=drafting] .dbt thead th { position: sticky; top: var(--dbbar, 0px); z-index: 1; background: var(--panel); border-bottom-color: var(--ink); }
 html[data-skin=drafting] .dbt tbody tr:hover td { background: color-mix(in srgb, var(--ink) 3%, transparent); }
 html[data-skin=drafting] .dbt tbody tr:has(input[data-dbsel]:checked) td { background: var(--accent-soft); }
 html[data-skin=drafting] .dbt .btn[data-edit] { opacity: 0; }
@@ -766,11 +770,12 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       </div>
     </div>
     <div class="menuwrap">
-      <button class="btn sm" id="layerBtn" type="button" aria-expanded="false" aria-controls="layerMenu">Layers: all ▾</button>
+      <button class="btn sm" id="layerBtn" type="button" aria-expanded="false" aria-controls="layerMenu" title="Choose which layers show on the plan, and bring back labels you hid or moved">Layers: all ▾</button>
       <div class="menu" id="layerMenu" hidden role="group" aria-label="Layers to show">
         
         <div class="row" style="justify-content:space-between;padding:4px 6px 6px"><span class="lbl">Show on the plan</span><span class="row" style="gap:4px"><button class="btn sm" type="button" data-layers="all">All</button><button class="btn sm" type="button" data-layers="none">None</button></span></div>
         <div id="layerList" style="display:flex;flex-direction:column;gap:1px"></div>
+        <div id="lblActs" hidden style="border-top:1px solid var(--line);margin-top:6px;padding:6px 6px 2px"><div class="lbl" style="margin-bottom:4px">Labels</div><div class="row" id="lblActBtns" style="gap:4px;flex-wrap:wrap"></div></div>
       </div>
     </div>
     <button class="btn sm" id="vPlanted" type="button" aria-pressed="false" title="Show trees and shrubs at their supplied pot size instead of their mature spread">As planted</button>
@@ -782,7 +787,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
     <div class="zoom"><div class="seg" role="group" aria-label="Zoom"><button type="button" id="zOut" aria-label="Zoom out" title="Zoom out (−)">−</button><button type="button" id="zFit" title="Fit whole garden (0)">Fit</button><button type="button" id="zIn" aria-label="Zoom in" title="Zoom in (+)">+</button></div><span id="zoomLbl">100%</span></div>
   </nav>
 
-  <div class="props" aria-live="polite"><div class="insp" id="inspector" hidden></div><span class="hint" id="hint"></span><span class="acts" id="lblActs" hidden></span></div>
+  <div class="props" aria-live="polite"><div class="insp" id="inspector" hidden></div><span class="hint" id="hint"></span></div>
 
   <section class="calview" id="calView" hidden aria-label="Interest calendar"></section>
 
@@ -10662,7 +10667,7 @@ function renderLblActs(show) {
   const el = $('lblActs'); if (!el) return;
   const c = show && S.g ? labelCounts() : { moved: 0, hidden: 0 };
   el.hidden = !(c.moved || c.hidden);
-  el.innerHTML = (c.hidden ? `<button class="btn sm" type="button" data-act="showAllLabels" title="Show every label you hid">Show hidden labels (${c.hidden})</button>` : '')
+  $('lblActBtns').innerHTML = (c.hidden ? `<button class="btn sm" type="button" data-act="showAllLabels" title="Show every label you hid">Show hidden labels (${c.hidden})</button>` : '')
     + (c.moved ? `<button class="btn sm" type="button" data-act="resetAllLabels" title="Put every label you moved back where it was placed automatically">Reset all labels</button>` : '');
 }
 /* the inspector's label buttons for a planting */
@@ -11487,7 +11492,7 @@ function renderInspector() {
           <label class="pf"><span>Colour</span><input id="bed-col" type="color" value="${/^#[0-9a-f]{6}$/i.test(sb.color || '') ? sb.color : /^#/.test(bedFill(sb)) ? bedFill(sb) : '#E9E1D2'}" aria-label="Area colour" style="width:34px;height:24px;padding:1px"></label>${sb.color ? '<button class="btn sm" type="button" data-act="bedNoCol">No colour</button>' : ''}
           ${plantable(sb) ? `<label class="pf"><span>Drawing</span><select id="area-draw" aria-label="How the planting in this bed is drawn"><option value="circles">Tight circles</option><option value="oudolf"${odBed(sb) ? ' selected' : ''}>Oudolf</option></select></label>` : ''}
           <label class="checks"><input type="checkbox" id="area-straight"${sb.straight ? ' checked' : ''}> Straight edges</label>
-          <span class="pv">${({ wood: `${bedAreaOf(sb).toFixed(0)} m² of existing woodland, kept. Its canopy casts shade in the Sun view, and shade plants can go beneath it as in any bed. `, building: 'A building: it casts shade in the Sun view at its height. Plants can still go on it, for a green roof. ', hedge: 'A hedge: it casts shade in the Sun view at its height (lighter when a deciduous hedge is bare), Draw it as a strip along its line. ', path: 'A path or hard surface. ', water: 'Water: aquatic and marginal plants can go in it or along its edge. ', guild: 'A guild: a group of plants that support each other, named after its tallest plant unless you name it, and listed together in the schedule and presentation. ', bed: 'A border bed. ' })[areaKind(sb)] || ''}${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-click a point to remove it.${plantable(sb) ? ' The planting grid is centred on the bed, and Oudolf areas stop at its edge.' : ''}</span>
+          <span class="pv">${({ wood: `${bedAreaOf(sb).toFixed(0)} m² of existing woodland, kept. Its canopy casts shade in the Sun view, and shade plants can go beneath it as in any bed. `, building: 'A building: it casts shade in the Sun view at its height. Plants can still go on it, for a green roof. ', hedge: 'A hedge: it casts shade in the Sun view at its height (lighter when a deciduous hedge is bare), Draw it as a strip along its line. ', path: 'A path or hard surface. ', water: 'Water: aquatic and marginal plants can go in it or along its edge. ', guild: 'A guild: a group of plants that support each other, named after its tallest plant unless you name it, and listed together in the schedule and presentation. ', bed: 'A border bed. ' })[areaKind(sb)] || ''}${bedAreaOf(sb).toFixed(2)} m² · drag it to move it (its planting comes too), drag a point to reshape it, drag a small dot between points to add one, double-tap a point to remove it.${plantable(sb) ? ' The planting grid is centred on the bed, and Oudolf areas stop at its edge.' : ''}</span>
         <span class="acts"><button class="btn sm danger" type="button" data-act="bedDel">Remove area</button><button class="btn sm" type="button" data-act="bedOff">Done</button></span>`;
       return;
     }
@@ -11561,7 +11566,7 @@ function renderInspector() {
   }
   const it = S.g ? findSel() : null;
   hint.hidden = !!it; el.hidden = !it;
-  renderLblActs(!it);
+  renderLblActs(true);
   if (!it) { el.innerHTML = ''; return; }
   const acts = (extra = '') => `<span class="acts">${extra}${S.sel.kind === 'planting' || S.sel.kind === 'area' ? labelActs(it) : ''}<button class="btn sm" type="button" data-act="duplicate" title="Duplicate (Ctrl+D)">Duplicate</button><button class="btn sm danger" type="button" data-act="delete">Remove</button></span>`;
   if (S.sel.kind === 'planting') {
@@ -12330,10 +12335,8 @@ svg.addEventListener('pointerdown', e => {
     const b = bedHit;
     S.bedSel = b.id; renderInspector(); renderMap();
     const before = JSON.stringify(S.g), P0 = bedPoly(b);
-    /* double-click (or Alt-click) a point to take it out */
-    const now = Date.now(), again = hit?.dataset.kind === 'bedh' && S.bedTap && S.bedTap.id === b.id && S.bedTap.i === +hit.dataset.i && now - S.bedTap.t < 400;
-    S.bedTap = hit?.dataset.kind === 'bedh' ? { id: b.id, i: +hit.dataset.i, t: now } : null;
-    if (hit?.dataset.kind === 'bedh' && (e.altKey || again)) {
+    /* Alt-click a point to take it out; a double tap that doesn't move does too (see endDrag) */
+    if (hit?.dataset.kind === 'bedh' && e.altKey) {
       S.bedTap = null;
       if (b.pts.length > 3) { pushHistory(before); b.pts = b.pts.filter((_, i) => i !== +hit.dataset.i); saveGarden(); refreshDerived(); }
       renderInspector(); renderMap(); return;
@@ -12486,7 +12489,18 @@ function endDrag() {
     if (d.out && !d.erase && !d.changed && Math.hypot(d.last.x - d.start.x, d.last.y - d.start.y) < 0.15) { toolClick('plant', d.start); return; }
     if (d.changed) saveGarden(); renderInspector(); refreshDerived(); return;
   }
-  if (d.bed) { if (d.moved) { saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }
+  if (d.bed) {
+    if (d.moved) { S.bedTap = null; saveGarden(); refreshDerived(); }
+    else if (d.vert != null) {
+      /* two still taps on the same point within 400 ms remove it; a drag in between never counts */
+      const now = Date.now(), t = S.bedTap;
+      if (t && t.id === d.bed.id && t.i === d.vert && now - t.t < 400) {
+        S.bedTap = null;
+        if (d.bed.pts.length > 3) { pushHistory(d.before); d.bed.pts = d.bed.pts.filter((_, i) => i !== d.vert); saveGarden(); refreshDerived(); }
+      } else S.bedTap = { id: d.bed.id, i: d.vert, t: now };
+    } else S.bedTap = null;
+    renderInspector(); renderMap(); return;
+  }
   if (d.rowBend) { if (d.moved) { S.sel = null; S.multi = S.g.plantings.filter(p => p.row === d.rowBend).map(p => ({ kind: 'planting', id: p.id })); saveGarden(); refreshDerived(); } renderInspector(); renderMap(); return; }   // the whole bent row stays selected, plants added included   // S.drag is cleared first, so the areas are worked out afresh
   if (d.pan) { svg.classList.remove('panning'); renderMap(); return; }
   if (d.north) { if (d.moved) saveGarden(); renderMap(); return; }
@@ -13723,6 +13737,8 @@ $('navDb').addEventListener('click', () => { location.hash = 'database'; });
 $('dbSearch').addEventListener('input', e => { DB.q = e.target.value; renderDatabase(); });
 $('dbLayer').addEventListener('change', e => { DB.layer = e.target.value; renderDatabase(); });
 $('dbAdd').addEventListener('click', () => openPlantEditor(null));
+/* the table's own sticky header (Drafting theme) sits just under the pinned toolbar */
+if (window.ResizeObserver) { const bar = $('dbAdd').closest('.row'); new ResizeObserver(() => $('dbView').style.setProperty('--dbbar', (bar.offsetHeight - 20) + 'px')).observe(bar); }
 $('dbListBtn').addEventListener('click', () => { const l = $('dbList'); l.hidden = !l.hidden; if (!l.hidden) $('dbListText').focus(); });
 $('dbListCancel').addEventListener('click', () => { $('dbList').hidden = true; });
 $('dbListGo').addEventListener('click', async () => {

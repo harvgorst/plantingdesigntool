@@ -215,7 +215,7 @@ test('names of areas drawn with the Area tool can be dragged, hidden and put bac
   await app.page.keyboard.press('Delete'); await app.page.waitForTimeout(900);
   eq((await app.store('gardens/g1')).beds[0].lhide, true, 'Delete hides it');
   eq(await app.page.locator('#map text[data-lk=bbPond]').count(), 0, 'and it is gone from the plan');
-  await app.page.click('[data-act=showAllLabels]'); await app.page.click('[data-act=resetAllLabels]'); await app.page.waitForTimeout(900);
+  await app.page.click('#layerBtn'); await app.page.click('[data-act=showAllLabels]'); await app.page.click('[data-act=resetAllLabels]'); await app.page.waitForTimeout(900);
   b = (await app.store('gardens/g1')).beds[0];
   eq([b.lx, b.lhide], [undefined, undefined], 'shown again and put back');
 });
@@ -691,6 +691,23 @@ test('beds: reshaping keeps the grid still, moving takes the planting, points ca
   const p1 = (await app.store('gardens/g1')).beds[0].pts[1], h = await app.planXY(p1[0], p1[1]);
   await app.page.mouse.dblclick(h.x, h.y); await app.page.waitForTimeout(900);
   eq((await app.store('gardens/g1')).beds[0].pts.length, 4, 'and removed again with a double-click');
+  // only a double tap that doesn't move removes a point: dragging it and quickly grabbing it again keeps it
+  {
+    const pg = app.page, m = pg.mouse;
+    let q = (await app.store('gardens/g1')).beds[0].pts[1], a = await app.planXY(q[0], q[1]), b = await app.planXY(q[0] + 0.4, q[1] + 0.3);
+    await m.move(a.x, a.y); await m.down(); await m.move(b.x, b.y, { steps: 5 }); await m.up();
+    await m.down(); await m.up(); await pg.waitForTimeout(900);
+    let pts = (await app.store('gardens/g1')).beds[0].pts;
+    eq(pts.length, 4, 'a drag then a quick tap keeps the point');
+    ok(Math.abs(pts[1][0] - q[0] - 0.4) < 0.05 && Math.abs(pts[1][1] - q[1] - 0.3) < 0.05, 'and it stays where it was dragged, got ' + JSON.stringify(pts[1]));
+    q = pts[1]; a = await app.planXY(q[0], q[1]);
+    await m.click(a.x, a.y); await pg.waitForTimeout(500); await m.click(a.x, a.y); await pg.waitForTimeout(900);
+    eq((await app.store('gardens/g1')).beds[0].pts.length, 4, 'two slow taps keep it');
+    await m.click(a.x, a.y); await m.click(a.x, a.y); await pg.waitForTimeout(900);
+    eq((await app.store('gardens/g1')).beds[0].pts.length, 3, 'two quick still taps remove it');
+    await pg.click('#undoBtn'); await pg.waitForTimeout(900);
+    eq((await app.store('gardens/g1')).beds[0].pts.length, 4, 'and one undo brings it back');
+  }
   // move the whole bed: its planting and its grid come too
   const pl0 = (await app.store('gardens/g1')).plantings.find(q => q.id === 'q0');
   await app.clickPlan(3.5, 2.5); await app.dragPlan(3.3, 3.9, 3.9, 3.9); await app.page.waitForTimeout(900);
@@ -1422,7 +1439,10 @@ test('any plant label can be dragged, hidden and put back', async open => {
   eq(gd.plantings.length, n0, 'plants kept');
   eq(await lbl(sk).count(), 0, 'label gone');
   await pg.keyboard.press('Escape'); await pg.waitForTimeout(100);
-  ok(await pg.isVisible('[data-act=showAllLabels]'), 'Show hidden labels offered');
+  eq(await pg.locator('.props button:visible').count(), 0, 'the thin bar holds no buttons, only the hint');
+  ok(!(await pg.isVisible('[data-act=showAllLabels]')), 'the garden-wide label buttons are tucked away');
+  await pg.click('#layerBtn');
+  ok(await pg.isVisible('[data-act=showAllLabels]'), 'Show hidden labels offered in the Layers menu');
   await pg.click('[data-act=showAllLabels]'); gd = await g();
   eq(gd.labelHide, undefined, 'shown again');
   await pg.click('#undoBtn'); await pg.waitForTimeout(150);
@@ -1437,6 +1457,7 @@ test('any plant label can be dragged, hidden and put back', async open => {
     ok(pl.kx != null || pl.lx != null, 'offset stored for the planting label, got ' + JSON.stringify(pl));
   }
   await drag(hit(sk), to); await pg.keyboard.press('Escape'); await pg.waitForTimeout(100);
+  await pg.click('#layerBtn');
   ok(await pg.isVisible('[data-act=resetAllLabels]'), 'Reset all labels offered');
   await pg.click('[data-act=resetAllLabels]'); gd = await g();
   eq([gd.labelAt, gd.plantings.some(p => p.kx != null || p.lx != null)], [undefined, false], 'all reset');
@@ -1524,7 +1545,7 @@ test('labels stack: drop one label on another and both plants lead to one place;
     eq(await pg.locator(`#map text[data-lk="p${code.id}"]`).count(), 0, 'code no longer drawn');
     ok(await paths() > n0, 'a line runs to it instead');
   }
-  await pg.keyboard.press('Escape'); await pg.waitForTimeout(100); await pg.click('[data-act=resetAllLabels]'); gd = await g();
+  await pg.keyboard.press('Escape'); await pg.waitForTimeout(100); await pg.click('#layerBtn'); await pg.click('[data-act=resetAllLabels]'); gd = await g();
   eq([gd.labelJoin, gd.labelAt], [undefined, undefined], 'Reset all labels unstacks too');
   eq(app.errors, [], 'no errors');
   await app.close();
