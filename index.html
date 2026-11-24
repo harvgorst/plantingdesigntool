@@ -357,6 +357,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .addlist label { display: grid; grid-template-columns: 18px 14px 1fr auto; gap: 8px; align-items: center; padding: 5px 7px; border-radius: 6px; cursor: pointer; }
 .addlist label:hover { background: var(--paper); }
 .addlist label i { color: var(--muted); }
+.addlist .apf { display: block; font-size: 12px; color: var(--muted); }
 .addlist .lh { padding: 8px 7px 2px; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .pgroup { margin: 4px 0 6px; font-size: 12px; color: var(--muted); }
 html[data-skin=xp] .pgrid button { border-radius: 0; }
@@ -10308,12 +10309,13 @@ $('mapModal').addEventListener('submit', async e => {
 const AP = { q: '', sel: new Set() };
 function openAddPlants() { AP.q = ''; AP.sel = new Set(); $('addModal').hidden = false; renderAddPlants(); setTimeout(() => $('ap-q')?.focus(), 0); }
 function closeAddPlants() { $('addModal').hidden = true; }
+const apFacts = p => { const f = [p.supply, num(p.cost) > 0 ? money(num(p.cost)) : '', p.floweringGroup ? 'Flowering group ' + p.floweringGroup : ''].filter(Boolean); return f.length ? `<span class="apf">${esc(f.join(', '))}</span>` : ''; };   // pot size, price and flowering group
 function renderAddPlants() {
   const lib = libIds(), q = AP.q.trim().toLowerCase();
-  const all = S.plants.filter(p => !p.existing && !lib.has(p.id)), list = all.filter(p => !q || [p.common, p.botanical, ROLES[layerOf(p.role)]].join(' ').toLowerCase().includes(q))
+  const all = S.plants.filter(p => !p.existing && !lib.has(p.id)), list = all.filter(p => !q || [p.common, p.botanical, p.cultivar, p.supply, ROLES[layerOf(p.role)]].join(' ').toLowerCase().includes(q))
     .sort((a, b) => (LAYER_ORDER.indexOf(layerOf(a.role)) - LAYER_ORDER.indexOf(layerOf(b.role))) || (a.common || '').localeCompare(b.common || ''));
   const rows = list.map((p, i) => (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role) ? `<div class="lh" style="--lc:var(--r-${layerOf(p.role)})">${esc(ROLES[layerOf(p.role)])}</div>` : '')
-    + `<label><input type="checkbox" data-ap="${p.id}"${AP.sel.has(p.id) ? ' checked' : ''}>${plantSwatch(p)}<span><b>${esc(p.common || 'Unnamed')}</b> <i>${esc(p.botanical || '')}</i></span><span class="pv">${num(p.spread).toFixed(1)} m</span></label>`).join('');
+    + `<label><input type="checkbox" data-ap="${p.id}"${AP.sel.has(p.id) ? ' checked' : ''}>${plantSwatch(p)}<span><b>${esc(p.common ? withCultivar(p.common, p) : 'Unnamed')}</b> <i>${esc(p.botanical || '')}</i>${apFacts(p)}</span><span class="pv">${num(p.spread).toFixed(1)} m</span></label>`).join('');
   $('addBody').innerHTML = `<div class="card-h"><h2 id="addH">Add plants to ${esc(S.g?.name || 'this garden')}</h2><button class="btn sm" type="button" data-apx="close">Close</button></div>
     <p class="note" style="margin:0">Tick species from your plant database to use in this design, or make a new one. Plants already in this garden aren’t listed, and plants recorded as existing on another site stay with that garden.</p>
     <input type="text" id="ap-q" value="${esc(AP.q)}" placeholder="Search your plant database" autocomplete="off">
@@ -11916,13 +11918,13 @@ function renderDatabase() {
   renderDbBar();
   $('dbTable').innerHTML = !dbPlants.length ? `<tbody><tr><td class="empty">${S.loaded ? 'No plants yet. Use Add species to start your database.' : 'Loading your plants…'}</td></tr></tbody>`
     : !rows.length ? '<tbody><tr><td class="empty">No species match those filters.</td></tr></tbody>'
-    : `<thead><tr><th class="ck"><input type="checkbox" id="dbAll" aria-label="Select all shown"${rows.length && rows.every(r => DB.sel.has(r.p.id)) ? ' checked' : ''}></th>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Supply</th><th>Supplier</th>${th('cost', 'Cost', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n, used }) => `<tr style="--lc:var(--r-${p.role || 'herbaceous'})"${p.existing ? ' class="exr"' : ''}>
-      <td class="ck"><input type="checkbox" data-dbsel="${p.id}"${DB.sel.has(p.id) ? ' checked' : ''} aria-label="Select ${esc(p.common || p.botanical)}"></td><td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span><span class="cnm">${esc(p.common || 'Unnamed')}</span>${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
-      <td><i>${esc(p.botanical)}</i>${p.cultivar ? ` <i>${esc(p.cultivar)}</i>` : ''}</td>
+    : `<thead><tr><th class="ck"><input type="checkbox" id="dbAll" aria-label="Select all shown"${rows.length && rows.every(r => DB.sel.has(r.p.id)) ? ' checked' : ''}></th>${th('common', 'Species')}${th('botanical', 'Botanical name')}${th('layer', 'Layer')}${th('flower', 'Flowers')}${th('height', 'Height', 1)}${th('spread', 'Spread', 1)}<th>Pot size</th><th>Flowering group</th><th>Supplier</th>${th('cost', 'Price', 1)}${th('used', 'Gardens', 1)}<th></th></tr></thead><tbody>${rows.map(({ p, n, used }) => `<tr style="--lc:var(--r-${p.role || 'herbaceous'})"${p.existing ? ' class="exr"' : ''}>
+      <td class="ck"><input type="checkbox" data-dbsel="${p.id}"${DB.sel.has(p.id) ? ' checked' : ''} aria-label="Select ${esc(p.common || p.botanical)}"></td><td><span class="sw round" style="display:inline-block;vertical-align:-1px;margin-right:6px;${p.existing ? 'background:none;border:1.5px dashed var(--exist)' : `background:var(--r-${p.role || 'herbaceous'});border-color:var(--r-${p.role || 'herbaceous'})`}"></span><span class="cnm">${esc(p.common ? withCultivar(p.common, p) : 'Unnamed')}</span>${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</td>
+      <td><i>${esc(p.botanical)}</i>${p.cultivar ? ` ‘${esc(p.cultivar)}’` : ''}</td>
       <td>${esc(ROLES[p.role] || '')}</td>
       <td>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || '')}"></span>` : ''}${fm(p)}</td>
       <td class="n">${p.height != null && p.height !== '' ? num(p.height).toFixed(2) + ' m' : ''}</td><td class="n">${num(p.spread).toFixed(2)} m</td>
-      <td>${esc(p.existing ? 'on site' : p.supply || '')}</td><td>${esc(p.existing ? '' : p.supplier || '')}</td>
+      <td>${esc(p.existing ? 'on site' : p.supply || '')}</td><td>${esc(p.floweringGroup || '')}</td><td>${esc(p.existing ? '' : p.supplier || '')}</td>
       <td class="n">${p.existing ? '<span class="nil">–</span>' : money(num(p.cost))}</td>
       <td class="n" title="${esc(used.join(', '))}">${n || '<span class="nil">–</span>'}</td>
       <td class="n"><button class="btn sm" type="button" data-edit="${p.id}">Edit</button></td></tr>`).join('')}</tbody>`;
@@ -13815,7 +13817,7 @@ function renderImport() {
     : `<p class="note" style="margin:0">Match the list’s columns to what they mean. Leave anything the list doesn’t have as “Not in list”.</p>
       <div class="row"><label class="checks"><input type="checkbox" id="imp-hashead"${I.header >= 0 ? ' checked' : ''}> The list has a heading row</label>${I.header >= 0 ? `<label class="pf"><span>Heading row</span><input id="imp-hrow" class="n" type="number" min="1" max="${I.rows.length}" value="${I.header + 1}"></label>` : ''}</div>
       <div class="mapgrid">${AV_FIELDS.map(([k, l]) => `<label><span>${l}</span><select data-impmap="${k}"><option value="">Not in list</option>${cols}</select></label>`).join('')}</div>
-      <div style="overflow-x:auto"><table class="sched preview"><thead><tr><th>Botanical name</th><th>Common</th><th>Size</th><th>Flowering group</th><th class="n">Price</th><th>Stock</th><th>Code</th></tr></thead><tbody>${items.slice(0, 8).map(it => `<tr><td><i>${esc(it.b)}</i>${it.cv ? ` ‘${esc(it.cv)}’` : ''}</td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td>${esc(it.fg)}</td><td class="n">${it.pr != null ? money(it.pr) : ''}</td><td>${esc(it.st)}</td><td>${esc(it.code)}</td></tr>`).join('') || '<tr><td class="empty" colspan="7">No plant lines found with these columns.</td></tr>'}</tbody></table></div>
+      <div style="overflow-x:auto"><table class="sched preview"><thead><tr><th>Botanical name</th><th>Common</th><th>Pot size</th><th>Flowering group</th><th class="n">Price</th><th>Stock</th><th>Code</th></tr></thead><tbody>${items.slice(0, 8).map(it => `<tr><td><i>${esc(it.b)}</i>${it.cv ? ` ‘${esc(it.cv)}’` : ''}</td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td>${esc(it.fg)}</td><td class="n">${it.pr != null ? money(it.pr) : ''}</td><td>${esc(it.st)}</td><td>${esc(it.code)}</td></tr>`).join('') || '<tr><td class="empty" colspan="7">No plant lines found with these columns.</td></tr>'}</tbody></table></div>
       <div class="row"><button class="btn" type="button" data-imp="back">Back</button><button class="btn primary" type="button" data-imp="save"${items.length ? '' : ' disabled'}>Save ${items.length.toLocaleString('en-GB')} lines</button><span class="note" style="color:var(--crit)">${esc(I.err)}</span></div>`}`;
   if (I.rows) for (const sel of el.querySelectorAll('[data-impmap]')) sel.value = I.map[sel.dataset.impmap] ?? '';
 }
@@ -13879,14 +13881,14 @@ async function renderAvailability() {
   const rows = AV.items.map(it => ({ it, mine: myPlantFor(it, l.supplier) }))
     .filter(({ it, mine }) => (!AV.show || (AV.show === 'mine') === !!mine) && (!q || [it.b, it.cv, it.c, it.sz, it.code].join(' ').toLowerCase().includes(q)));
   const shown = rows.slice(0, 400);
-  const allOn = shown.length && shown.every(r => AV.sel.has(r.it.id)), hasFg = AV.items.some(it => it.fg);
+  const allOn = shown.length && shown.every(r => AV.sel.has(r.it.id));
   $('avTable').innerHTML = !rows.length ? '<tbody><tr><td class="empty">No lines match.</td></tr></tbody>'
-    : `<thead><tr><th class="ck"><input type="checkbox" id="avAll" aria-label="Select all shown"${allOn ? ' checked' : ''}></th><th>Plant</th><th>Size</th>${hasFg ? '<th>Flowering group</th>' : ''}<th>Code</th><th>Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${shown.map(({ it, mine }) => `<tr>
+    : `<thead><tr><th class="ck"><input type="checkbox" id="avAll" aria-label="Select all shown"${allOn ? ' checked' : ''}></th><th>Plant</th><th>Pot size</th><th>Flowering group</th><th>Code</th><th>Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${shown.map(({ it, mine }) => `<tr>
       <td class="ck"><input type="checkbox" data-av="${it.id}"${AV.sel.has(it.id) ? ' checked' : ''} aria-label="Select ${esc(it.b)}"></td>
-      <td><i>${esc(it.b)}</i>${it.cv ? ` ‘${esc(it.cv)}’` : ''}${it.c ? `<span class="cn"> · ${esc(it.c)}</span>` : ''}</td><td>${esc(it.sz)}</td>${hasFg ? `<td>${esc(it.fg || '')}</td>` : ''}<td>${esc(it.code)}</td><td>${esc(it.st)}</td>
+      <td><i>${esc(it.b)}</i>${it.cv ? ` ‘${esc(it.cv)}’` : ''}${it.c ? `<span class="cn"> · ${esc(it.c)}</span>` : ''}</td><td>${esc(it.sz)}</td><td>${esc(it.fg || '')}</td><td>${esc(it.code)}</td><td>${esc(it.st)}</td>
       <td class="n">${it.pr != null ? money(it.pr) : ''}</td>
       <td>${mine ? `<span class="mine-tag" title="${esc(mine.common || mine.botanical)}${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · your price ' + money(num(mine.cost)) : ''}">In my plants${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · price differs' : ''}</span>` : ''}</td></tr>`).join('')}</tbody>
-      ${rows.length > shown.length ? `<tfoot><tr><td colspan="${hasFg ? 8 : 7}" class="note" style="font-weight:400">Showing 400 of ${rows.length.toLocaleString('en-GB')} lines. Search to narrow the list.</td></tr></tfoot>` : ''}`;
+      ${rows.length > shown.length ? `<tfoot><tr><td colspan="8" class="note" style="font-weight:400">Showing 400 of ${rows.length.toLocaleString('en-GB')} lines. Search to narrow the list.</td></tr></tfoot>` : ''}`;
   renderAvBar();
 }
 function renderAvBar() {

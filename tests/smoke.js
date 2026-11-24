@@ -783,7 +783,8 @@ test('plant library filters: by layer, in this garden, grouped, remembered', asy
 });
 
 test('each garden has its own plant library; the database stays whole; existing plants stay with their garden', async open => {
-  const app = await open(sample());
+  const seed = sample(); Object.assign(seed['plants/p1'], { cultivar: 'Hidcote', supply: '2L pot', cost: 6.5, floweringGroup: '3' });
+  const app = await open(seed);
   // a new garden starts with an empty library
   await app.page.click('#detailsBtn'); await app.page.click('#newGardenBtn');
   await app.page.fill('#ng-name', 'Back border'); await app.page.click('#newGardenForm button[type=submit]'); await app.page.waitForTimeout(400);
@@ -793,6 +794,8 @@ test('each garden has its own plant library; the database stays whole; existing 
   await app.page.click('#addPlantBtn');
   const offered = await app.page.$$eval('#addModal [data-ap]', l => l.map(x => x.dataset.ap));
   ok(offered.length === 6 && !offered.includes('ex1'), 'database species offered, not another site’s existing plant, got ' + offered);
+  const row = await app.page.textContent('#addModal label:has([data-ap=p1])');
+  ok(/‘Hidcote’/.test(row) && /2L pot/.test(row) && /£6\.50/.test(row) && /Flowering group 3/.test(row), 'each species shows its cultivar, pot size, price and flowering group, got ' + row);
   await app.page.check('#addModal [data-ap=p1]'); await app.page.check('#addModal [data-ap=p4]'); await app.page.click('[data-apx=add]');
   eq((await app.page.$$eval('#lib li[data-pid]', l => l.map(x => x.dataset.pid))).sort(), ['p1', 'p4'], 'just those two in this garden');
   // a new species made here joins this garden's library and the database
