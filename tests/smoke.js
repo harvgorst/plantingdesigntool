@@ -559,6 +559,15 @@ test('the garden library marks species already on the plan', async open => {
   ok(await app.page.isVisible('#lib [data-pid=p2] .onplan'), 'appears once it is planted');
 });
 
+test('presentation picture cards show the cultivar', async open => {
+  const seed = sample(); seed['plants/p1'] = { ...seed['plants/p1'], cultivar: 'Hidcote' };
+  const app = await open(seed, { hash: '#presentation' });
+  await app.page.waitForSelector('.bcard');
+  const names = await app.page.$$eval('.bcard .bn', l => l.map(x => x.textContent));
+  ok(names.some(t => /‘Hidcote’/.test(t)), 'the cultivar is on its card, got ' + names.join(' | '));
+  ok(await app.page.$eval('.bcard .bn .cv', c => getComputedStyle(c).fontStyle === 'normal'), 'set upright, as cultivar names are');
+});
+
 test('clicking back on the plan saves and closes the species editor', async open => {
   const app = await open(sample());
   const onMap = async () => { const r = await app.page.$eval('#map', m => { const b = m.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; }); await app.page.mouse.click(r.x, r.y); };
