@@ -11463,7 +11463,15 @@ function renderLibChips() {
     + present.map(k => `<button type="button" data-lf="${k}" aria-pressed="${LIBF.layers.has(k)}"><span class="d" style="width:8px;height:8px;border-radius:50%;background:var(--r-${k})"></span>${esc(ROLES[k])} <i>${count[k] || 0}</i></button>`).join('')
     + `<span class="sep"></span><button type="button" data-lf="used" aria-pressed="${LIBF.used}" title="Only the species already on the plan">On the plan <i>${S.plants.filter(p => usedHere().has(p.id)).length}</i></button>`;
 }
+/* going from the list to a species' editor and back keeps the list where it was scrolled to */
 function renderLibrary() {
+  const card = $('libPane').closest('.card'), inList = !$('libPane').hidden && $('editPane').hidden, toEdit = !!S.editPlant && getPage() !== 'database';
+  if (inList && toEdit) S.libScroll = card.scrollTop;
+  drawLibrary();
+  if (inList && toEdit) card.scrollTop = 0;
+  else if (!inList && !toEdit && S.libScroll != null) { const y = S.libScroll; S.libScroll = null; card.scrollTop = y; requestAnimationFrame(() => { card.scrollTop = y; }); }   // again once the list is laid out
+}
+function drawLibrary() {
   ensureColours();   // so the swatches match the plan from the start
   $('libPane').hidden = !!S.editPlant; $('editPane').hidden = !S.editPlant; $('addPlantBtn').hidden = !!S.editPlant;
   const inDb = getPage() === 'database';
@@ -11863,7 +11871,7 @@ function renderCalendar() {
     let bars = runs(ms).map(([a, b]) => `<div class="cbar${col ? (isPale(col) ? ' pale' : '') : ' unset'}" style="grid-row:1;grid-column:${a} / ${b + 1};${col ? `background:${esc(col)}` : ''}" title="${esc(r.p.common)} ${r.p.crop ? 'harvest' : 'in flower'}: ${spanText(ms)}${col ? ', ' + esc(showColName(r.p) || 'custom colour') : ''}"></div>`).join('');
     its.forEach((x, i) => { const span = monthSpan(x.from, x.to); bars += runs(span).map(([a, b]) => `<div class="cbar sm${isPale(x.color) ? ' pale' : ''}" style="grid-row:${i + 2 + o};grid-column:${a} / ${b + 1};background:${esc(x.color)}" title="${esc(r.p.common)}: ${esc(INTEREST[x.kind][0].toLowerCase())}, ${spanText(span)}"></div>`).join(''); });
     if (false) bars += `<div class="cbar ev" style="grid-row:${its.length + 2 + o};grid-column:1 / 13;background:${EVERGREEN}" title="${esc(r.p.common)}: evergreen"></div>`;
-    return `<div class="cname"><b>${esc(r.p.common)}</b> <span class="q">× ${r.qty}</span>${r.ex ? '<span class="ex exist">Existing</span>' : ''}${r.p.crop ? '<span class="ex crop">Crop</span>' : ''}<i>${esc(r.p.botanical)}</i></div><div class="ctrack">${bars || '<span class="cnone">No flowering or harvest months set</span>'}</div>`;
+    return `<div class="cname"><b>${esc(withCultivar(r.p.common || '', r.p))}</b> <span class="q">× ${r.qty}</span>${r.ex ? '<span class="ex exist">Existing</span>' : ''}${r.p.crop ? '<span class="ex crop">Crop</span>' : ''}<i>${esc(r.p.botanical)}</i></div><div class="ctrack">${bars || '<span class="cnone">No flowering or harvest months set</span>'}</div>`;
   };
   el.innerHTML = `<div class="calhead"><div><span class="lbl">Interest calendar</span><h2>${esc(S.g.name)}</h2></div>
       <p class="note" style="margin:0;max-width:64ch">${!list.length ? 'Place plants on the plan and they’ll appear here.' : `${withI.length} of ${list.length} species have flowering or harvest months set. ${peak ? `Most in season in ${peakM.join(', ')}, with ${peak} at once.` : ''} ${gaps.length && gaps.length < 12 ? `Nothing in season in ${gaps.join(', ')}.` : gaps.length ? '' : 'Something in season every month.'}`}</p></div>
@@ -11872,7 +11880,7 @@ function renderCalendar() {
       <div></div><div class="cal-months">${MONTHS.map(m => `<span>${m}</span>`).join('')}</div>
       ${withI.map(row).join('')}${noI.map(row).join('')}
       <div class="cname csum"><b>Colour through the year</b><i>Flowers and harvests each month</i></div>
-      <div class="csum"><div class="cmix">${MONTHS.map((_, i) => `<div title="${MONTHS[i]}: ${[...inFlower[i].map(r => r.p.common), ...other[i].map(o => o.r.p.common + ' (' + (INTEREST[o.x.kind]?.[0] || 'Harvest').toLowerCase() + ')')].map(esc).join(', ') || 'nothing of interest'}">${inFlower[i].map(r => `<span style="background:${showCol(r.p) ? esc(showCol(r.p)) : 'var(--accent-soft)'}"></span>`).join('')}${other[i].map(o => `<span style="background:${esc(o.x.color)};flex:0.45"></span>`).join('')}</div>`).join('')}</div>
+      <div class="csum"><div class="cmix">${MONTHS.map((_, i) => `<div title="${MONTHS[i]}: ${[...inFlower[i].map(r => withCultivar(r.p.common || '', r.p)), ...other[i].map(o => withCultivar(o.r.p.common || '', o.r.p) + ' (' + (INTEREST[o.x.kind]?.[0] || 'Harvest').toLowerCase() + ')')].map(esc).join(', ') || 'nothing of interest'}">${inFlower[i].map(r => `<span style="background:${showCol(r.p) ? esc(showCol(r.p)) : 'var(--accent-soft)'}"></span>`).join('')}${other[i].map(o => `<span style="background:${esc(o.x.color)};flex:0.45"></span>`).join('')}</div>`).join('')}</div>
         <div class="ccount">${MONTHS.map((_, i) => { const n = inFlower[i].length + other[i].length; return `<span class="${n ? '' : 'gap'}">${n || '–'}</span>`; }).join('')}</div></div>
     </div></div>
     <div class="calkey"><span><i style="width:26px;height:11px;background:#C9A7D9"></i>Flowers, or the harvest of a crop, in their colour</span></div>
@@ -12944,7 +12952,7 @@ function bookletPages(planImg, forExport) {
     const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && flowerMonths(p).length).sort((a, c) => firstM(a) - firstM(c));
     if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Through the year${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">When each plant flowers, or for crops when they are harvested, in their colour.</p>
       <div class="bcal"><div></div>${MONTHS.map(m => `<div class="mh">${m}</div>`).join('')}
-      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span class="lnum">${n}</span>` : ''}<i>${esc(p.botanical || p.common)}</i>${p.crop ? ' <span class="crop">crop</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar${isPale(showCol(p)) ? ' pale' : ''}" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
+      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span class="lnum">${n}</span>` : ''}<i>${esc(withCultivar(p.botanical || p.common || '', p))}</i>${p.crop ? ' <span class="crop">crop</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar${isPale(showCol(p)) ? ' pale' : ''}" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
   }
   if (b.pages.pricing) {
     const supply = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);

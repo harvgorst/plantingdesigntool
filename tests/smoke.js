@@ -618,6 +618,27 @@ test('Delete after undoing a new area does not wipe redo', async open => {
   eq(((await app.store('gardens/g1')).beds || []).length, 1, 'and it brings the area back');
 });
 
+test('the plant list keeps its place after editing a species; the calendar names cultivars', async open => {
+  const seed = sample();
+  for (let i = 0; i < 30; i++) { seed['plants/x' + i] = { ...seed['plants/p1'], common: 'Salvia ' + String(i).padStart(2, '0') }; seed['gardens/g1'].palette.push('x' + i); }
+  Object.assign(seed['plants/p4'], { botanical: 'Geranium sanguineum', cultivar: 'Max Frei' });
+  const app = await open(seed);
+  const card = () => app.page.$eval('#lib', el => el.closest('.card').scrollTop);
+  await app.page.$eval('#lib [data-edit=x20]', el => el.scrollIntoView());
+  const at = await card(); ok(at > 100, 'the list scrolls');
+  const edit = () => app.page.$eval('#lib [data-edit=x20]', el => el.click());   // as a tap would, without scrolling to it first
+  await edit(); await app.page.waitForSelector('#editPane:not([hidden])');
+  eq(await card(), 0, 'the editor opens at its top');
+  await app.page.click('[data-act=cancelPlant]'); await app.page.waitForSelector('#libPane:not([hidden])');
+  eq(await card(), at, 'back in the same place after cancelling');
+  await edit(); await app.page.fill('#sp-common', 'Salvia 20b');
+  await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(200);
+  eq(await card(), at, 'and after saving');
+  await app.page.click('#navCal'); await app.page.waitForTimeout(200);
+  const names = await app.page.$$eval('#calView .cname b', els => els.map(e => e.textContent));
+  ok(names.includes('Lavender ‘Hidcote’') && names.includes('Geranium ‘Max Frei’'), 'cultivars on the calendar: ' + names.slice(0, 6).join(', '));
+});
+
 test('clicking back on the plan saves and closes the species editor', async open => {
   const app = await open(sample());
   const onMap = async () => { const r = await app.page.$eval('#map', m => { const b = m.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; }); await app.page.mouse.click(r.x, r.y); };
