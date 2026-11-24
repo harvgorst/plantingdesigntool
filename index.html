@@ -10757,7 +10757,14 @@ function edgeLayout(LBL, halo, e) {
   const place = gp => {
     const pid = gp.pts[0].l.pid;
     if (pid != null && LH[pid]) { others(gp, leadPatch(gp.pts, sideD), false); return; }
-    if (pid != null && LA[pid]) { const at = LA[pid], dd = q => Math.hypot(q.ax - at.x, q.ay - at.y), lead = gp.pts.reduce((b, q) => dd(q) < dd(b) ? q : b); others(gp, lead); moved.push({ gp, lead, at, pid }); return; }
+    if (pid != null && LA[pid]) {
+      const at = LA[pid], dd = q => Math.hypot(q.ax - at.x, q.ay - at.y), lead = gp.pts.reduce((b, q) => dd(q) < dd(b) ? q : b);
+      /* dropped in a side margin: it joins that column, in line with the rest, at the height it was put; dropped above or
+         below the plan: it joins that row. Only a label put on the plan itself stays exactly where it was dropped */
+      if (at.x < 0 || at.x > W) { toCol(gp, lead); Object.assign(gp, { side: at.x < 0 ? 'L' : 'R', ay: at.y, pin: true }); return; }
+      if (at.y < 0 || at.y > D) { Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, lead, deep: -1, cx: clamp(at.x, 0, W) }); rows[at.y < 0 ? 'T' : 'B'].push(gp); return; }
+      others(gp, lead); moved.push({ gp, lead, at, pid }); return;
+    }
     let lead = leadPatch(gp.pts, sideD);
     if (sideD(lead) <= REACH) { toCol(gp, lead); return; }
     const side = lead;
@@ -10793,7 +10800,7 @@ function edgeLayout(LBL, halo, e) {
   for (const [a, b] of [['L', 'R'], ['R', 'L']]) {
     const A = side(a).sort((p, q) => a === 'L' ? q.ax - p.ax : p.ax - q.ax);
     let over = A.length - cap, room = cap - side(b).length;
-    for (const gp of A) { if (over <= 0 || room <= 0) break; if (gp.under) continue; gp.side = b; over--; room--; }
+    for (const gp of A) { if (over <= 0 || room <= 0) break; if (gp.under || gp.pin) continue; gp.side = b; over--; room--; }
   }
   let ui = 0; for (const gp of all) if (gp.under) { gp.side = gp.under.side; gp.ay = gp.under.ay + 1e-6 * ++ui; }   // stacked labels sit just after the one they were dropped on
   const lines = [];
@@ -11214,7 +11221,7 @@ function renderMap() {
       }
     } else {
       const r = radiusOf(pl), k = r * 0.7071, tree = !se && TREE_LAYERS.has(layerOf(p?.role)), arm = Math.max(px * 4, Math.min(r * 0.28, ls * 1.1));
-      body = `<circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${fillOf()};stroke:${se ? sc : 'var(--ink)'}" fill-opacity="${tree ? 0.16 : opOf()}" stroke-opacity="${se ? 1 : 0.75}" stroke-width="1" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
+      body = `<circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${fillOf()};stroke:${se ? sc : 'var(--ink)'}" fill-opacity="${tree ? (S.print?.img ? 0.3 : 0.16) : opOf()}" stroke-opacity="${se ? 1 : 0.75}" stroke-width="1" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
       ${ex && st === 'remove' ? `<path d="M${pl.x - k} ${pl.y - k} L${pl.x + k} ${pl.y + k} M${pl.x + k} ${pl.y - k} L${pl.x - k} ${pl.y + k}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}
       ${S.prefs.labelMode === 'number' && showL ? '' : `<path class="ctr" d="M${+(pl.x - arm).toFixed(3)} ${pl.y}H${+(pl.x + arm).toFixed(3)}M${pl.x} ${+(pl.y - arm).toFixed(3)}V${+(pl.y + arm).toFixed(3)}" style="stroke:var(--ink)" stroke-opacity="0.8" stroke-width="0.9" vector-effect="non-scaling-stroke"/>`}`;   // trees and shrubs are marked at their centre with a fine cross
       ringR = r;
@@ -12826,7 +12833,7 @@ async function planImage(numbered) {
   const key = JSON.stringify([font, S.g.id, S.g.updatedAt, numbered, S.view, aerialOn(), [...S.layers], S.showExisting, S.plants.length, S.prefs.roleColors, S.prefs.pgridSpace, S.prefs.oudolf, S.g.oudolf, S.plants.map(p => [p.planColor, p.planPattern, p.spacing, p.density].join()).join()]);
   if (BK.planImg && BK.planKey === key) return BK.planImg;
   const save = { zoom: S.zoom, cx: S.cx, cy: S.cy, sel: S.sel, multi: S.multi, mode: S.prefs.labelMode, qty: S.prefs.labelQty, size: S.prefs.labelSize, drag: S.drag, cal: S.cal };
-  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { font };
+  S.zoom = 1; S.cx = null; S.cy = null; S.sel = null; S.multi = []; S.drag = null; S.cal = null; S.print = { font, img: true };
   if (numbered) { S.prefs.labelMode = 'number'; S.prefs.labelQty = false; S.prefs.labelSize = Math.max(num(save.size, 1), 1.5); }
   let markup;
   try { renderMap(); markup = svg.innerHTML; var vb = svg.getAttribute('viewBox'); }
@@ -12839,6 +12846,9 @@ async function planImage(numbered) {
   }
   const [, , vw, vh] = vb.split(' ').map(Number);
   const W = 2600, H = Math.round(W * vh / vw);
+  /* line weights are screen pixels; drawn 2600 wide and shrunk onto the page they would all but vanish, so draw each as
+     though the plan were about 1000 pixels across, as it is on screen: outlines as clear and dark as on the plan */
+  markup = vectorise(markup, vw / 1000);
   /* a picture can't reach the page's fonts, so it carries the plan face with it */
   const faces = font === GEORGIA ? '' : `<defs><style>${Object.entries(PLEX_DATA).map(([w, b]) => `@font-face{font-family:"${PLEX.family}";font-weight:${w};src:url(data:font/ttf;base64,${b}) format("truetype")}`).join('')}</style></defs>`;
   const doc = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${vb}" width="${W}" height="${H}" font-family='${font}' text-rendering="geometricPrecision">${faces}${markup}</svg>`;

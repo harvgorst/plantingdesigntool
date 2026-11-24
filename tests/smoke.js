@@ -1404,6 +1404,21 @@ test('plant database: rows ruled in their layer colour, the species form grouped
   eq(app.errors, [], 'no errors');
 });
 
+test('labels dragged into the margin line up with the column or row there', async open => {
+  const s = sample();
+  s['gardens/g1'] = { ...s['gardens/g1'], labelAt: { p0: { x: -0.9, y: 3.3 }, p4: { x: -2.1, y: 6.2 }, p2: { x: 8.3, y: -0.9 } } };
+  const app = await open(s), pg = app.page;
+  const at = await pg.$$eval('#map text[data-kind=lbl]', ts => ts.filter(t => /^s/.test(t.dataset.lk)).map(t => ({ k: t.dataset.lk, x: +t.getAttribute('x'), y: +t.getAttribute('y'), a: t.getAttribute('text-anchor') || '' })));
+  const L = at.filter(q => q.a === 'end'), xs = new Set(L.map(q => q.x));
+  ok(L.some(q => q.k === 'sp0') && L.some(q => q.k === 'sp4'), 'both dragged labels in the left column, got ' + JSON.stringify(at));
+  eq(xs.size, 1, 'the left column is one straight line');
+  const p0 = at.find(q => q.k === 'sp0'), p4 = at.find(q => q.k === 'sp4');
+  ok(p0.y < p4.y, 'kept in the order they were put');
+  const top = at.find(q => q.k === 'sp2');
+  ok(top && top.a === 'middle' && top.y < 0, 'the one dropped above the plan is in the top row, got ' + JSON.stringify(top));
+  eq(app.errors, [], 'no errors');
+});
+
 test('any plant label can be dragged, hidden and put back', async open => {
   const app = await open(sample());
   const pg = app.page, g = async () => { await pg.waitForTimeout(900); return app.store('gardens/g1'); };
