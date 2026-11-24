@@ -1153,13 +1153,17 @@ test('beds and guilds: each bed has its own drawing, guilds are named after thei
   // a name of its own wins
   await app.go('plan'); await app.page.keyboard.press('a'); await app.clickPlan(10.5, 4.3); await app.page.fill('#bed-name', 'Orchard corner'); await app.page.waitForTimeout(200);
   ok((await app.page.textContent('#map')).includes('ORCHARD CORNER'), 'renamed');
-  // the species form: six fields up front, the rest folded away
+  // the species form: names, layer, cultivar, flowering group, pot size, price and size up front, the rest folded away
   await app.page.click('#lib [data-edit=p0]');
-  for (const id of ['#sp-bot', '#sp-common', '#sp-role', '#sp-kind-fl', '#sp-h', '#sp-s']) ok(await app.page.isVisible(id), id + ' shown');
-  for (const id of ['#sp-cult', '#sp-fol', '#sp-sup', '#sp-cost', '#sp-supp', '#sp-existing']) ok(!(await app.page.isVisible(id)), id + ' folded away');
+  for (const id of ['#sp-bot', '#sp-common', '#sp-role', '#sp-cult', '#sp-fg', '#sp-sup', '#sp-cost', '#sp-kind-fl', '#sp-h', '#sp-s']) ok(await app.page.isVisible(id), id + ' shown');
+  for (const id of ['#sp-fol', '#sp-supp', '#sp-existing']) ok(!(await app.page.isVisible(id)), id + ' folded away');
   ok(/Photo/.test(await app.page.textContent('#plantEditor, .card, body')), 'photo up front');
   await app.page.click('#sp-more summary');
-  ok(await app.page.isVisible('#sp-cost'), 'More details opens');
+  ok(await app.page.isVisible('#sp-supp'), 'More details opens');
+  await app.page.fill('#sp-fg', '3'); await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(300);
+  eq((await app.store('plants/p0')).floweringGroup, '3', 'the flowering group is saved');
+  await app.page.click('#lib [data-edit=p0]'); await app.page.fill('#sp-cult', 'Hidcote'); await app.page.click('[data-act=savePlant]'); await app.page.waitForTimeout(300);
+  ok(/Lavender ‘Hidcote’/.test(await app.page.textContent('#lib [data-pid=p0] .nm b')), 'the side list shows the cultivar after the common name, got ' + await app.page.textContent('#lib [data-pid=p0] .nm b'));
 });
 
 test('busy booklet: two guilds round the same tree are numbered, long names wrap instead of clipping, nothing runs off a page', async open => {

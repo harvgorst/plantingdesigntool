@@ -11400,14 +11400,14 @@ function renderLibrary() {
   const q = S.filter.trim().toLowerCase(), used = LIBF.used ? usedHere() : null;
   const lib = libIds();
   if (S.g && !lib.size) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">This garden’s plant library is empty. Use <b>Add plants</b> to bring species in from your plant database, or to make new ones. Each garden keeps its own list; your plant database stays as it is.</li>`; return; }
-  const list = S.plants.filter(p => (!S.g || lib.has(p.id)) && (!q || [p.common, p.botanical, ROLES[p.role]].join(' ').toLowerCase().includes(q)) && (!LIBF.layers.size || LIBF.layers.has(layerOf(p.role))) && (!used || used.has(p.id)))
+  const list = S.plants.filter(p => (!S.g || lib.has(p.id)) && (!q || [p.common, p.botanical, p.cultivar, ROLES[p.role]].join(' ').toLowerCase().includes(q)) && (!LIBF.layers.size || LIBF.layers.has(layerOf(p.role))) && (!used || used.has(p.id)))
     .sort((a, b) => (LAYER_ORDER.indexOf(layerOf(a.role)) - LAYER_ORDER.indexOf(layerOf(b.role))) || (a.common || '').localeCompare(b.common || ''));
   renderLibChips();
   if (!S.plants.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${S.loaded ? 'Your library is empty. Use Add species to start it. Every species you add here is reused across all your gardens.' : 'Loading your plant library…'}</li>`; return; }
   if (!list.length) { $('lib').innerHTML = `<li class="empty" style="display:block;cursor:default">${q ? `No species match “${esc(S.filter)}”` : 'No species'}${LIBF.layers.size || LIBF.used ? ' with these filters. Click All to see everything.' : '.'}</li>`; return; }
   /* grouped under each layer, so a long library is easy to scan */
   const groups = new Set(list.map(p => layerOf(p.role))).size > 1;
-  $('lib').innerHTML = list.map((p, i) => (groups && (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role)) ? `<li class="lh" aria-hidden="true" style="--lc:var(--r-${layerOf(p.role)})">${esc(ROLES[layerOf(p.role)])}</li>` : '') + `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common || 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || (p.crop ? 'Harvest colour' : 'Flower colour'))}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
+  $('lib').innerHTML = list.map((p, i) => (groups && (i === 0 || layerOf(list[i - 1].role) !== layerOf(p.role)) ? `<li class="lh" aria-hidden="true" style="--lc:var(--r-${layerOf(p.role)})">${esc(ROLES[layerOf(p.role)])}</li>` : '') + `<li data-pid="${p.id}" aria-selected="${S.activePlant === p.id}" title="Click to plant · double-click to select all of these on the plan">${plantSwatch(p)}<span class="nm"><b>${esc(p.common ? withCultivar(p.common, p) : 'Unnamed')}${p.existing ? '<span class="ex exist">Existing</span>' : ''}${p.example ? '<span class="ex">Example</span>' : ''}</b><i>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || (p.crop ? 'Harvest colour' : 'Flower colour'))}"></span>` : ''}${esc(p.botanical)}</i></span><span class="meta">${num(p.spread).toFixed(1)} m<br>${p.existing ? 'on site' : money(num(p.cost))}</span><button type="button" class="btn sm" data-edit="${p.id}" aria-label="Edit ${esc(p.common)}">Edit</button></li>`).join('');
 }
 function opt(map, v, blank) { return (blank ? `<option value="">${blank}</option>` : '') + Object.entries(map).map(([k, l]) => `<option value="${k}"${k === v ? ' selected' : ''}>${l}</option>`).join(''); }
 function speciesOpts(sel) { return S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(x => `<option value="${x.id}"${x.id === sel ? ' selected' : ''}>${esc(x.common)}</option>`).join(''); }
@@ -11615,6 +11615,10 @@ function renderPlantEditor(el) {
     ${p.pfaf ? `<p class="note" id="pfafNote" style="margin:0">${p._pfafGot ? (p._pfafGot.length ? 'Filled in ' + esc(p._pfafGot.join(', ')) + '. ' : 'Nothing left to fill in. ') : ''}Details from <a href="https://pfaf.org" target="_blank" rel="noopener">Plants For A Future</a> (CC BY 4.0): check them, and choose the colour yourself.</p>` : ''}
     <label class="field"><span>Common name</span><input id="sp-common" type="text" data-p="common" value="${esc(p.common)}"></label>
     <label class="field"><span>Layer</span><select id="sp-role" data-p="role">${opt(ROLES, p.role)}</select></label>
+    <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
+    <label class="field"><span>Flowering group</span><input id="sp-fg" type="text" data-p="floweringGroup" value="${esc(p.floweringGroup)}" placeholder="e.g. 3, to pick pollination partners"></label>
+    ${p.existing ? '' : `<label class="field"><span>Pot size</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
+    <label class="field"><span>Price (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>`}
     <h3 class="fgrp">Season and interest</h3>
     <div class="field" style="align-items:start"><span style="padding-top:4px">In season</span><div style="display:flex;flex-direction:column;gap:6px;flex:1">
       <div class="row" role="radiogroup" aria-label="Flowers or crop"><label class="checks"><input type="radio" name="sp-kind" id="sp-kind-fl" value="flowers"${p.crop ? '' : ' checked'}> Flowers</label><label class="checks"><input type="radio" name="sp-kind" id="sp-crop" value="crop"${p.crop ? ' checked' : ''}> Crop (harvest)</label></div>
@@ -11628,9 +11632,8 @@ function renderPlantEditor(el) {
     <div class="field"><span>${p.existing ? 'Current height × spread' : 'Height × spread'}</span><div class="pair"><input id="sp-h" aria-label="Mature height in metres" type="number" min="0" step="0.05" data-p="height" value="${p.height ?? ''}"><input id="sp-s" aria-label="Mature spread in metres" type="number" min="0.05" step="0.05" data-p="spread" value="${p.spread ?? ''}"></div></div>
     <div class="field"><span>Photo</span><div class="row" style="flex-wrap:nowrap;align-items:center">${photoUrl(p) ? `<img src="${esc(photoUrl(p))}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">` : ''}<label class="btn sm" style="cursor:pointer">${photoUrl(p) ? 'Replace photo' : 'Add a close-up photo'}<input type="file" accept="image/*" data-photo-edit hidden></label><button class="btn sm" type="button" data-act="findPhotoEdit">Find a photo online</button>${p.photoId ? '<button class="btn sm" type="button" data-act="clearPhoto">Remove</button>' : ''}</div>${p.photoCredit && p.photoId ? `<span class="note">${esc(photoCreditText(p.photoCredit))}</span>` : ''}</div>
     <details class="more" id="sp-more"${S.moreOpen || p.existing ? ' open' : ''}><summary>More details</summary><div class="morebody">
-    <h3 class="fgrp">On site and variety</h3>
+    <h3 class="fgrp">On site</h3>
     <div class="field"><span>On site</span><label class="checks"><input type="checkbox" id="sp-existing" data-pb="existing"${p.existing ? ' checked' : ''}> Existing plant, already in the garden</label></div>
-    <label class="field"><span>Cultivar / rootstock</span><input id="sp-cult" type="text" data-p="cultivar" value="${esc(p.cultivar)}"></label>
     <label class="field"><span>Foliage</span><select id="sp-fol" data-p="foliage"><option value="">Not set</option>${opt(FOLIAGE, p.foliage)}</select></label>
     ${'' ? `<div class="field" style="align-items:start"><span style="padding-top:4px">Other interest</span><div style="display:flex;flex-direction:column;gap:6px">
       ${(p.interest || []).map((it, i) => `<div class="irow"><select data-ii="${i}" data-if="kind" aria-label="Kind of interest">${Object.entries(INTEREST).map(([k, v]) => `<option value="${k}"${it.kind === k ? ' selected' : ''}>${v[0]}</option>`).join('')}</select><select data-ii="${i}" data-if="from" aria-label="From month">${mo(it.from).replace('<option value="">None</option>', '')}</select><span class="pv">to</span><select data-ii="${i}" data-if="to" aria-label="To month">${mo(it.to).replace('<option value="">None</option>', '')}</select><input type="color" data-ii="${i}" data-if="color" value="${esc(it.color || '#C92F2F')}" aria-label="Colour"><button class="btn sm" type="button" data-idel="${i}" aria-label="Remove">×</button></div>`).join('')}
@@ -11640,9 +11643,7 @@ function renderPlantEditor(el) {
     ${p.existing ? '' : `<label class="field"><span>Spread as planted</span><input id="sp-ps" type="number" min="0.05" step="0.05" data-p="potSpread" value="${p.potSpread ?? ''}"></label>`}
     ${p.existing && !onGrid(p) ? '' : `<label class="field"><span>Planting spacing</span><input id="sp-spc" type="number" min="0.05" max="20" step="0.05" data-p="spacing" value="${p.spacing ?? ''}" placeholder="${spacingDefault(p)} m, centre to centre"></label>`}
     ${`<div class="field"><span>Plan colour</span><div class="row pcrow">${plantSwatch({ ...p, existing: false }, 26, true).replace('class="swv"', 'class="swv" id="sp-swatch"')}<input type="color" id="sp-pc" data-p="planColor" value="${speciesStyle(p).col}" aria-label="Plan colour"><select id="sp-pp" data-p="planPattern" aria-label="Plan pattern"><option value="">Automatic pattern</option>${opt(PATTERNS, p.planPattern || '')}</select>${p.planColor || p.planPattern ? '<button class="btn sm" type="button" data-act="autoPlanColour">Automatic</button>' : ''}</div></div>`}
-    ${p.existing ? '' : `<h3 class="fgrp">Supply</h3><label class="field"><span>Supply</span><input id="sp-sup" type="text" data-p="supply" value="${esc(p.supply)}" placeholder="2L pot, bare-root…"></label>
-    <label class="field"><span>Unit cost (${esc(S.prefs.currency || '£')})</span><input id="sp-cost" type="number" min="0" step="0.01" data-p="cost" value="${p.cost ?? ''}"></label>
-    <label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
+    ${p.existing ? '' : `<h3 class="fgrp">Supply</h3><label class="field"><span>Supplier</span><input id="sp-supp" type="text" data-p="supplier" value="${esc(p.supplier)}"></label>`}
     </div></details>
     <p class="note" style="margin:0">${p.existing ? 'Measure the plant’s current height and spread in metres. Existing trees and shrubs are drawn dashed at that size; existing perennials, ground cover and bulbs are painted on the grid like new ones. Existing plants are left out of the plant cost.' : 'Heights and spreads are in metres. Mature spread sets the plant’s size on the plan and the starting spacing for a row.'}</p>
     <div class="row"><button class="btn primary" type="button" data-act="savePlant">Save species</button><button class="btn" type="button" data-act="cancelPlant">Cancel</button>${!p._new && S.g && getPage() !== 'database' && libIds().has(p.id) ? `<button class="btn" type="button" data-act="unLibrary"${usedHere().has(p.id) ? ' disabled title="It’s on the plan: take it off the plan first"' : ''}>Remove from this garden</button>` : ''}${!p._new ? `<span class="spacer"></span><button class="btn danger" type="button" data-act="askDeletePlant">Delete</button>` : ''}</div>
@@ -13418,7 +13419,7 @@ app.addEventListener('click', async e => {
     const p = S.editPlant;
     if (!(p.common || '').trim() && (p.botanical || '').trim()) p.common = p.botanical.trim();   // a botanical name alone will do
     if (!(p.common || '').trim()) { $('plantErr').textContent = 'Give the species a common or botanical name.'; return; }
-    if (num(p.cost) < 0) { $('plantErr').textContent = 'The unit cost can’t be less than 0.'; return; }
+    if (num(p.cost) < 0) { $('plantErr').textContent = 'The price can’t be less than 0.'; return; }
     if (num(p.height) > 120 || num(p.spread) > 60) { $('plantErr').textContent = 'That height or spread looks too big: sizes are in metres.'; return; }
     if (!(num(p.spread) > 0)) { $('plantErr').textContent = 'Mature spread must be more than 0 m.'; return; }
     const body = { ...p }; delete body._new; delete body.id; delete body.example; delete body._toGarden; delete body._touched; delete body._pfafGot;
@@ -13695,7 +13696,7 @@ const AV_FIELDS = [
   ['b', 'Botanical name', /botan|latin|scientific|plant ?name|^name$|^plant$|description|product/i],
   ['genus', 'Genus (if separate)', /^genus/i], ['species', 'Species (if separate)', /^species/i], ['cv', 'Cultivar / variety', /cultivar|variety|^var/i],
   ['c', 'Common name', /common/i], ['sz', 'Pot size / grade', /size|pot|container|grade|spec|format|litre/i],
-  ['pr', 'Price', /price|cost|£|€|\$|each|unit|rate|net/i], ['st', 'Stock available', /stock|avail|qty|quantity|in hand/i],
+  ['fg', 'Flowering group', /flower(ing)? ?group|pollination group/i], ['pr', 'Price', /price|cost|£|€|\$|each|unit|rate|net/i], ['st', 'Stock available', /stock|avail|qty|quantity|in hand/i],
   ['h', 'Height', /height|^ht/i], ['sp', 'Spread', /spread|width/i], ['code', 'Code', /code|sku|ref|item ?no|^id$/i],
 ];
 const normName = v => String(v || '').toLowerCase().replace(/['"‘’“”]/g, '').replace(/\s+/g, ' ').trim();
@@ -13774,7 +13775,7 @@ function rowsToItems(imp) {
     if (cv && b && !normName(b).includes(normName(cv).replace(/^'|'$/g, ''))) b = b + " '" + cv.replace(/^['‘’]|['‘’]$/g, '') + "'";
     const c = g(r, 'c');
     if (!b && !c) return;
-    out.push({ id: 'i' + n, b, c, sz: g(r, 'sz'), pr: toNum(g(r, 'pr')), st: g(r, 'st'), h: toNum(g(r, 'h')), sp: toNum(g(r, 'sp')), code: g(r, 'code') });
+    out.push({ id: 'i' + n, b, c, sz: g(r, 'sz'), pr: toNum(g(r, 'pr')), fg: g(r, 'fg'), st: g(r, 'st'), h: toNum(g(r, 'h')), sp: toNum(g(r, 'sp')), code: g(r, 'code') });
   });
   return out;
 }
@@ -13926,6 +13927,7 @@ $('avAdd').addEventListener('click', async () => {
     base.supply = it.sz || base.supply || '';
     if (it.pr != null) base.cost = it.pr;
     base.supplier = l.supplier;
+    fill('floweringGroup', it.fg);
     base.source = { list: l.id, listName: `${l.supplier} · ${l.name}`, code: it.code || '', stock: it.st || '', checkedAt: Date.now() };
     if (!mine) base.role = layerPick;   // a species you already have keeps its layer
     fill('height', it.h ?? (num(d.height_m, NaN) > 0 ? +d.height_m : null));
@@ -14033,8 +14035,8 @@ function autoSavePlant() {
 }
 $('plantModal').addEventListener('click', e => { if (e.target.id === 'plantModal') autoSavePlant(); });
 $('dbCopy').addEventListener('click', async () => {
-  const head = ['Common name', 'Botanical name', 'Cultivar / rootstock', 'Layer', 'Existing', 'Flowers from', 'Flowers to', 'Flower colour', 'Height (m)', 'Spread (m)', 'Spread as planted (m)', 'Supply', 'Unit cost', 'Supplier', 'Gardens used in'];
-  const lines = [head.join('\t')].concat(S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(p => [p.common, p.botanical, p.cultivar, ROLES[p.role], p.existing ? 'Yes' : 'No', p.flowerFrom ? MONTHS[p.flowerFrom - 1] : '', p.flowerTo ? MONTHS[p.flowerTo - 1] : '', p.flowerColorName || '', p.height ?? '', p.spread ?? '', p.potSpread ?? '', p.supply, p.existing ? '' : num(p.cost).toFixed(2), p.supplier, gardensUsing(p.id).length].map(v => String(v ?? '').replace(/[\t\n]/g, ' ')).join('\t')));
+  const head = ['Common name', 'Botanical name', 'Cultivar / rootstock', 'Flowering group', 'Layer', 'Existing', 'Flowers from', 'Flowers to', 'Flower colour', 'Height (m)', 'Spread (m)', 'Spread as planted (m)', 'Supply', 'Unit cost', 'Supplier', 'Gardens used in'];
+  const lines = [head.join('\t')].concat(S.plants.slice().sort((a, b) => (a.common || '').localeCompare(b.common || '')).map(p => [p.common, p.botanical, p.cultivar, p.floweringGroup, ROLES[p.role], p.existing ? 'Yes' : 'No', p.flowerFrom ? MONTHS[p.flowerFrom - 1] : '', p.flowerTo ? MONTHS[p.flowerTo - 1] : '', p.flowerColorName || '', p.height ?? '', p.spread ?? '', p.potSpread ?? '', p.supply, p.existing ? '' : num(p.cost).toFixed(2), p.supplier, gardensUsing(p.id).length].map(v => String(v ?? '').replace(/[\t\n]/g, ' ')).join('\t')));
   const text = lines.join('\n'), b = $('dbCopy');
   try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; }
   catch { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch { b.textContent = 'Copy failed'; } ta.remove(); }
@@ -14290,7 +14292,7 @@ function cleanPlant(d) {
   const id = safeId(d?.id); if (!id) return null;
   const p = { id, common: str(d.common, 200), botanical: str(d.botanical, 200), cultivar: str(d.cultivar, 200), role: layerOf(d.role), existing: !!d.existing,
     height: numOrNull(d.height), spread: Math.max(0.05, numOrNull(d.spread) ?? 0.5), potSpread: numOrNull(d.potSpread), cost: Math.max(0, numOrNull(d.cost) ?? 0),
-    supply: str(d.supply, 200), supplier: str(d.supplier, 200), flowerFrom: monthOrNull(d.flowerFrom), flowerTo: monthOrNull(d.flowerTo), flowerColor: hexOrNull(d.flowerColor), flowerColorName: str(d.flowerColorName, 60) };
+    supply: str(d.supply, 200), supplier: str(d.supplier, 200), floweringGroup: str(d.floweringGroup, 40), flowerFrom: monthOrNull(d.flowerFrom), flowerTo: monthOrNull(d.flowerTo), flowerColor: hexOrNull(d.flowerColor), flowerColorName: str(d.flowerColorName, 60) };
   if (!p.common) p.common = p.botanical || 'Unnamed';
   if (safeId(d.photoId)) p.photoId = d.photoId;
   if (d.photoCredit && typeof d.photoCredit === 'object') { const c = d.photoCredit, u = v => /^https:\/\/[^\s"<>]+$/.test(String(v || '')) ? String(v) : ''; p.photoCredit = { by: str(c.by, 120), licence: str(c.licence, 60), licUrl: u(c.licUrl), page: u(c.page), title: str(c.title, 200) }; }
