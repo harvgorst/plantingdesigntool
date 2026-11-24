@@ -9810,9 +9810,16 @@ function setStatus(t, err) { const el = $('status'); el.textContent = t; el.clas
 function plantLabel(p) {
   if (!p) return '?';
   if (S.prefs.labelMode === 'number') { const n = paletteNumber(p.id); return n ? String(n) : code(p); }
-  if (S.prefs.labelMode === 'common') return p.common || code(p);
+  if (S.prefs.labelMode === 'common') return p.common ? withCultivar(p.common, p) : code(p);
   if (S.prefs.labelMode === 'botanical') return p.botanical || p.common || '?';
   return code(p);
+}
+/* a common name is followed by its cultivar, in single quotes as it is written: Apple 'Bramley' (unless the name already says it).
+   The cultivar is its own field, or else the quoted part of the botanical name, as in Lavandula angustifolia 'Hidcote' */
+function withCultivar(name, p) {
+  const cv = String(p?.cultivar || '').trim() || (String(p?.botanical || '').match(/['‘’"“”]([^'‘’"“”]+)['‘’"“”]/)?.[1] || ''), bare = cv.replace(/^['‘’"“”]+|['‘’"“”]+$/g, '').trim();
+  if (!bare || name.toLowerCase().includes(bare.toLowerCase())) return name;
+  return `${name} ‘${bare}’`;
 }
 function code(p) {
   if (!p) return '?';
@@ -11796,7 +11803,7 @@ function renderPrefs() {
   const P = S.prefs, el = $('prefsView');
   const sel = (id, k, opts) => `<select id="${id}" data-pref="${k}">${opts.map(([v, l]) => `<option value="${v}"${String(P[k]) === String(v) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
   const chk = (id, k, l) => `<label class="checks"><input type="checkbox" id="${id}" data-pref="${k}"${P[k] ? ' checked' : ''}> ${l}</label>`;
-  const sample = (P.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender', botanical: 'Lavandula angustifolia' }[P.labelMode] || 'Lav ang');
+  const sample = (P.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender ‘Hidcote’', botanical: 'Lavandula angustifolia' }[P.labelMode] || 'Lav ang');
   el.innerHTML = `<div class="calhead"><div><span class="lbl">Preferences</span><h2 id="prefsH">Preferences</h2></div>
       <div class="row"><span class="note">${S.online ? 'Saved automatically and used for every garden.' : 'Not saved in this view.'}</span><button class="btn sm" type="button" data-act="resetPrefs">Reset to defaults</button></div></div>
     <div class="prefgrid">
@@ -11811,7 +11818,7 @@ function renderPrefs() {
         <label class="field"><span>Label size</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-size" data-pref="labelSize" min="0.5" max="2" step="0.1" value="${P.labelSize}" style="flex:1;accent-color:var(--accent)"><output id="pf-size-v" style="min-width:3.5em;text-align:right">${Math.round(P.labelSize * 100)}%</output></span></label>
         <label class="field"><span>When zooming</span>${sel('pf-zoom', 'labelZoom', [['screen', 'Labels stay the same size on screen'], ['plan', 'Labels grow with the plan']])}</label>
         <label class="field"><span>Label placement</span>${sel('pf-place', 'labelPlace', [['edge', 'Around the edge, with leader lines'], ['plan', 'On the plan, beside each plant']])}</label>
-        <label class="field"><span>Label text</span>${sel('pf-mode', 'labelMode', [['code', 'Short code (Lav ang)'], ['common', 'Common name'], ['botanical', 'Botanical name']])}</label>
+        <label class="field"><span>Label text</span>${sel('pf-mode', 'labelMode', [['code', 'Short code (Lav ang)'], ['common', 'Common name and cultivar'], ['botanical', 'Botanical name']])}</label>
         ${chk('pf-qty', 'labelQty', 'Show quantity before the name')}
         <div class="field"><span>Preview</span><div class="pv-sample"><span id="pf-sample" style="font-size:${Math.round(13 * P.labelSize)}px">${esc(sample)}</span></div></div>
       </fieldset>
@@ -11864,7 +11871,7 @@ function setPref(k, v) {
   if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
   if (k === 'snap') { const o = $('pf-snap-v'); if (o) o.textContent = snapText(v); }
   const smp = $('pf-sample');
-  if (smp) { smp.style.fontSize = Math.round(13 * S.prefs.labelSize) + 'px'; smp.textContent = (S.prefs.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender', botanical: 'Lavandula angustifolia' }[S.prefs.labelMode] || 'Lav ang'); }
+  if (smp) { smp.style.fontSize = Math.round(13 * S.prefs.labelSize) + 'px'; smp.textContent = (S.prefs.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender ‘Hidcote’', botanical: 'Lavandula angustifolia' }[S.prefs.labelMode] || 'Lav ang'); }
 }
 function usageByPlant() {
   const gs = S.gardens.map(g => (S.g && g.id === S.g.id) ? S.g : g);

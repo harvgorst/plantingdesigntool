@@ -1521,6 +1521,20 @@ test('every plant label is one font size: names, numbers, codes, drifts and name
   }
 });
 
+test('labels by common name show the cultivar after it', async open => {
+  for (const place of ['plan', 'edge']) {
+    const s = sample();   // lavender's cultivar is in its botanical name; the apple's in its own field, without quotes; the birch has none
+    s['plants/p5'] = { ...s['plants/p5'], botanical: 'Malus domestica', cultivar: 'Bramley' };
+    const app = await open({ ...s, 'settings/prefs': { labelMode: 'common', labelPlace: place } });
+    const t = (await app.page.$$eval('#map text[data-kind=lbl]', ts => ts.map(x => x.textContent))).join(' | ');
+    ok(t.includes('Lavender ‘Hidcote’'), place + ': lavender with its cultivar, got ' + t);
+    ok(t.includes('Apple ‘Bramley’'), place + ': quotes added when the cultivar has none, got ' + t);
+    ok(t.includes('Rose ‘Olivia Rose Austin’') && /Old birch($| \|)/.test(t), place + ': from the botanical name, and none for a plant without one, got ' + t);
+    eq(app.errors, [], 'no errors');
+    await app.close();
+  }
+});
+
 test('selecting on the plan never moves the plan', async open => {
   const app = await open(sample(), { hash: '#/g/g1', viewport: { width: 1000, height: 900 } });
   const pg = app.page, at = () => pg.evaluate(() => { const i = document.getElementById('inspector'); return { top: Math.round(document.getElementById('map').getBoundingClientRect().top), bar: i.offsetHeight - i.clientHeight, over: i.scrollWidth > i.clientWidth }; });
