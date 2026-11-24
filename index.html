@@ -10579,6 +10579,7 @@ function joinLabels(src, dst) {
   const J = { ...(g.labelJoin || {}) }, sp = k => k[0] === 's' ? k.slice(1) : lblPlanting(k)?.plantId;
   const set = (a, b) => {
     if (a === b) return; J[a] = b;
+    if (a[0] === 'p') for (const q of S.blockMem?.get(a.slice(1)) || []) { const k = 'p' + q.id; if (k === a) continue; delete J[k]; for (const x in J) if (J[x] === k) J[x] = a; }   // one label for the block: an old stack left on another of its plants would come back if the label moved to it
     if (a[0] === 's') { if (g.labelAt) { delete g.labelAt[a.slice(1)]; if (!Object.keys(g.labelAt).length) delete g.labelAt; } }
     else { const pl = lblPlanting(a); if (pl) for (const k of ['lx', 'ly', 'kx', 'ky']) delete pl[k]; }
   };
@@ -11037,13 +11038,17 @@ function renderMap() {
   /* touching plants of one species (on the grid, or shrubs and trees whose canopies meet) form a block that is labelled once */
   let blockLab = null; const driftSets = [];   // runs of one shrub or tree, joined by a fine line through their centres
   {
-    blockLab = new Map(); const by = new Map(), rows = new Map();
+    blockLab = new Map(); const by = new Map(), rows = new Map(), BM = S.blockMem = new Map();
+    /* a block's label stays on the plant that holds it: one dragged by hand, then one stacked on another label, then one
+       others are stacked on; so a block that grows, shrinks or shifts keeps its stack instead of the label moving to another plant */
+    const LJ = g.labelJoin || {}, LT = new Set(Object.values(LJ)), hold = q => q.lx != null ? 3 : LJ['p' + q.id] ? 2 : LT.has('p' + q.id) ? 1 : 0;
+    const holdRep = (mem, r) => { for (const q of mem) if (hold(q) > hold(r)) r = q; for (const q of mem) BM.set(q.id, mem); return r; };
     /* a row of one plant is labelled once, at its middle plant, with the count for the whole row */
     for (const pl of g.plantings) { if (!pl.row) continue; const p = plantById(pl.plantId); if (!p || !isVisible(p)) continue; const k = pl.row + '|' + p.id; if (!rows.has(k)) rows.set(k, []); rows.get(k).push(pl); }
     for (const mem of rows.values()) {
       if (mem.length < 2) continue;
       mem.sort((a, b) => (a.rowI ?? 0) - (b.rowI ?? 0));
-      const rp = mem.find(q => q.lx != null) || mem[(mem.length - 1) >> 1], n = mem.reduce((t, q) => t + Math.max(1, q.qty || 1), 0);
+      const rp = holdRep(mem, mem[(mem.length - 1) >> 1]), n = mem.reduce((t, q) => t + Math.max(1, q.qty || 1), 0);
       if (!onGrid(plantById(mem[0].plantId))) driftSets.push(mem);
       for (const q of mem) blockLab.set(q.id, q === rp ? n : 0);
     }
@@ -11060,7 +11065,7 @@ function renderMap() {
         const mx = mem.reduce((t, q) => t + q.x, 0) / mem.length, my = mem.reduce((t, q) => t + q.y, 0) / mem.length;
         const ay = kindOf(plantById(pid)) === 'bulb' ? Math.max(...mem.map(q => q.y)) : my;   // bulb labels sit below their block, clear of the planting's
         let rep = mem[0]; for (const q of mem) if (Math.hypot(q.x - mx, q.y - ay) < Math.hypot(rep.x - mx, rep.y - ay)) rep = q;
-        rep = mem.find(q => q.lx != null) || rep;   // a block's label that was dragged stays the block's label
+        rep = holdRep(mem, rep);
         for (const q of mem) blockLab.set(q.id, q === rep ? mem.length : 0);
       }
     }

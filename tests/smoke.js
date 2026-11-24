@@ -1466,6 +1466,30 @@ test('a stacked label leaves no line or handle of its own behind on its plant', 
   eq(app.errors, [], 'no errors');
 });
 
+test('a block of plants keeps its stacked label when the block grows, and an old stack on another of its plants never comes back', async open => {
+  const s = sample(), g0 = s['gardens/g1'];
+  const roses = [5.8, 6.7, 7.6, 8.5, 9.4].map((x, i) => ({ id: 'r' + i, plantId: 'p2', x, y: 6.5, qty: 1 }));
+  // the block of four was stacked on the lavender's label, from its middle rose; a fifth rose moves the block's middle
+  let app = await open({ ...s, 'gardens/g1': { ...g0, plantings: [...g0.plantings, ...roses], labelJoin: { pr3: 'pa' } }, 'settings/prefs': { labelPlace: 'plan' } }), pg = app.page;
+  const at = async k => { const t = pg.locator(`#map text[data-lk="${k}"]`); return (await t.count()) ? { x: +await t.getAttribute('x'), y: +await t.getAttribute('y'), t: await t.textContent() } : null; };
+  let A = await at('pa'), B = await at('pr3');
+  ok(B && /^5 /.test(B.t), 'the block keeps its label on the rose it was stacked from, got ' + JSON.stringify(B));
+  ok(A && B && Math.abs(A.x - B.x) < 1e-6 && B.y > A.y, 'still stacked under the lavender, got ' + JSON.stringify([A, B]));
+  eq(await pg.locator('#map text[data-lk^="pr"]').count(), 1, 'one label for the block');
+  await app.close();
+  // two of its roses carry stacks from before they touched: dropping the block's label on the apple clears the other one
+  app = await open({ ...s, 'gardens/g1': { ...g0, plantings: [...g0.plantings, ...roses], labelJoin: { pr1: 'pb', pr3: 'pa' } }, 'settings/prefs': { labelPlace: 'plan' } }); pg = app.page;
+  const lk = (await pg.$$eval('#map text[data-lk^="pr"]', ts => ts.map(t => t.dataset.lk)))[0];
+  const box = k => pg.locator(`#map rect.lblhit[data-lk="${k}"]`).first().boundingBox();
+  const S0 = await box(lk), T = await box('pf');
+  await pg.mouse.move(S0.x + S0.width / 2, S0.y + S0.height / 2); await pg.mouse.down();
+  await pg.mouse.move(S0.x + S0.width / 2 + 8, S0.y + S0.height / 2 + 8, { steps: 2 });
+  await pg.mouse.move(T.x + T.width / 2, T.y + T.height / 2, { steps: 8 }); await pg.mouse.up(); await pg.waitForTimeout(900);
+  const J = (await app.store('gardens/g1')).labelJoin;
+  eq(J, { [lk]: 'pf' }, 'stacked on the apple, with no old stack left on its other roses');
+  eq(app.errors, [], 'no errors');
+});
+
 test('leader lines from labels on the plan run like a metro map: level, upright or at 45°', async open => {
   const s = sample(), g0 = s['gardens/g1'];
   const g = { ...g0, plantings: g0.plantings.map(p => p.id === 'c' ? { ...p, lx: 2.6, ly: 1.7 } : p.id === 'e' ? { ...p, lx: -1.3, ly: 2.4 } : p),
