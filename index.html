@@ -813,7 +813,7 @@ html[data-skin=root] ::selection { background: var(--accent); color: var(--accen
       <div style="overflow-x:auto"><table class="sched wide dbt" id="avTable"></table></div>
       <div class="avbar" id="avBar" hidden>
         <b id="avSelN">0 selected</b>
-        <label class="pf"><span>Layer</span><select id="avLayer"></select></label>
+        <label class="pf" title="Automatic gives each plant its own layer from Plants For A Future: a tree, a shrub, a climber… Plants it doesn’t know become herbaceous. Plants already in My plants keep theirs."><span>Layer</span><select id="avLayer"></select></label>
         <span class="spacer"></span><span class="note" id="avProgress"></span>
         <button class="btn sm" type="button" id="avClear">Clear selection</button>
         <button class="btn sm primary" type="button" id="avAdd">Add to my plants</button>
@@ -10013,6 +10013,12 @@ function pfafList() {
   return PFAF;
 }
 const pfafFind = name => pfafList().by.get(pfafKey(name)) || null;
+/* a genus PFAF knows, for a species it doesn't: the layer most of its species take (Malus, Morus, Vitis…) */
+let PFAF_GENUS = null;
+function pfafGenusLayer(name) {
+  if (!PFAF_GENUS) { const c = new Map(); for (const r of pfafList().list) { const gk = r.k.split(' ')[0], m = c.get(gk) || c.set(gk, {}).get(gk); m[r.role] = (m[r.role] || 0) + 1; } PFAF_GENUS = new Map([...c].map(([gk, m]) => [gk, Object.entries(m).sort((a, b) => b[1] - a[1])[0][0]])); }
+  return PFAF_GENUS.get(pfafKey(name).split(' ')[0]) || null;
+}
 function pfafSearch(q, max = 6) {
   const k = q.trim().toLowerCase(); if (k.length < 3) return [];
   const sp = pfafKey(q), exact = pfafList().by.get(sp), out = exact ? [exact] : [];
@@ -13700,12 +13706,21 @@ const AV_FIELDS = [
   ['h', 'Height', /height|^ht/i], ['sp', 'Spread', /spread|width/i], ['code', 'Code', /code|sku|ref|item ?no|^id$/i],
 ];
 const normName = v => String(v || '').toLowerCase().replace(/['"‘’“”]/g, '').replace(/\s+/g, ' ').trim();
-const avKey = it => normName(it.b) + '|' + normName(it.sz);
+/* a list line's botanical name and cultivar, kept apart: "Malus domestica 'Bramley'" is Malus domestica, cultivar Bramley */
+const unquote = v => String(v || '').trim().replace(/^['‘’"“”]+|['‘’"“”]+$/g, '').trim();
+function splitCv(b, cv) {
+  b = String(b || '').trim(); cv = unquote(cv);
+  const m = b.match(/^(.*?)\s*['‘’"“”]([^'‘’"“”]+)['‘’"“”]\s*(.*)$/);
+  if (m && (!cv || normName(m[2]) === normName(cv))) return { b: (m[1] + ' ' + m[3]).trim(), cv: cv || m[2].trim() };
+  return { b, cv };
+}
+const avName = (b, cv) => { const n = normName(b), c = normName(cv); return c && !n.includes(c) ? n + ' ' + c : n; };
+const avKey = it => avName(it.b, it.cv) + '|' + normName(it.sz);
 let mineIndex = null, mineIndexOf = null;
 function myPlantFor(it, supplier) {
   if (mineIndexOf !== S.plants) {
     mineIndex = new Map();
-    for (const p of S.plants) { if (p.existing) continue; const k = normName(p.botanical) + '|' + normName(p.supply); (mineIndex.get(k) || mineIndex.set(k, []).get(k)).push(p); }
+    for (const p of S.plants) { if (p.existing) continue; const k = avName(p.botanical, p.cultivar) + '|' + normName(p.supply); (mineIndex.get(k) || mineIndex.set(k, []).get(k)).push(p); }
     mineIndexOf = S.plants;
   }
   const list = mineIndex.get(avKey(it)); if (!list) return null;
@@ -13773,11 +13788,9 @@ function rowsToItems(imp) {
   data.forEach((r, n) => {
     let b = g(r, 'b');
     if (!b) b = [g(r, 'genus'), g(r, 'species')].filter(Boolean).join(' ');
-    const cv = g(r, 'cv');
-    if (cv && b && !normName(b).includes(normName(cv).replace(/^'|'$/g, ''))) b = b + " '" + cv.replace(/^['‘’]|['‘’]$/g, '') + "'";
-    const c = g(r, 'c');
+    const sp = splitCv(b, g(r, 'cv')), c = g(r, 'c'); b = sp.b;
     if (!b && !c) return;
-    out.push({ id: 'i' + n, b, c, sz: g(r, 'sz'), pr: toNum(g(r, 'pr')), fg: fgOf(g(r, 'fg')), st: g(r, 'st'), h: toNum(g(r, 'h')), sp: toNum(g(r, 'sp')), code: g(r, 'code') });
+    out.push({ id: 'i' + n, b, cv: sp.cv, c, sz: g(r, 'sz'), pr: toNum(g(r, 'pr')), fg: fgOf(g(r, 'fg')), st: g(r, 'st'), h: toNum(g(r, 'h')), sp: toNum(g(r, 'sp')), code: g(r, 'code') });
   });
   return out;
 }
@@ -13801,7 +13814,7 @@ function renderImport() {
     : `<p class="note" style="margin:0">Match the list’s columns to what they mean. Leave anything the list doesn’t have as “Not in list”.</p>
       <div class="row"><label class="checks"><input type="checkbox" id="imp-hashead"${I.header >= 0 ? ' checked' : ''}> The list has a heading row</label>${I.header >= 0 ? `<label class="pf"><span>Heading row</span><input id="imp-hrow" class="n" type="number" min="1" max="${I.rows.length}" value="${I.header + 1}"></label>` : ''}</div>
       <div class="mapgrid">${AV_FIELDS.map(([k, l]) => `<label><span>${l}</span><select data-impmap="${k}"><option value="">Not in list</option>${cols}</select></label>`).join('')}</div>
-      <div style="overflow-x:auto"><table class="sched preview"><thead><tr><th>Botanical name</th><th>Common</th><th>Size</th><th>Flowering group</th><th class="n">Price</th><th>Stock</th><th>Code</th></tr></thead><tbody>${items.slice(0, 8).map(it => `<tr><td><i>${esc(it.b)}</i></td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td>${esc(it.fg)}</td><td class="n">${it.pr != null ? money(it.pr) : ''}</td><td>${esc(it.st)}</td><td>${esc(it.code)}</td></tr>`).join('') || '<tr><td class="empty" colspan="7">No plant lines found with these columns.</td></tr>'}</tbody></table></div>
+      <div style="overflow-x:auto"><table class="sched preview"><thead><tr><th>Botanical name</th><th>Common</th><th>Size</th><th>Flowering group</th><th class="n">Price</th><th>Stock</th><th>Code</th></tr></thead><tbody>${items.slice(0, 8).map(it => `<tr><td><i>${esc(it.b)}</i>${it.cv ? ` ‘${esc(it.cv)}’` : ''}</td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td>${esc(it.fg)}</td><td class="n">${it.pr != null ? money(it.pr) : ''}</td><td>${esc(it.st)}</td><td>${esc(it.code)}</td></tr>`).join('') || '<tr><td class="empty" colspan="7">No plant lines found with these columns.</td></tr>'}</tbody></table></div>
       <div class="row"><button class="btn" type="button" data-imp="back">Back</button><button class="btn primary" type="button" data-imp="save"${items.length ? '' : ' disabled'}>Save ${items.length.toLocaleString('en-GB')} lines</button><span class="note" style="color:var(--crit)">${esc(I.err)}</span></div>`}`;
   if (I.rows) for (const sel of el.querySelectorAll('[data-impmap]')) sel.value = I.map[sel.dataset.impmap] ?? '';
 }
@@ -13855,7 +13868,7 @@ async function renderAvailability() {
   if (!curList() && AV.lists.length) { AV.listId = L.value; }
   L.disabled = !AV.lists.length; $('avDelete').disabled = !AV.lists.length; $('avDelete').textContent = AV.delArm ? 'Click again to delete' : 'Delete list';
   $('avFilters').hidden = !AV.lists.length;
-  const ls = $('avLayer'); if (!ls.options.length) ls.innerHTML = Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${k === 'herbaceous' ? ' selected' : ''}>${v}</option>`).join('');
+  const ls = $('avLayer'); if (!ls.options.length) ls.innerHTML = '<option value="" selected>Automatic</option>' + Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   const l = curList();
   if (!l) { $('avTable').innerHTML = `<tbody><tr><td class="empty">${S.loaded ? 'Import a supplier’s availability list (Excel, CSV or pasted rows) to browse it here.' : 'Loading…'}</td></tr></tbody>`; $('avInfo').textContent = ''; $('avBar').hidden = true; return; }
   await loadListItems();
@@ -13863,13 +13876,13 @@ async function renderAvailability() {
   $('avInfo').textContent = `Imported ${new Date(l.importedAt).toLocaleDateString('en-GB')} · ${AV.items.length.toLocaleString('en-GB')} lines`;
   const q = AV.q.trim().toLowerCase();
   const rows = AV.items.map(it => ({ it, mine: myPlantFor(it, l.supplier) }))
-    .filter(({ it, mine }) => (!AV.show || (AV.show === 'mine') === !!mine) && (!q || [it.b, it.c, it.sz, it.code].join(' ').toLowerCase().includes(q)));
+    .filter(({ it, mine }) => (!AV.show || (AV.show === 'mine') === !!mine) && (!q || [it.b, it.cv, it.c, it.sz, it.code].join(' ').toLowerCase().includes(q)));
   const shown = rows.slice(0, 400);
   const allOn = shown.length && shown.every(r => AV.sel.has(r.it.id)), hasFg = AV.items.some(it => it.fg);
   $('avTable').innerHTML = !rows.length ? '<tbody><tr><td class="empty">No lines match.</td></tr></tbody>'
     : `<thead><tr><th class="ck"><input type="checkbox" id="avAll" aria-label="Select all shown"${allOn ? ' checked' : ''}></th><th>Plant</th><th>Size</th>${hasFg ? '<th>Flowering group</th>' : ''}<th>Code</th><th>Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${shown.map(({ it, mine }) => `<tr>
       <td class="ck"><input type="checkbox" data-av="${it.id}"${AV.sel.has(it.id) ? ' checked' : ''} aria-label="Select ${esc(it.b)}"></td>
-      <td><i>${esc(it.b)}</i>${it.c ? `<span class="cn"> · ${esc(it.c)}</span>` : ''}</td><td>${esc(it.sz)}</td>${hasFg ? `<td>${esc(it.fg || '')}</td>` : ''}<td>${esc(it.code)}</td><td>${esc(it.st)}</td>
+      <td><i>${esc(it.b)}</i>${it.cv ? ` ‘${esc(it.cv)}’` : ''}${it.c ? `<span class="cn"> · ${esc(it.c)}</span>` : ''}</td><td>${esc(it.sz)}</td>${hasFg ? `<td>${esc(it.fg || '')}</td>` : ''}<td>${esc(it.code)}</td><td>${esc(it.st)}</td>
       <td class="n">${it.pr != null ? money(it.pr) : ''}</td>
       <td>${mine ? `<span class="mine-tag" title="${esc(mine.common || mine.botanical)}${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · your price ' + money(num(mine.cost)) : ''}">In my plants${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · price differs' : ''}</span>` : ''}</td></tr>`).join('')}</tbody>
       ${rows.length > shown.length ? `<tfoot><tr><td colspan="${hasFg ? 8 : 7}" class="note" style="font-weight:400">Showing 400 of ${rows.length.toLocaleString('en-GB')} lines. Search to narrow the list.</td></tr></tfoot>` : ''}`;
@@ -13913,25 +13926,30 @@ $('avAdd').addEventListener('click', async () => {
   const l = curList(); if (!l || !AV.sel.size || AV.busy) return;
   const items = AV.items.filter(it => AV.sel.has(it.id)); if (!items.length) return;
   AV.busy = true; renderAvBar();
-  const layerPick = ROLES[$('avLayer').value] ? $('avLayer').value : 'herbaceous', details = {};
+  const layerPick = ROLES[$('avLayer').value] ? $('avLayer').value : '', details = {};
   const colourHex = name => (FLOWER_COLOURS.find(([n]) => normName(n) === normName(name)) || [])[1] || null;
   let added = 0, updated = 0, failed = 0; const changes = [];
   for (let n = 0; n < items.length; n++) {
     const it = items[n], d = details[it.id] || {}, mine = myPlantFor(it, l.supplier);
     $('avProgress').textContent = `Saving ${n + 1} of ${items.length}…`;
-    const layer = layerPick;
-    const base = mine ? { ...mine } : { common: '', botanical: it.b, role: layer || 'herbaceous', light: [], moisture: [] };
+    const sp = splitCv(it.b, it.cv);   // lists imported before cultivars were kept apart have them in the name
+    const base = mine ? { ...mine } : { common: it.c || '', botanical: sp.b, cultivar: sp.cv, role: 'herbaceous', light: [], moisture: [] };
     delete base.id;
+    if (!mine) {   // a new species is filled in from Plants For A Future: its layer, size, months and foliage
+      const r = pfafFind(sp.b);
+      if (r) { base._new = true; pfafFill(base, r); delete base._new; } else base.role = pfafGenusLayer(sp.b) || 'herbaceous';
+      if (layerPick) base.role = layerPick;
+    }
     const fill = (k, v) => { if (v != null && v !== '' && (base[k] == null || base[k] === '' || !mine)) base[k] = v; };
-    base.botanical = base.botanical || it.b;
+    base.botanical = base.botanical || sp.b;
+    fill('cultivar', sp.cv);
     fill('common', it.c || d.common || '');
-    if (!mine && !base.common) base.common = it.b;
+    if (!mine && !base.common) base.common = sp.b;
     base.supply = it.sz || base.supply || '';
     if (it.pr != null) base.cost = it.pr;
     base.supplier = l.supplier;
     fill('floweringGroup', it.fg);
     base.source = { list: l.id, listName: `${l.supplier} · ${l.name}`, code: it.code || '', stock: it.st || '', checkedAt: Date.now() };
-    if (!mine) base.role = layerPick;   // a species you already have keeps its layer
     fill('height', it.h ?? (num(d.height_m, NaN) > 0 ? +d.height_m : null));
     fill('spread', it.sp ?? (num(d.spread_m, NaN) > 0 ? +d.spread_m : null));
     fill('potSpread', num(d.planted_spread_m, NaN) > 0 ? +d.planted_spread_m : null);

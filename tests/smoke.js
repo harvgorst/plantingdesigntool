@@ -1578,8 +1578,10 @@ test('an availability list brings in the flowering group, from its own column or
   await p.click('[data-imp=save]'); await p.waitForTimeout(500);
   ok(/Flowering group/.test(await p.textContent('#avTable thead')), 'the list shows a flowering group column');
   await p.check('#avTable [data-av=i0]'); await p.click('#avAdd'); await p.waitForTimeout(1200);
-  const added = await p.evaluate(() => [...window.__mock.store.values()].find(v => v && v.botanical === "Malus domestica 'Bramley'"));
+  const added = await p.evaluate(() => [...window.__mock.store.values()].find(v => v && v.botanical === 'Malus domestica'));
   eq(added?.floweringGroup, '3', 'a plant added from the list keeps its flowering group');
+  eq(added?.cultivar, 'Bramley', 'the cultivar goes in its own field, not the name');
+  ok(['canopy', 'understory'].includes(added?.role), 'an apple gets a tree layer automatically, not herbaceous: ' + added?.role);
   eq(app.errors, [], 'no errors');
 });
 
