@@ -690,6 +690,8 @@ html[data-skin=root] .btn, html[data-skin=root] .seg, html[data-skin=root] selec
 html[data-skin=root] .card, html[data-skin=root] .toolbar, html[data-skin=root] .calview, html[data-skin=root] .presset, html[data-skin=root] fieldset.pref, html[data-skin=root] .menu, html[data-skin=root] .mi,
 html[data-skin=root] .lrow, html[data-skin=root] .tool, html[data-skin=root] .lib li, html[data-skin=root] .mapwrap, html[data-skin=root] .avbar, html[data-skin=root] .thopt, html[data-skin=root] .confirm, html[data-skin=root] .presset fieldset { border-radius: 2px; }
 html[data-skin=root] .btn { background: transparent; }
+html[data-skin=root] .btn.primary { background: var(--accent); border-color: var(--accent); }   /* filled, or its dark text vanishes on the dark ground */
+html[data-skin=root] .btn.danger.solid { background: var(--crit); border-color: var(--crit); }
 html[data-skin=root] .btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 html[data-skin=root] .btn.primary:hover:not(:disabled) { color: var(--accent-ink); }
 html[data-skin=root] .btn.danger.solid { color: #0C0E0B; }
@@ -10406,7 +10408,7 @@ function pushHistory(entry) { S.history.push(entry); if (S.history.length > 60) 
 function clearHistory() { S.history = []; S.future = []; updateUndo(); }
 function updateUndo() { $('undoBtn').disabled = !S.history.length; $('redoBtn').disabled = !S.future.length; }
 function checkpoint() { if (S.g) pushHistory(JSON.stringify(S.g)); }
-function restoreGarden(json) { S.g = JSON.parse(json); S.multi = []; if (S.sel && !findSel()) S.sel = null; saveGarden(); renderAll(); }
+function restoreGarden(json) { S.g = JSON.parse(json); S.multi = []; if (S.sel && !findSel()) S.sel = null; if (S.bedSel && !beds().some(b => b.id === S.bedSel)) S.bedSel = null; if (S.blockSel && !(S.g.blocks || []).some(b => b.id === S.blockSel)) S.blockSel = null;   /* nothing left selected that undo took away */ saveGarden(); renderAll(); }
 /* species edits are kept in the same undo list as { plants: [{ id, before, after }] } */
 async function applyPlantChange(entry, side) {
   let failed = 0;
@@ -12121,7 +12123,7 @@ function pxPerM() { return svg.getScreenCTM()?.a || 1; }
 const ptrs = new Map();
 function cancelDrag() {
   const d = S.drag; if (!d) return;
-  if (d.moved && d.before) { S.g = JSON.parse(d.before); S.history.pop(); }
+  if ((d.paint ? d.changed : d.moved) && d.before) { S.g = JSON.parse(d.before); S.history.pop(); updateUndo(); }   // a plant painted by the first finger of a pinch goes too
   S.drag = null; svg.classList.remove('panning'); renderInspector(); refreshDerived();
 }
 function startPinch() {
@@ -13587,6 +13589,7 @@ document.addEventListener('keydown', e => {
     if (k === 'v' && S.clip) { e.preventDefault(); pasteClip(); return; }
   }
   if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (getPage() !== 'plan') return;   // the plan's keys (Delete, Space, zoom, tools) only work on the plan
   if (e.key.startsWith('Arrow') && getPage() === 'plan' && (S.sel || S.multi.length) && document.activeElement?.id !== 'splitter') {
     const st = snapStep() * (e.shiftKey ? 10 : 1), v = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[e.key];
     if (v) { e.preventDefault(); nudge(v[0], v[1]); return; }
@@ -13594,7 +13597,7 @@ document.addEventListener('keydown', e => {
   if (e.key === '+' || e.key === '=') { zoomBy(1.4); return; }
   if (e.key === '-' || e.key === '_') { zoomBy(1 / 1.4); return; }
   if (e.key === '0') { resetView(); renderMap(); return; }
-  if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setTool('select'); return; }
+  if (e.key === ' ') { if (document.activeElement?.closest?.('button, a, summary, [role=button], [role=menuitem]')) return; e.preventDefault(); if (!e.repeat) setTool('select'); return; }   // a focused button still presses with Space
   if ((e.key === 'Delete' || e.key === 'Backspace') && S.lblSel) { e.preventDefault(); labelState(S.lblSel.key, true); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { if (S.sel || S.multi.length || S.blockSel || (S.bedSel && S.tool === 'bed')) { e.preventDefault(); removeSel(); } return; }
   if (e.key === 'Enter' && S.tool === 'block') { e.preventDefault(); finishBlock(false); return; }
@@ -14268,9 +14271,9 @@ function finishBed() {
   S.g.beds = [...beds(), rec]; S.bedDraw = { pts: [] }; S.bedSel = rec.id; S.hover = null;
   saveGarden(); renderInspector(); renderMap();
 }
-function removeBed() { if (!S.g || !S.bedSel) return; checkpoint(); S.g.beds = beds().filter(b => b.id !== S.bedSel); S.bedSel = null; saveGarden(); renderInspector(); renderMap(); }
+function removeBed() { if (!S.g || !S.bedSel) return; if (!beds().some(b => b.id === S.bedSel)) { S.bedSel = null; renderInspector(); return; } checkpoint(); S.g.beds = beds().filter(b => b.id !== S.bedSel); S.bedSel = null; saveGarden(); renderInspector(); renderMap(); }
 function bedAreaOf(b) { const P = bedPoly(b); let a = 0; P.forEach(([x1, y1], i) => { const [x2, y2] = P[(i + 1) % P.length]; a += x1 * y2 - x2 * y1; }); return Math.abs(a / 2); }
-function removeBlock() { if (!S.g || !S.blockSel) return; checkpoint(); S.g.blocks = (S.g.blocks || []).filter(b => b.id !== S.blockSel); S.blockSel = null; saveGarden(); renderInspector(); renderMap(); }
+function removeBlock() { if (!S.g || !S.blockSel) return; if (!(S.g.blocks || []).some(b => b.id === S.blockSel)) { S.blockSel = null; renderInspector(); return; } checkpoint(); S.g.blocks = (S.g.blocks || []).filter(b => b.id !== S.blockSel); S.blockSel = null; saveGarden(); renderInspector(); renderMap(); }
 function sunToggle(on) {
   S.sun.on = on;
   if (on && !S.sun.init) { const n = new Date(); S.sun.init = true; S.sun.doy = clamp(Math.round((n - new Date(n.getFullYear(), 0, 0)) / 86400000), 1, 365); S.sun.mins = 12 * 60; }

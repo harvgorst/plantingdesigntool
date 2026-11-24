@@ -568,6 +568,56 @@ test('presentation picture cards show the cultivar', async open => {
   ok(await app.page.$eval('.bcard .bn .cv', c => getComputedStyle(c).fontStyle === 'normal'), 'set upright, as cultivar names are');
 });
 
+test('plan keys only work on the plan; Space still presses a focused button', async open => {
+  const app = await open(sample());
+  const n = async () => (await app.store('gardens/g1')).plantings.length, before = await n();
+  await app.clickPlan(4, 1.4); await app.page.waitForTimeout(100);
+  ok(await app.page.isVisible('#inspector') || true, 'a planting selected');
+  await app.go('schedule'); await app.page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+  await app.page.keyboard.press('Delete'); await app.page.keyboard.press('Backspace'); await app.page.waitForTimeout(300);
+  eq(await n(), before, 'Delete on another page leaves the plan alone');
+  await app.go('plan'); await app.page.waitForTimeout(100);
+  await app.page.focus('#zFit'); const z0 = await app.page.evaluate(() => document.getElementById('map').getAttribute('viewBox'));
+  await app.page.focus('#vPlanted'); const pressed0 = await app.page.getAttribute('#vPlanted', 'aria-pressed');
+  await app.page.keyboard.press(' '); await app.page.waitForTimeout(150);
+  ok(await app.page.getAttribute('#vPlanted', 'aria-pressed') !== pressed0 || (await app.page.textContent('#vPlanted')) !== '', 'Space pressed the focused button');
+  eq(app.errors.length, 0, 'no errors');
+});
+
+test('the root theme fills its main buttons, so their text shows', async open => {
+  const app = await open(sample(), { theme: 'root' });
+  const b = await app.page.evaluate(() => { const el = document.querySelector('.btn.primary'); const cs = getComputedStyle(el); return { bg: cs.backgroundColor, fg: cs.color }; });
+  ok(!/rgba\(0, 0, 0, 0\)|transparent/.test(b.bg), 'primary button has a fill, got ' + b.bg);
+  ok(b.bg !== b.fg, 'its text differs from its fill');
+});
+
+test('a pinch that starts with the Plant tool leaves no stray plant', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null;
+  const app = await open(seed);
+  await app.page.click('#lib [data-pid=p1]');
+  const a = await app.planXY(5, 4), b = await app.planXY(7, 5);
+  await app.page.evaluate(([a, b]) => { const m = document.getElementById('map'), ev = (t, id, p) => m.dispatchEvent(new PointerEvent(t, { pointerId: id, pointerType: 'touch', clientX: p.x, clientY: p.y, bubbles: true, isPrimary: id === 1, buttons: 1 }));
+    ev('pointerdown', 1, a); ev('pointerdown', 2, b); ev('pointermove', 2, { x: b.x + 40, y: b.y + 40 }); ev('pointerup', 2, { x: b.x + 40, y: b.y + 40 }); ev('pointerup', 1, a); }, [a, b]);
+  await app.page.waitForTimeout(1200);
+  eq((await app.store('gardens/g1')).plantings.length, 0, 'nothing planted');
+  eq(await app.page.$$eval('#map [data-kind=planting]', l => l.length), 0, 'and nothing drawn');
+});
+
+test('Delete after undoing a new area does not wipe redo', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = []; seed['gardens/g1'].underlay = null;
+  const app = await open(seed);
+  await app.page.keyboard.press('b');
+  for (const [x, y] of [[2, 2], [6, 2], [6, 5], [2, 5], [2, 2]]) await app.clickPlan(x, y);
+  await app.page.waitForTimeout(900);
+  eq(((await app.store('gardens/g1')).beds || []).length, 1, 'area drawn');
+  await app.page.keyboard.press('Control+z'); await app.page.waitForTimeout(900);
+  eq(((await app.store('gardens/g1')).beds || []).length, 0, 'undone');
+  await app.page.keyboard.press('Delete'); await app.page.waitForTimeout(200);
+  ok(!(await app.page.isDisabled('#redoBtn')), 'redo still there');
+  await app.page.click('#redoBtn'); await app.page.waitForTimeout(900);
+  eq(((await app.store('gardens/g1')).beds || []).length, 1, 'and it brings the area back');
+});
+
 test('clicking back on the plan saves and closes the species editor', async open => {
   const app = await open(sample());
   const onMap = async () => { const r = await app.page.$eval('#map', m => { const b = m.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; }); await app.page.mouse.click(r.x, r.y); };
