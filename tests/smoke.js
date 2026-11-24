@@ -1722,4 +1722,37 @@ test('ticking On site keeps the species as an existing plant in this garden only
   eq(app.errors, [], 'no errors');
 });
 
+test('a failed save is kept and tried again, even after switching garden', async open => {
+  const seed = sample(); seed['gardens/g2'] = { ...JSON.parse(JSON.stringify(seed['gardens/g1'])), name: 'Yew Close', plantings: [] };
+  const app = await open(seed), p = app.page;
+  await p.evaluate(() => { const st = window.__mock.store, o = st.set.bind(st); window.__failSave = true; st.set = (k, v) => { if (window.__failSave && /^gardens\//.test(k)) throw new Error('disk busy'); return o(k, v); }; });
+  const before = (await app.store('gardens/g1')).plantings.find(x => x.id === 'a') || (await app.store('gardens/g1')).plantings[0];
+  await p.keyboard.press('v'); await app.clickPlan(before.x, before.y); await app.dragPlan(before.x, before.y, before.x + 1.5, before.y + 1); await p.waitForTimeout(1200);
+  ok(/Couldn’t save/.test(await app.status()), 'the failure is shown, got ' + await app.status());
+  await p.selectOption('#gardenSel', { label: 'Yew Close' }); await p.waitForTimeout(300);
+  await p.evaluate(() => { window.__failSave = false; });
+  await p.waitForTimeout(5800);
+  const moved = (await app.store('gardens/g1')).plantings.find(x => x.id === before.id);
+  ok(Math.abs(moved.x - before.x - 1.5) < 0.3, 'the move to Elm Road was saved on the retry, x ' + before.x + ' → ' + moved.x);
+  eq(await app.status(), 'Saved', 'and it says so');
+  eq((await app.store('gardens/g2')).name, 'Yew Close', 'the other garden is untouched');
+  eq(app.errors, [], 'no errors');
+});
+
+test('damaged records in storage are skipped, not fatal', async open => {
+  const seed = sample();
+  seed['plants/bad1'] = null; seed['plants/bad2'] = { common: 42, light: 'sun', spread: 'wide', role: 'shrub' };
+  seed['gardens/g1'].plantings.push(null, { id: 'zz', plantId: 'p0', x: 'left', y: 2 });
+  seed['gardens/g1'].areas = [null, { kind: 'drift', plantId: 'p1', pts: [[1, 1], [2, 1], null] }];
+  seed['gardens/g9'] = 'junk';
+  const app = await open(seed), p = app.page;
+  await p.waitForTimeout(400);
+
+  ok(await p.$$eval('#lib li[data-pid]', l => l.length) >= 7, 'the library still lists the good species');
+  ok(await p.$$eval('#map [data-pl]', l => l.length) > 0 || await p.$$eval('#map circle', l => l.length) > 0, 'the plan still draws');
+  await app.go('database'); await p.waitForTimeout(300);
+  ok(/42/.test(await p.textContent('#dbTable')), 'a record with a number for a name shows as text');
+  eq(app.errors, [], 'no errors');
+});
+
 run();

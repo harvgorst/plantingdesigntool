@@ -20,7 +20,7 @@ async function open(seed = {}, opts = {}) {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: opts.viewport || { width: 1400, height: 900 }, timezoneId: 'Europe/London', locale: 'en-GB' });
   const errors = [];
-  page.on('pageerror', e => errors.push(e.message));
+  page.on('pageerror', e => { errors.push(e.message); if (process.env.SL_STACK) console.log(e.stack); });
   if (!opts.real) {
     await page.addInitScript({ path: path.join(__dirname, 'mock-runtime.js') });
     const svg = fs.readFileSync(path.join(ROOT, 'example', 'example-site-plan.svg'), 'utf8');

@@ -10499,7 +10499,10 @@ async function saveFile(name, blob) {
   a.href = u; a.download = name; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(u), 60000);
 }
-let saveTimer = null, saving = false, saveAgain = false;
+/* saves are taken as a copy of the garden at the moment of saving, so switching garden mid-save can't lose or misfile either one.
+   A save that fails is kept and tried again, and the tab warns before closing while anything is unsaved. */
+let saveTimer = null, saving = null, retryTimer = null;   // saving: the write under way, so callers can wait for it
+const unsaved = new Map();   // garden id → its body still to write
 function saveGarden() {
   if (!S.g) return;
   S.g.updatedAt = Date.now();
@@ -10509,16 +10512,29 @@ function saveGarden() {
   saveTimer = setTimeout(flushSave, 700);
 }
 async function flushSave() {
-  saveTimer = null;
-  if (saving) { saveAgain = true; return; }
-  if (!S.g || !S.online) return;
-  saving = true; setStatus('Saving…');
-  const body = JSON.parse(JSON.stringify(S.g)); delete body.id;
-  try { await S.db.doc('gardens/' + S.g.id).set(body); setStatus(S.note || 'Saved'); S.note = null; }
-  catch (e) { setStatus(e?.name === 'QuotaExceededError' ? 'Not saved: this browser’s storage is full. Delete an old garden or free up disk space.' : 'Couldn’t save: ' + (e?.message || 'try again'), true); }
-  saving = false;
-  if (saveAgain) { saveAgain = false; flushSave(); }
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  if (!S.online) return;
+  if (S.g) { const body = JSON.parse(JSON.stringify(S.g)); delete body.id; unsaved.set(S.g.id, body); }
+  if (saving) return saving;
+  if (!unsaved.size) return;
+  clearTimeout(retryTimer); retryTimer = null; setStatus('Saving…');
+  let err = null;
+  saving = (async () => {
+    while (unsaved.size) {
+      const [id, body] = unsaved.entries().next().value;
+      try { await S.db.doc('gardens/' + id).set(body); if (unsaved.get(id) === body) unsaved.delete(id); }
+      catch (e) { err = e; break; }
+    }
+  })();
+  await saving; saving = null;
+  if (err) {
+    setStatus(err?.name === 'QuotaExceededError' ? 'Not saved: this browser’s storage is full. Delete an old garden or free up disk space.' : 'Couldn’t save: ' + (err?.message || 'try again') + '. Trying again…', true);
+    retryTimer = setTimeout(() => { retryTimer = null; if (!saving) flushSave(); }, 5000);
+    return;
+  }
+  setStatus(S.note || (S.persistent === false ? 'Not saved: this browser is blocking storage' : 'Saved'), S.persistent === false && !S.note); S.note = null;
 }
+window.addEventListener('beforeunload', e => { if (saveTimer || saving || unsaved.size) { flushNow(); e.preventDefault(); e.returnValue = ''; } });
 /* write anything still waiting as the tab is hidden or closed */
 function flushNow() {
   if (saveTimer) { clearTimeout(saveTimer); flushSave(); }
@@ -10526,7 +10542,7 @@ function flushNow() {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushNow(); });
 window.addEventListener('pagehide', flushNow);
-const busy = () => saveTimer || saving || S.drag;
+const busy = () => saveTimer || saving || unsaved.size || S.drag;
 
 /* ---------- selection ---------- */
 function findSel() {
@@ -13562,6 +13578,7 @@ $('backupGardenBtn').addEventListener('click', () => downloadBackup('garden'));
 async function deleteGarden() {
   const g = S.g; if (!g) return;
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  unsaved.delete(g.id); if (saving) await saving.catch(() => {});
   try {
     if (S.online) await S.db.doc('gardens/' + g.id).delete();
     const others = S.gardens.filter(x => x.id !== g.id).map(x => libIds(x)), own = [...libIds(g)].filter(id => plantById(id)?.existing && !others.some(l => l.has(id)));
@@ -13622,11 +13639,24 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------- data ---------- */
+/* a point stored as [x, y] or { x, y } with real numbers: anything else is dropped as damaged */
+const okPt = q => Array.isArray(q) ? Number.isFinite(q[0]) && Number.isFinite(q[1]) : !!q && Number.isFinite(q.x) && Number.isFinite(q.y);
+/* a species record read back from storage: names are text, lists are lists, so one damaged record can't stop the tool */
+function readPlant(id, d) {
+  const x = { id, ...d }, str = v => (v == null ? '' : typeof v === 'string' ? v : String(v));
+  for (const k of ['common', 'botanical', 'cultivar']) x[k] = str(x[k]);
+  for (const k of ['supply', 'supplier', 'floweringGroup', 'flowerColorName']) if (x[k] != null) x[k] = str(x[k]);
+  for (const k of ['light', 'moisture', 'interest']) if (x[k] != null && !Array.isArray(x[k])) x[k] = [];
+  if (!(num(x.spread) > 0)) x.spread = 0.5;
+  if (x.source != null && typeof x.source !== 'object') delete x.source;
+  x.role = layerOf(x.role); return foldCrop(x);
+}
 function normGarden(id, d) {
+  d = d && typeof d === 'object' ? d : {};
   return { id, name: d.name || 'Untitled garden', client: d.client || '', width: num(d.width, 10), depth: num(d.depth, 8), north: num(d.north, 0),
     underlay: d.underlay && d.underlay.natW ? d.underlay : null,
-    areas: Array.isArray(d.areas) ? d.areas.filter(a => a.kind === 'drift' && Array.isArray(a.pts) && a.pts.length >= 3) : [],
-    plantings: Array.isArray(d.plantings) ? d.plantings : [], updatedAt: d.updatedAt || 0, example: !!d.example,
+    areas: Array.isArray(d.areas) ? d.areas.filter(a => a && a.kind === 'drift' && Array.isArray(a.pts) && a.pts.length >= 3 && a.pts.every(okPt)) : [],
+    plantings: Array.isArray(d.plantings) ? d.plantings.filter(x => x && typeof x.plantId === 'string' && Number.isFinite(x.x) && Number.isFinite(x.y)) : [], updatedAt: d.updatedAt || 0, example: !!d.example,
     booklet: d.booklet && typeof d.booklet === 'object' ? d.booklet : undefined, colors: d.colors && typeof d.colors === 'object' ? d.colors : undefined, sheet: d.sheet && typeof d.sheet === 'object' ? d.sheet : undefined,
     lat: Number.isFinite(d.lat) ? d.lat : undefined, lon: Number.isFinite(d.lon) ? d.lon : undefined,
     blocks: Array.isArray(d.blocks) ? d.blocks.filter(b => b && Array.isArray(b.pts) && b.pts.length >= 2) : undefined,
@@ -13646,7 +13676,7 @@ function openGarden(id) {
 async function init() {
   renderAll();
   const { db, assets, persistent } = await openStorage();
-  S.assets = assets; S.db = db; S.online = true; setStatus('Loading…');
+  S.assets = assets; S.db = db; S.online = true; S.persistent = persistent; setStatus('Loading…');
   let gotPlants = false, gotGardens = false;
   const ready = () => { if (gotPlants && gotGardens && !S.loaded) { S.loaded = true; setStatus(persistent ? 'Saved' : 'Not saved: this browser is blocking storage' + (S.storageError ? ' (' + S.storageError + ')' : ''), !persistent); renderAll(); } };
   db.doc('settings/prefs').onSnapshot(snap => {
@@ -13663,13 +13693,13 @@ async function init() {
     if (getPage() === 'database' && DB.view === 'avail' && !AV.busy) renderAvailability();
   }, () => {});
   db.collection('plants').onSnapshot(snap => {
-    S.plants = snap.docs.map(d => { const x = { id: d.id, ...d.data() }; x.role = layerOf(x.role); return foldCrop(x); });
+    S.plants = snap.docs.flatMap(d => { try { const v = d.data(); return v && typeof v === 'object' ? [readPlant(d.id, v)] : []; } catch { return []; } });
     gotPlants = true;
     if (S.loaded) { if (!S.editPlant) renderLibrary(); refreshDerived(); if (S.sel) renderInspector(); renderTools(); }
     ready();
   }, err => setStatus('Plant library unavailable: ' + (err?.message || ''), true));
   db.collection('gardens').onSnapshot(snap => {
-    S.gardens = snap.docs.map(d => normGarden(d.id, d.data())).sort((a, b) => a.name.localeCompare(b.name));
+    S.gardens = snap.docs.flatMap(d => { try { return [normGarden(d.id, d.data())]; } catch { return []; } }).sort((a, b) => a.name.localeCompare(b.name));
     gotGardens = true;
     if (!S.g) {
       const last = store.get('gpm.last');
@@ -14493,7 +14523,7 @@ async function restoreBackup(file) {
 }
 window.addEventListener('hashchange', applyPage);
 applyPage();
-init();
+init().catch(e => { console.error(e); setStatus('The tool couldn’t start: ' + (e?.message || 'reload the page to try again'), true); });
 })();
 </script>
 </body>
