@@ -10419,6 +10419,7 @@ async function applyPlantChange(entry, side) {
       else { if (S.online) await S.db.doc('plants/' + c.id).delete(); S.plants = S.plants.filter(p => p.id !== c.id); if (S.activePlant === c.id) S.activePlant = null; }
     } catch { failed++; }
   }
+  if (entry.garden && S.g?.id === entry.garden.id) restoreGarden(entry.garden[side]);   /* a species copied for this garden only: the garden goes back too */
   setStatus(failed ? 'Some species changes couldn’t be ' + (side === 'before' ? 'undone' : 'redone') : (side === 'before' ? 'Species change undone' : 'Species change redone'), !!failed);
   if (S.editPlant) { S.editPlant = null; S.confirm = null; }
   renderAll();
@@ -13437,6 +13438,18 @@ app.addEventListener('click', async e => {
     if (num(p.height) > 120 || num(p.spread) > 60) { $('plantErr').textContent = 'That height or spread looks too big: sizes are in metres.'; return; }
     if (!(num(p.spread) > 0)) { $('plantErr').textContent = 'Mature spread must be more than 0 m.'; return; }
     const body = { ...p }; delete body._new; delete body.id; delete body.example; delete body._toGarden; delete body._touched; delete body._pfafGot;
+    const orig = plantById(p.id);
+    if (p.existing && !p._new && orig && !orig.existing && S.g && getPage() !== 'database') {
+      /* ticking On site makes this garden its own copy: the database species, and every other garden using it, stay as they were */
+      const id = uid(), gBefore = JSON.stringify(S.g); delete body.source; delete body.supplier; delete body.cost; delete body.supply;
+      if (S.online) { b.disabled = true; try { await S.db.doc('plants/' + id).set(body); } catch (err) { b.disabled = false; $('plantErr').textContent = 'Couldn’t save: ' + (err?.message || 'try again'); return; } }
+      const sw = x => x === p.id ? id : x;
+      S.g.palette = (S.g.palette || []).map(sw); for (const x of S.g.plantings) x.plantId = sw(x.plantId); for (const a of S.g.areas) a.plantId = sw(a.plantId);
+      pushHistory({ plants: [{ id, before: null, after: { id, ...body } }], garden: { id: S.g.id, before: gBefore, after: JSON.stringify(S.g) } });
+      upsertPlant({ id, ...body }); saveGarden();
+      S.editPlant = null; S.activePlant = id; S.tool = 'plant'; renderAll(); setStatus('Kept as an existing plant in this garden only');
+      return;
+    }
     if (S.online) { b.disabled = true; try { await S.db.doc('plants/' + p.id).set(body); } catch (err) { b.disabled = false; $('plantErr').textContent = 'Couldn’t save: ' + (err?.message || 'try again'); return; } }
     const was = plantById(p.id);
     pushHistory({ plants: [{ id: p.id, before: was ? { ...was } : null, after: { id: p.id, ...body } }] });
@@ -13720,7 +13733,8 @@ const normName = v => String(v || '').toLowerCase().replace(/['"‘’“”]/g,
 const unquote = v => String(v || '').trim().replace(/^['‘’"“”]+|['‘’"“”]+$/g, '').trim();
 function splitCv(b, cv) {
   b = String(b || '').trim(); cv = unquote(cv);
-  const m = b.match(/^(.*?)\s*['‘’"“”]([^'‘’"“”]+)['‘’"“”]\s*(.*)$/);
+  /* a quoted cultivar at the end may hold an apostrophe ('Bramley's Seedling'); otherwise the first quoted part, with text after it kept */
+  const e = b.match(/^(.*?)\s*['‘"“](.+)['’"”]\s*$/), m = e ? [e[0], e[1], e[2], ''] : b.match(/^(.*?)\s*['‘’"“”]([^'‘’"“”]+)['‘’"“”]\s*(.*)$/);
   if (m && (!cv || normName(m[2]) === normName(cv))) return { b: (m[1] + ' ' + m[3]).trim(), cv: cv || m[2].trim() };
   return { b, cv };
 }
@@ -13735,7 +13749,7 @@ function myPlantFor(it, supplier) {
   }
   const list = mineIndex.get(avKey(it)); if (!list) return null;
   const sup = normName(supplier);
-  return list.find(p => !supplier || normName(p.supplier) === sup || !p.supplier) || list[0];
+  return list.find(p => normName(p.supplier) === sup) || list.find(p => !p.supplier) || (!supplier ? list[0] : null);   /* never another supplier's record */
 }
 function curList() { return AV.lists.find(l => l.id === AV.listId) || null; }
 async function loadListItems() {
@@ -13791,7 +13805,8 @@ function guessMap(head) {
 }
 /* a flowering group as written in a list: "3", "3 to 4", "C", or taken out of "Flowering group 3, self fertile"; anything else ("Self fertile") is not one */
 const fgOf = v => { v = String(v || '').trim(); const g = '[0-9A-H](?:\\s*(?:to|-|–|/)\\s*[0-9A-H])?'; return (v.match(new RegExp('\\bgr(?:ou)?p\\.?\\s*(' + g + ')\\b', 'i')) || v.match(new RegExp('^(' + g + ')$', 'i')) || [])[1] || ''; };
-const toNum = v => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : null; };
+/* the first number in a cell: "£3.50 (3 for £9)" is 3.5, "1,250" is 1250, "3,50" is 3.5 */
+const toNum = v => { const t = String(v ?? '').replace(/(\d),(\d{3})(?!\d)/g, '$1$2').replace(/(\d),(\d)/g, '$1.$2').match(/-?\d+(?:\.\d+)?|-?\.\d+/); const n = t ? parseFloat(t[0]) : NaN; return Number.isFinite(n) ? n : null; };
 function rowsToItems(imp) {
   const m = imp.map, data = imp.rows.slice(imp.header + 1), out = [];
   const g = (r, k) => m[k] == null || m[k] === '' ? '' : String(r[m[k]] ?? '').trim();

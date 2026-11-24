@@ -1683,4 +1683,43 @@ test('an availability list brings in the flowering group, from its own column or
   eq(app.errors, [], 'no errors');
 });
 
+test('a list line never overwrites another supplier’s plant; cultivars with apostrophes; the first price in a cell', async open => {
+  const seed = sample();
+  seed['plants/q1'] = { common: 'Apple', botanical: 'Malus domestica', cultivar: 'Bramley’s Seedling', supply: 'Bare root', supplier: 'Other nursery', cost: 40, role: 'understory', spread: 4, height: 5 };
+  const app = await open(seed), p = app.page;
+  await app.go('database'); await p.click('#dbTabAvail'); await p.click('#avImport');
+  await p.fill('#imp-sup', 'Orchard nursery');
+  await p.fill('#imp-paste', "Botanical name\tCommon name\tPot size\tPrice\nMalus domestica 'Bramley's Seedling'\tApple\tBare root\t£29.50 (3 for £80)\nPyrus communis 'Conference'\tPear\tBare root\t1,250.00\n");
+  await p.click('[data-imp=parse]'); await p.waitForSelector('[data-impmap]');
+  await p.click('[data-imp=save]'); await p.waitForTimeout(500);
+  await p.check('#avTable [data-av=i0]'); await p.check('#avTable [data-av=i1]'); await p.click('#avAdd'); await p.waitForTimeout(1200);
+  const q1 = await app.store('plants/q1');
+  eq([q1.supplier, q1.cost], ['Other nursery', 40], 'the other supplier’s apple is left alone');
+  const all = await p.evaluate(() => [...window.__mock.store.values()].filter(v => v && v.supplier === 'Orchard nursery'));
+  const apple = all.find(v => v.botanical === 'Malus domestica'), pear = all.find(v => v.botanical === 'Pyrus communis');
+  ok(apple, 'a new apple record for this supplier');
+  eq([apple.cultivar, apple.cost], ["Bramley's Seedling", 29.5], 'the whole cultivar, apostrophe and all, and the first price');
+  eq([pear?.cultivar, pear?.cost], ['Conference', 1250], 'a price with a thousands comma');
+  eq(app.errors, [], 'no errors');
+});
+
+test('ticking On site keeps the species as an existing plant in this garden only', async open => {
+  const app = await open(sample()), p = app.page;
+  await p.click('#lib [data-edit=p0]'); await p.waitForTimeout(200);
+  if (!(await p.isVisible('#sp-existing'))) await p.click('#sp-more summary');
+  await p.check('#sp-existing'); await p.click('[data-act=savePlant]'); await p.waitForTimeout(900);
+  const p0 = await app.store('plants/p0');
+  ok(!p0.existing && p0.supplier === 'Babylon Plants', 'the database species is unchanged');
+  const g = await app.store('gardens/g1');
+  ok(!g.palette.includes('p0') && !g.plantings.some(x => x.plantId === 'p0'), 'this garden no longer uses it');
+  const nid = g.palette.find(id => !/^(p\d|ex1)$/.test(id)), copy = await app.store('plants/' + nid);
+  ok(copy?.existing && copy.common === 'Lavender' && !copy.supplier, 'it uses its own existing copy, got ' + JSON.stringify(copy));
+  ok(g.plantings.some(x => x.plantId === nid), 'the plants on the plan point at the copy');
+  await p.click('#undoBtn'); await p.waitForTimeout(900);
+  const g2 = await app.store('gardens/g1');
+  ok(g2.palette.includes('p0') && g2.plantings.some(x => x.plantId === 'p0'), 'undo puts the garden back');
+  ok(!(await app.store('plants/' + nid)), 'and removes the copy');
+  eq(app.errors, [], 'no errors');
+});
+
 run();
