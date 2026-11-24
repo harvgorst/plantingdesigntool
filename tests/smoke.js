@@ -1566,4 +1566,21 @@ test('selecting on the plan never moves the plan', async open => {
   await app.close();
 });
 
+test('an availability list brings in the flowering group, from its own column or written in a pollination column', async open => {
+  const app = await open(sample()), p = app.page;
+  await app.go('database'); await p.click('#dbTabAvail'); await p.click('#avImport');
+  await p.fill('#imp-sup', 'Orchard nursery');
+  await p.fill('#imp-paste', 'Botanical name\tCommon name\tCultivar\tPot size\tPrice\tPollination\nMalus domestica\tApple\tBramley\tBare root\t29.50\tFlowering group 3, partially self fertile\nPrunus avium\tCherry\tStella\tBare root\t30\tSelf fertile\n');
+  await p.click('[data-imp=parse]'); await p.waitForSelector('[data-impmap]');
+  eq(await p.$eval('[data-impmap=fg]', e => e.selectedOptions[0].text), 'Pollination', 'the pollination column is read for the group');
+  const prev = await p.$$eval('.preview tbody tr', rs => rs.map(r => r.cells[3].textContent));
+  eq(prev, ['3', ''], 'the preview shows the group, and nothing for "Self fertile"');
+  await p.click('[data-imp=save]'); await p.waitForTimeout(500);
+  ok(/Flowering group/.test(await p.textContent('#avTable thead')), 'the list shows a flowering group column');
+  await p.check('#avTable [data-av=i0]'); await p.click('#avAdd'); await p.waitForTimeout(1200);
+  const added = await p.evaluate(() => [...window.__mock.store.values()].find(v => v && v.botanical === "Malus domestica 'Bramley'"));
+  eq(added?.floweringGroup, '3', 'a plant added from the list keeps its flowering group');
+  eq(app.errors, [], 'no errors');
+});
+
 run();

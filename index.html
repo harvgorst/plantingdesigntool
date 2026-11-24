@@ -13696,7 +13696,7 @@ const AV_FIELDS = [
   ['b', 'Botanical name', /botan|latin|scientific|plant ?name|^name$|^plant$|description|product/i],
   ['genus', 'Genus (if separate)', /^genus/i], ['species', 'Species (if separate)', /^species/i], ['cv', 'Cultivar / variety', /cultivar|variety|^var/i],
   ['c', 'Common name', /common/i], ['sz', 'Pot size / grade', /size|pot|container|grade|spec|format|litre/i],
-  ['fg', 'Flowering group', /flower(ing)? ?group|pollination group/i], ['pr', 'Price', /price|cost|£|€|\$|each|unit|rate|net/i], ['st', 'Stock available', /stock|avail|qty|quantity|in hand/i],
+  ['fg', 'Flowering group', /flower(ing)?\s*gr(ou)?p|pollinat|^f\.?\s?g\.?$|^group$/i], ['pr', 'Price', /price|cost|£|€|\$|each|unit|rate|net/i], ['st', 'Stock available', /stock|avail|qty|quantity|in hand/i],
   ['h', 'Height', /height|^ht/i], ['sp', 'Spread', /spread|width/i], ['code', 'Code', /code|sku|ref|item ?no|^id$/i],
 ];
 const normName = v => String(v || '').toLowerCase().replace(/['"‘’“”]/g, '').replace(/\s+/g, ' ').trim();
@@ -13764,6 +13764,8 @@ function guessMap(head) {
   if (map.b == null && map.genus == null) { const i = head.findIndex((h, idx) => !used.has(idx)); if (i >= 0) map.b = i; }
   return map;
 }
+/* a flowering group as written in a list: "3", "3 to 4", "C", or taken out of "Flowering group 3, self fertile"; anything else ("Self fertile") is not one */
+const fgOf = v => { v = String(v || '').trim(); const g = '[0-9A-H](?:\\s*(?:to|-|–|/)\\s*[0-9A-H])?'; return (v.match(new RegExp('\\bgr(?:ou)?p\\.?\\s*(' + g + ')\\b', 'i')) || v.match(new RegExp('^(' + g + ')$', 'i')) || [])[1] || ''; };
 const toNum = v => { const n = parseFloat(String(v ?? '').replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : null; };
 function rowsToItems(imp) {
   const m = imp.map, data = imp.rows.slice(imp.header + 1), out = [];
@@ -13775,7 +13777,7 @@ function rowsToItems(imp) {
     if (cv && b && !normName(b).includes(normName(cv).replace(/^'|'$/g, ''))) b = b + " '" + cv.replace(/^['‘’]|['‘’]$/g, '') + "'";
     const c = g(r, 'c');
     if (!b && !c) return;
-    out.push({ id: 'i' + n, b, c, sz: g(r, 'sz'), pr: toNum(g(r, 'pr')), fg: g(r, 'fg'), st: g(r, 'st'), h: toNum(g(r, 'h')), sp: toNum(g(r, 'sp')), code: g(r, 'code') });
+    out.push({ id: 'i' + n, b, c, sz: g(r, 'sz'), pr: toNum(g(r, 'pr')), fg: fgOf(g(r, 'fg')), st: g(r, 'st'), h: toNum(g(r, 'h')), sp: toNum(g(r, 'sp')), code: g(r, 'code') });
   });
   return out;
 }
@@ -13799,7 +13801,7 @@ function renderImport() {
     : `<p class="note" style="margin:0">Match the list’s columns to what they mean. Leave anything the list doesn’t have as “Not in list”.</p>
       <div class="row"><label class="checks"><input type="checkbox" id="imp-hashead"${I.header >= 0 ? ' checked' : ''}> The list has a heading row</label>${I.header >= 0 ? `<label class="pf"><span>Heading row</span><input id="imp-hrow" class="n" type="number" min="1" max="${I.rows.length}" value="${I.header + 1}"></label>` : ''}</div>
       <div class="mapgrid">${AV_FIELDS.map(([k, l]) => `<label><span>${l}</span><select data-impmap="${k}"><option value="">Not in list</option>${cols}</select></label>`).join('')}</div>
-      <div style="overflow-x:auto"><table class="sched preview"><thead><tr><th>Botanical name</th><th>Common</th><th>Size</th><th class="n">Price</th><th>Stock</th><th>Code</th></tr></thead><tbody>${items.slice(0, 8).map(it => `<tr><td><i>${esc(it.b)}</i></td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td class="n">${it.pr != null ? money(it.pr) : ''}</td><td>${esc(it.st)}</td><td>${esc(it.code)}</td></tr>`).join('') || '<tr><td class="empty" colspan="6">No plant lines found with these columns.</td></tr>'}</tbody></table></div>
+      <div style="overflow-x:auto"><table class="sched preview"><thead><tr><th>Botanical name</th><th>Common</th><th>Size</th><th>Flowering group</th><th class="n">Price</th><th>Stock</th><th>Code</th></tr></thead><tbody>${items.slice(0, 8).map(it => `<tr><td><i>${esc(it.b)}</i></td><td>${esc(it.c)}</td><td>${esc(it.sz)}</td><td>${esc(it.fg)}</td><td class="n">${it.pr != null ? money(it.pr) : ''}</td><td>${esc(it.st)}</td><td>${esc(it.code)}</td></tr>`).join('') || '<tr><td class="empty" colspan="7">No plant lines found with these columns.</td></tr>'}</tbody></table></div>
       <div class="row"><button class="btn" type="button" data-imp="back">Back</button><button class="btn primary" type="button" data-imp="save"${items.length ? '' : ' disabled'}>Save ${items.length.toLocaleString('en-GB')} lines</button><span class="note" style="color:var(--crit)">${esc(I.err)}</span></div>`}`;
   if (I.rows) for (const sel of el.querySelectorAll('[data-impmap]')) sel.value = I.map[sel.dataset.impmap] ?? '';
 }
@@ -13863,14 +13865,14 @@ async function renderAvailability() {
   const rows = AV.items.map(it => ({ it, mine: myPlantFor(it, l.supplier) }))
     .filter(({ it, mine }) => (!AV.show || (AV.show === 'mine') === !!mine) && (!q || [it.b, it.c, it.sz, it.code].join(' ').toLowerCase().includes(q)));
   const shown = rows.slice(0, 400);
-  const allOn = shown.length && shown.every(r => AV.sel.has(r.it.id));
+  const allOn = shown.length && shown.every(r => AV.sel.has(r.it.id)), hasFg = AV.items.some(it => it.fg);
   $('avTable').innerHTML = !rows.length ? '<tbody><tr><td class="empty">No lines match.</td></tr></tbody>'
-    : `<thead><tr><th class="ck"><input type="checkbox" id="avAll" aria-label="Select all shown"${allOn ? ' checked' : ''}></th><th>Plant</th><th>Size</th><th>Code</th><th>Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${shown.map(({ it, mine }) => `<tr>
+    : `<thead><tr><th class="ck"><input type="checkbox" id="avAll" aria-label="Select all shown"${allOn ? ' checked' : ''}></th><th>Plant</th><th>Size</th>${hasFg ? '<th>Flowering group</th>' : ''}<th>Code</th><th>Stock</th><th class="n">Price</th><th></th></tr></thead><tbody>${shown.map(({ it, mine }) => `<tr>
       <td class="ck"><input type="checkbox" data-av="${it.id}"${AV.sel.has(it.id) ? ' checked' : ''} aria-label="Select ${esc(it.b)}"></td>
-      <td><i>${esc(it.b)}</i>${it.c ? `<span class="cn"> · ${esc(it.c)}</span>` : ''}</td><td>${esc(it.sz)}</td><td>${esc(it.code)}</td><td>${esc(it.st)}</td>
+      <td><i>${esc(it.b)}</i>${it.c ? `<span class="cn"> · ${esc(it.c)}</span>` : ''}</td><td>${esc(it.sz)}</td>${hasFg ? `<td>${esc(it.fg || '')}</td>` : ''}<td>${esc(it.code)}</td><td>${esc(it.st)}</td>
       <td class="n">${it.pr != null ? money(it.pr) : ''}</td>
       <td>${mine ? `<span class="mine-tag" title="${esc(mine.common || mine.botanical)}${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · your price ' + money(num(mine.cost)) : ''}">In my plants${mine.cost != null && it.pr != null && Math.abs(num(mine.cost) - it.pr) > 0.004 ? ' · price differs' : ''}</span>` : ''}</td></tr>`).join('')}</tbody>
-      ${rows.length > shown.length ? `<tfoot><tr><td colspan="7" class="note" style="font-weight:400">Showing 400 of ${rows.length.toLocaleString('en-GB')} lines. Search to narrow the list.</td></tr></tfoot>` : ''}`;
+      ${rows.length > shown.length ? `<tfoot><tr><td colspan="${hasFg ? 8 : 7}" class="note" style="font-weight:400">Showing 400 of ${rows.length.toLocaleString('en-GB')} lines. Search to narrow the list.</td></tr></tfoot>` : ''}`;
   renderAvBar();
 }
 function renderAvBar() {
