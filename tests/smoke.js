@@ -549,6 +549,34 @@ test('plant photos from Wikimedia Commons: cultivar first, only usable licences,
   ok(await app.page.isVisible('[data-act=findPhotoEdit]'), 'Find a photo online offered for an existing plant');
 });
 
+test('the garden library marks species already on the plan', async open => {
+  const seed = sample(); seed['gardens/g1'].plantings = seed['gardens/g1'].plantings.filter(p => p.plantId !== 'p2');
+  const app = await open(seed);
+  ok(await app.page.isVisible('#lib [data-pid=p0] .onplan'), 'a placed species says On plan');
+  ok(!(await app.page.$('#lib [data-pid=p2] .onplan')), 'an unplaced one does not');
+  ok(!(await app.page.$('#lib [data-pid=ex1] .onplan')), 'existing plants keep their Existing note only');
+  await app.page.click('#lib [data-pid=p2]'); await app.clickPlan(3, 6); await app.page.waitForTimeout(300);
+  ok(await app.page.isVisible('#lib [data-pid=p2] .onplan'), 'appears once it is planted');
+});
+
+test('clicking back on the plan saves and closes the species editor', async open => {
+  const app = await open(sample());
+  const onMap = async () => { const r = await app.page.$eval('#map', m => { const b = m.getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; }); await app.page.mouse.click(r.x, r.y); };
+  const n = async () => (await app.store('gardens/g1')).plantings.length;
+  const before = await n();
+  await app.page.click('#lib [data-edit=p0]'); await app.page.waitForSelector('#editPane:not([hidden])');
+  await app.page.fill('#sp-common', 'English lavender'); await onMap(); await app.page.waitForTimeout(500);
+  ok(await app.page.isHidden('#editPane'), 'editor closes');
+  eq((await app.store('plants/p0')).common, 'English lavender', 'change saved');
+  eq(await n(), before, 'the click places nothing');
+  // a change that can't be saved keeps the editor open and says why
+  await app.page.click('#lib [data-edit=p0]'); await app.page.waitForSelector('#editPane:not([hidden])');
+  await app.page.fill('#sp-common', ''); await app.page.fill('#sp-bot', ''); await onMap(); await app.page.waitForTimeout(300);
+  ok(await app.page.isVisible('#editPane'), 'stays open');
+  ok(/name/.test(await app.page.textContent('#plantErr')), 'and says what is missing');
+  eq(app.errors.length, 0, 'no errors');
+});
+
 test('species pop-up saves when you click off it', async open => {
   const app = await open(sample(), { hash: '#database' });
   const off = () => app.page.mouse.click(8, 450);                     // the dimmed backdrop beside the pop-up
