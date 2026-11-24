@@ -1724,6 +1724,35 @@ test('a list line never overwrites another supplier’s plant; cultivars with ap
   eq(app.errors, [], 'no errors');
 });
 
+test('imports you can trust: columns scored, sizes in cm, the new list opens, a missing price stays blank', async open => {
+  const app = await open(sample()), p = app.page;
+  await app.go('database'); await p.click('#dbTabAvail');
+  const imp = async (sup, text) => {
+    await p.click('#avImport'); await p.fill('#imp-sup', sup); await p.fill('#imp-paste', text);
+    await p.click('[data-imp=parse]'); await p.waitForSelector('[data-impmap]');
+  };
+  await imp('First nursery', 'Botanical name\tPrice\nSalvia nemorosa\t5\n');
+  await p.click('[data-imp=save]'); await p.waitForTimeout(500);
+  await imp('Second nursery', 'Product Code\tDescription\tPrice per pot\tUnits in stock\tHeight (cm)\tSpread\nSN-01\tGeranium sanguineum\t£4.50\t120\t30-60\t45cm\nSN-02\tAstrantia major\t\t15\t70\t-1\nSN-03\tPhlomis russeliana\t6.00\t3\t1.2 m\t\n');
+  const chosen = await p.$$eval('[data-impmap]', ss => Object.fromEntries(ss.map(s => [s.dataset.impmap, s.value === '' ? '' : s.selectedOptions[0].text])));
+  eq([chosen.b, chosen.code, chosen.pr, chosen.st, chosen.sz, chosen.h, chosen.sp], ['Description', 'Product Code', 'Price per pot', 'Units in stock', '', 'Height (cm)', 'Spread'], 'each column goes to the field it means');
+  await p.click('[data-imp=save]'); await p.waitForTimeout(500);
+  ok(/Second nursery/.test(await p.$eval('#avList', s => s.selectedOptions[0].text)), 'the list just imported is the one shown');
+  ok(/Geranium/.test(await p.textContent('#avTable')), 'its lines are listed');
+  for (const i of ['i0', 'i1', 'i2']) await p.check(`#avTable [data-av=${i}]`);
+  await p.click('#avAdd'); await p.waitForTimeout(1500);
+  const all = await p.evaluate(() => [...window.__mock.store.values()].filter(v => v && v.supplier === 'Second nursery'));
+  const by = n => all.find(v => v.botanical === n);
+  eq([by('Geranium sanguineum')?.height, by('Geranium sanguineum')?.spread], [0.6, 0.45], 'a range in cm keeps its mature size, in metres');
+  eq(by('Phlomis russeliana')?.height, 1.2, 'a height in metres stays in metres');
+  ok(by('Astrantia major')?.height !== 70 && by('Astrantia major')?.spread > 0, 'a bare 70 under a cm heading is not 70 m, and a negative spread is ignored');
+  eq(by('Astrantia major')?.cost ?? null, null, 'a missing price is left blank, not £0');
+  await p.click('#dbTabMine'); await p.waitForTimeout(300);
+  const row = await p.$$eval('#dbTable tbody tr', rs => rs.map(r => r.textContent).find(t => /Astrantia/.test(t)));
+  ok(row && !/£0\.00/.test(row), 'and the database shows no £0.00 for it: ' + row);
+  eq(app.errors, [], 'no errors');
+});
+
 test('ticking On site keeps the species as an existing plant in this garden only', async open => {
   const app = await open(sample()), p = app.page;
   await p.click('#lib [data-edit=p0]'); await p.waitForTimeout(200);

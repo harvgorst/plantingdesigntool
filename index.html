@@ -11579,7 +11579,7 @@ function renderInspector() {
       ${p?.existing ? `<label class="pf"><span>Status</span><select id="pl-status" data-f="status">${opt(STATUS, it.status || 'retain')}</select></label>
       <span class="pf"><span>Measured</span><input id="pl-h" class="n" aria-label="Height of this plant in metres" type="number" min="0" step="0.1" data-f="height" value="${it.height ?? ''}" placeholder="${num(p.height).toFixed(1)}"><span class="pv">×</span><input id="pl-s" class="n" aria-label="Spread of this plant in metres" type="number" min="0.05" step="0.1" data-f="spread" value="${it.spread ?? ''}" placeholder="${num(p.spread).toFixed(1)}"><span class="pv">m</span></span>
       <label class="pf"><span>Note</span><input id="pl-note" type="text" data-f="note" value="${esc(it.note)}" placeholder="e.g. crown lift, reduce by a third"></label>` : ''}
-      ${p && !p.existing ? `<span class="pv"><i>${esc(p.botanical)}</i> · ${num(p.height).toFixed(1)} × ${num(p.spread).toFixed(1)} m · ${fl} · ${money(num(p.cost))} each</span>` : p ? `<span class="pv"><i>${esc(p.botanical)}</i></span>` : ''}
+      ${p && !p.existing ? `<span class="pv"><i>${esc(p.botanical)}</i> · ${num(p.height).toFixed(1)} × ${num(p.spread).toFixed(1)} m · ${fl}${p.cost == null || p.cost === '' ? '' : ' · ' + money(num(p.cost)) + ' each'}</span>` : p ? `<span class="pv"><i>${esc(p.botanical)}</i></span>` : ''}
       ${acts(p ? '<button class="btn sm" type="button" data-act="editSpecies">Edit species</button>' : '')}`;
     return;
   }
@@ -11951,7 +11951,7 @@ function renderDatabase() {
       <td>${showCol(p) ? `<span class="fdot" style="background:${esc(showCol(p))}" title="${esc(showColName(p) || '')}"></span>` : ''}${fm(p)}</td>
       <td class="n">${p.height != null && p.height !== '' ? num(p.height).toFixed(2) + ' m' : ''}</td><td class="n">${num(p.spread).toFixed(2)} m</td>
       <td>${esc(p.existing ? 'on site' : p.supply || '')}</td><td>${esc(p.floweringGroup || '')}</td><td>${esc(p.existing ? '' : p.supplier || '')}</td>
-      <td class="n">${p.existing ? '<span class="nil">–</span>' : money(num(p.cost))}</td>
+      <td class="n">${p.existing || p.cost == null || p.cost === '' ? '<span class="nil">–</span>' : money(num(p.cost))}</td>
       <td class="n" title="${esc(used.join(', '))}">${n || '<span class="nil">–</span>'}</td>
       <td class="n"><button class="btn sm" type="button" data-edit="${p.id}">Edit</button></td></tr>`).join('')}</tbody>`;
 }
@@ -13265,7 +13265,7 @@ $('libChips').addEventListener('click', e => {
 $('addPlantBtn').addEventListener('click', () => { if (S.g) openAddPlants(); else openPlantEditor(null); });
 function openPlantEditor(id) {
   const p = id ? plantById(id) : null;
-  S.editPlant = p ? JSON.parse(JSON.stringify(p)) : { id: uid(), _new: true, common: '', botanical: '', role: 'herbaceous', spread: 0.5, potSpread: 0.2, height: 0.5, light: ['sun'], moisture: ['moist'], cost: 0 };
+  S.editPlant = p ? JSON.parse(JSON.stringify(p)) : { id: uid(), _new: true, common: '', botanical: '', role: 'herbaceous', spread: 0.5, potSpread: 0.2, height: 0.5, light: ['sun'], moisture: ['moist'], cost: null };
   S.confirm = null; renderLibrary();
   setTimeout(() => (id ? $('sp-common') : $('sp-bot'))?.focus(), 0);
 }
@@ -13465,6 +13465,7 @@ app.addEventListener('click', async e => {
     if (!(p.common || '').trim() && (p.botanical || '').trim()) p.common = p.botanical.trim();   // a botanical name alone will do
     if (!(p.common || '').trim()) { $('plantErr').textContent = 'Give the species a common or botanical name.'; return; }
     if (num(p.cost) < 0) { $('plantErr').textContent = 'The price can’t be less than 0.'; return; }
+    if (num(p.height) < 0 || num(p.potSpread) < 0 || num(p.spread) < 0) { $('plantErr').textContent = 'Heights and spreads can’t be less than 0.'; return; }
     if (num(p.height) > 120 || num(p.spread) > 60) { $('plantErr').textContent = 'That height or spread looks too big: sizes are in metres.'; return; }
     if (!(num(p.spread) > 0)) { $('plantErr').textContent = 'Mature spread must be more than 0 m.'; return; }
     const body = { ...p }; delete body._new; delete body.id; delete body.example; delete body._toGarden; delete body._touched; delete body._pfafGot;
@@ -13750,7 +13751,7 @@ $('dbListGo').addEventListener('click', async () => {
   for (const nm of names) {
     if (have.has(nm.toLowerCase())) { skipped++; continue; }
     $('dbListMsg').textContent = `Adding ${added + 1} of ${names.length - skipped}…`;
-    const base = { _new: true, common: '', botanical: nm, role: 'herbaceous', spread: 0.5, potSpread: 0.2, height: 0.5, light: ['sun'], moisture: ['moist'], cost: 0 }, r = pfafFind(nm);
+    const base = { _new: true, common: '', botanical: nm, role: 'herbaceous', spread: 0.5, potSpread: 0.2, height: 0.5, light: ['sun'], moisture: ['moist'], cost: null }, r = pfafFind(nm);
     if (r) { pfafFill(base, r); filled++; } else missed.push(nm);
     delete base._new; if (!base.common) base.common = nm;
     const id = uid();
@@ -13838,30 +13839,68 @@ async function parseSheetFile(file) {
 function guessHeader(rows) {
   let best = 0, bestScore = -1;
   for (let r = 0; r < Math.min(20, rows.length); r++) {
-    const score = rows[r].filter(c => AV_FIELDS.some(([, , re]) => re.test(String(c).trim()))).length;
+    const score = rows[r].filter(c => Object.keys(AV_CLUES).some(k => clueScore(k, c) >= 6)).length;
     if (score > bestScore) { bestScore = score; best = r; }
   }
   return bestScore > 0 ? best : -1;
 }
-function guessMap(head) {
-  const map = {}, used = new Set();
-  for (const [k, , re] of AV_FIELDS) { const i = head.findIndex((h, idx) => !used.has(idx) && re.test(String(h).trim())); if (i >= 0) { map[k] = i; used.add(i); } }
-  if (map.b == null && map.genus == null) { const i = head.findIndex((h, idx) => !used.has(idx)); if (i >= 0) map.b = i; }
+/* how well a heading fits each field: the strongest clue wins, so "Product Code" is a code, "Price per pot" a price and "Units in stock" the stock */
+const AV_CLUES = {
+  b: [[/botan|latin|scientific/i, 10], [/plant ?name|^name$|^plant$|^species name/i, 7], [/description|product|item|^title$/i, 3]],
+  genus: [[/^genus/i, 10]], species: [[/^species$/i, 9]],
+  cv: [[/cultivar/i, 10], [/variety|^var\b/i, 6]],
+  c: [[/common/i, 10]],
+  sz: [[/pot ?size|container|grade|^size$|^pot$/i, 9], [/size|pot|spec|format|litre/i, 4]],
+  fg: [[/flower(ing)?\s*gr(ou)?p|pollinat|^f\.?\s?g\.?$|^group$/i, 10]],
+  pr: [[/price|cost/i, 9], [/£|€|\$/, 6], [/each|^unit|rate|^net/i, 2]],
+  st: [[/stock|avail|in hand/i, 9], [/qty|quantity/i, 6]],
+  h: [[/height|^ht\b/i, 10]], sp: [[/spread|width/i, 10]],
+  code: [[/code|sku|item ?no|^ref|^id$|^cat(alogue)? ?no/i, 9]],
+};
+function clueScore(k, h) { h = String(h || '').trim(); let best = 0; for (const [re, w] of AV_CLUES[k] || []) if (re.test(h) && w > best) best = w; return best; }
+/* what the cells under a heading look like: a binomial ("Salvia nemorosa") or a sum of money */
+function cellScore(k, data, i) {
+  const vals = data.slice(0, 30).map(r => String(r[i] ?? '').trim()).filter(Boolean); if (!vals.length) return 0;
+  const share = re => vals.filter(v => re.test(v)).length / vals.length;
+  if (k === 'b') return 4 * share(/^[A-Z][a-z]+\s+(?:[a-z][a-z-]+|×|x\s|['‘"])/);
+  if (k === 'pr') return 2 * share(/^[£€$]?\s*\d+[.,]\d{2}\b/);
+  return 0;
+}
+function guessMap(head, data = []) {
+  const map = {}, used = new Set(), pairs = [];
+  head.forEach((h, i) => { for (const k of Object.keys(AV_CLUES)) { const sc = clueScore(k, h); if (sc) pairs.push([sc + cellScore(k, data, i), k, i]); } });
+  pairs.sort((a, b) => b[0] - a[0] || a[2] - b[2]);
+  for (const [, k, i] of pairs) if (map[k] == null && !used.has(i)) { map[k] = i; used.add(i); }
+  if (map.b == null && map.genus == null) {   // no heading says so: the column that reads most like botanical names
+    let bi = -1, bs = 0; head.forEach((_, i) => { if (used.has(i)) return; const sc = cellScore('b', data, i); if (sc > bs) { bs = sc; bi = i; } });
+    if (bi < 0) bi = head.findIndex((_, i) => !used.has(i));
+    if (bi >= 0) map.b = bi;
+  }
   return map;
 }
 /* a flowering group as written in a list: "3", "3 to 4", "C", or taken out of "Flowering group 3, self fertile"; anything else ("Self fertile") is not one */
 const fgOf = v => { v = String(v || '').trim(); const g = '[0-9A-H](?:\\s*(?:to|-|–|/)\\s*[0-9A-H])?'; return (v.match(new RegExp('\\bgr(?:ou)?p\\.?\\s*(' + g + ')\\b', 'i')) || v.match(new RegExp('^(' + g + ')$', 'i')) || [])[1] || ''; };
 /* the first number in a cell: "£3.50 (3 for £9)" is 3.5, "1,250" is 1250, "3,50" is 3.5 */
 const toNum = v => { const t = String(v ?? '').replace(/(\d),(\d{3})(?!\d)/g, '$1$2').replace(/(\d),(\d)/g, '$1.$2').match(/-?\d+(?:\.\d+)?|-?\.\d+/); const n = t ? parseFloat(t[0]) : NaN; return Number.isFinite(n) ? n : null; };
+/* a height or spread in metres: "60 cm" is 0.6, "30–60cm" takes the mature 0.6, "1.5m" 1.5, "3 ft" 0.91; a bare number takes the heading's unit,
+   and one over 30 with no unit at all is read as centimetres. Below 0, or still too big, it is left out. */
+function sizeM(v, head) {
+  const t = String(v ?? '').toLowerCase().replace(/(\d),(\d)/g, '$1.$2'); if (!t.trim()) return null;
+  const ns = (t.match(/\d+(?:\.\d+)?|\.\d+/g) || []).map(parseFloat); if (!ns.length || /^\s*-/.test(t)) return null;
+  const n = Math.max(...ns), unit = s => /mm\b/.test(s) ? 0.001 : /cm\b|cms\b|centim/.test(s) ? 0.01 : /\bft\b|feet|foot|\d\s*'/.test(s) ? 0.3048 : /\bin\b|inch|"/.test(s) ? 0.0254 : /\d\s*m\b|\bm\b|metre|meter/.test(s) ? 1 : 0;
+  const f = unit(t) || unit(String(head || '').toLowerCase().replace(/height|spread|width/g, '')) || (n > 30 ? 0.01 : 1);
+  const m = +(n * f).toFixed(3);
+  return m > 0 && m <= 60 ? m : null;
+}
 function rowsToItems(imp) {
   const m = imp.map, data = imp.rows.slice(imp.header + 1), out = [];
-  const g = (r, k) => m[k] == null || m[k] === '' ? '' : String(r[m[k]] ?? '').trim();
+  const g = (r, k) => m[k] == null || m[k] === '' ? '' : String(r[m[k]] ?? '').trim(), hd = k => imp.header >= 0 && m[k] != null && m[k] !== '' ? imp.rows[imp.header][m[k]] : '';
   data.forEach((r, n) => {
     let b = g(r, 'b');
     if (!b) b = [g(r, 'genus'), g(r, 'species')].filter(Boolean).join(' ');
     const sp = splitCv(b, g(r, 'cv')), c = g(r, 'c'); b = sp.b;
     if (!b && !c) return;
-    out.push({ id: 'i' + n, b, cv: sp.cv, c, sz: g(r, 'sz'), pr: toNum(g(r, 'pr')), fg: fgOf(g(r, 'fg')), st: g(r, 'st'), h: toNum(g(r, 'h')), sp: toNum(g(r, 'sp')), code: g(r, 'code') });
+    out.push({ id: 'i' + n, b, cv: sp.cv, c, sz: g(r, 'sz'), pr: (x => x != null && x >= 0 ? x : null)(toNum(g(r, 'pr'))), fg: fgOf(g(r, 'fg')), st: g(r, 'st'), h: sizeM(g(r, 'h'), hd('h')), sp: sizeM(g(r, 'sp'), hd('sp')), code: g(r, 'code') });
   });
   return out;
 }
@@ -13894,8 +13933,8 @@ $('importBody').addEventListener('input', e => {
   if (t.id === 'imp-sup') I.supplier = t.value;
   else if (t.id === 'imp-name') I.name = t.value;
   else if (t.dataset.impmap) { I.map[t.dataset.impmap] = t.value === '' ? null : +t.value; renderImport(); }
-  else if (t.id === 'imp-hashead') { I.header = t.checked ? Math.max(0, guessHeader(I.rows)) : -1; I.map = guessMap(I.header >= 0 ? I.rows[I.header] : []); renderImport(); }
-  else if (t.id === 'imp-hrow') { I.header = clamp(Math.round(num(t.value, 1)) - 1, 0, I.rows.length - 1); I.map = guessMap(I.rows[I.header]); renderImport(); }
+  else if (t.id === 'imp-hashead') { I.header = t.checked ? Math.max(0, guessHeader(I.rows)) : -1; I.map = guessMap(I.header >= 0 ? I.rows[I.header] : I.rows[0].map(() => ''), I.rows.slice(I.header + 1)); renderImport(); }
+  else if (t.id === 'imp-hrow') { I.header = clamp(Math.round(num(t.value, 1)) - 1, 0, I.rows.length - 1); I.map = guessMap(I.rows[I.header], I.rows.slice(I.header + 1)); renderImport(); }
 });
 $('importBody').addEventListener('click', async e => {
   const b = e.target.closest('[data-imp]'); if (!b || !AV.imp) return;
@@ -13911,7 +13950,7 @@ $('importBody').addEventListener('click', async e => {
       I.rows = rows.map(r => r.map(c => String(c ?? ''))).filter(r => r.some(c => c.trim()));
       if (!I.rows.length) { I.rows = null; I.err = 'That file has no rows.'; renderImport(); return; }
       if (!I.supplier && f) I.supplier = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\b(availability|stock|list|price ?list)\b/ig, '').trim();
-      I.header = guessHeader(I.rows); I.map = guessMap(I.header >= 0 ? I.rows[I.header] : I.rows[0].map(() => ''));
+      I.header = guessHeader(I.rows); I.map = guessMap(I.header >= 0 ? I.rows[I.header] : I.rows[0].map(() => ''), I.rows.slice(I.header + 1));
     } catch (err) { I.rows = null; I.err = err?.message || 'That file could not be read.'; }
     renderImport(); return;
   }
@@ -13927,6 +13966,7 @@ $('importBody').addEventListener('click', async e => {
         for (let n = 0, c = 0; n < items.length; n += CH, c++) await S.db.doc(`availability/${id}/chunks/${c}`).set({ items: items.slice(n, n + CH) });
         await S.db.doc('availability/' + id).set(meta);
       } else { AV.lists.push({ id, ...meta, local: items }); }
+      if (S.online && !AV.lists.some(x => x.id === id)) AV.lists.push({ id, ...meta });   // shown straight away, before the stored lists are read again
       AV.listId = id; store.set('gpm.avlist', id); AV.loadedFor = ''; AV.sel.clear();
       closeImport(); await renderAvailability();
     } catch (err) { b.disabled = false; b.textContent = 'Save'; I.err = err?.code === 'quota_exceeded' ? 'Storage is full. Delete an old availability list first.' : 'Couldn’t save: ' + (err?.message || 'try again'); renderImport(); }
@@ -14382,7 +14422,7 @@ const hexOrNull = v => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v :
 function cleanPlant(d) {
   const id = safeId(d?.id); if (!id) return null;
   const p = { id, common: str(d.common, 200), botanical: str(d.botanical, 200), cultivar: str(d.cultivar, 200), role: layerOf(d.role), existing: !!d.existing,
-    height: numOrNull(d.height), spread: Math.max(0.05, numOrNull(d.spread) ?? 0.5), potSpread: numOrNull(d.potSpread), cost: Math.max(0, numOrNull(d.cost) ?? 0),
+    height: numOrNull(d.height), spread: Math.max(0.05, numOrNull(d.spread) ?? 0.5), potSpread: numOrNull(d.potSpread), cost: numOrNull(d.cost) == null ? null : Math.max(0, numOrNull(d.cost)),
     supply: str(d.supply, 200), supplier: str(d.supplier, 200), floweringGroup: str(d.floweringGroup, 40), flowerFrom: monthOrNull(d.flowerFrom), flowerTo: monthOrNull(d.flowerTo), flowerColor: hexOrNull(d.flowerColor), flowerColorName: str(d.flowerColorName, 60) };
   if (!p.common) p.common = p.botanical || 'Unnamed';
   if (safeId(d.photoId)) p.photoId = d.photoId;
