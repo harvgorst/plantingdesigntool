@@ -10738,7 +10738,7 @@ function edgeLayout(LBL, halo, e) {
     if (!groups.has(k)) groups.set(k, { n: 0, pts: [] });
     const gp = groups.get(k); gp.n += l.n ?? 1; gp.pts.push({ ax: l.ax, ay: l.ay, n: l.n ?? 1, i, l });
   });
-  const skey = l => ({ key: l.pid != null ? 's' + l.pid : undefined, plid: l.plid, ax: l.ax, ay: l.ay });   // a species' label, to drag or hide
+  const skey = (l, gp) => gp?.patch ? { key: 'p' + l.plid, plid: l.plid, ax: l.ax, ay: l.ay } : { key: l.pid != null ? 's' + l.pid : undefined, plid: l.plid, ax: l.ax, ay: l.ay };   // a species' label (or a patch's own, dragged to the edge), to drag or hide
   const qtyTxt = (l, n) => l.o.bold || !S.prefs.labelQty || n < 2 || l.name == null ? (l.name ?? l.txt) : n + ' ' + l.name;
   const sideD = q => Math.min(q.ax, W - q.ax), endD = q => Math.min(q.ay, D - q.ay);
   /* where each species is labelled: in a side column if a patch is within REACH of a side (as on most gardens), else in a
@@ -10772,6 +10772,22 @@ function edgeLayout(LBL, halo, e) {
     if (endD(lead) <= REACH) { Object.assign(gp, { ax: lead.ax, ay: lead.ay, at: lead.i, l: lead.l, lead, deep: endD(lead) }); rows[lead.ay < D / 2 ? 'T' : 'B'].push(gp); return; }
     toCol(gp, side);   // deep in a large plan: still labelled at the edge, as asked, never back beside the plant
   };
+  /* a patch's own label dragged off the plan into a margin joins the column (or row) there, in line with the species' labels,
+     instead of sitting just where it was dropped */
+  const PLM = new Map((S.g?.plantings || []).map(q => [q.id, q])), patches = [];
+  for (const gp of groups.values()) {
+    const pid = gp.pts[0].l?.pid; if (pid == null || gp.pts.length < 2) continue;
+    const out = gp.pts.filter(q => { const pl = q.l?.plid && PLM.get(q.l.plid); if (!pl || pl.kx == null || pl.ky == null || pl.lhide || J['p' + pl.id] === 's' + pid) return false;
+      const x = q.ax + pl.kx, y = q.ay + pl.ky; if (x >= 0 && x <= W && y >= 0 && y <= D) return false; q.to = { x, y }; return true; });
+    if (!out.length) continue;
+    if (out.length === gp.pts.length) out.splice(out.indexOf(gp.pts.reduce((b, q) => q.n > b.n ? q : b)), 1);   // the species keeps one patch for its own label
+    gp.pts = gp.pts.filter(q => !out.includes(q));
+    for (const q of out) {
+      const e = { n: 1, pts: [q], jp: [], patch: true, ax: q.ax, ay: q.ay, at: q.i, l: q.l };
+      if (q.to.x < 0 || q.to.x > W) Object.assign(e, { side: q.to.x < 0 ? 'L' : 'R', ay: q.to.y, pin: true, pts: [[q.ax, q.ay]] }), all.push(e);
+      else { Object.assign(e, { lead: q, deep: -1, cx: clamp(q.to.x, 0, W) }); rows[q.to.y < 0 ? 'T' : 'B'].push(e); }
+    }
+  }
   /* a species' label dropped on another's is stacked with it (placed once the other's place is known) */
   const byPid = new Map(), stk = [];
   for (const gp of groups.values()) { gp.jp = []; const pid = gp.pts[0].l.pid; if (pid != null && !byPid.has(String(pid))) byPid.set(String(pid), gp); }
@@ -10827,7 +10843,7 @@ function edgeLayout(LBL, halo, e) {
       const l = gp.l, isN = !!l.o.bold, size = (isN ? NUM : NAME) * Math.max(0.55, k), yc = c2.y0 + j * pitch + pitch / 2;
       const txt = qtyTxt(l, gp.n);
       const x = c === 'L' ? -gx : W + gx, sx = c === 'L' ? x + size * 0.3 : x - size * 0.3, edge = c === 'L' ? 0 : W;
-      out[gp.at] = halo(f(x), f(yc + size * 0.34), f(size), txt, { ...l.o, anchor: c === 'L' ? 'end' : 'start', ...skey(l) });
+      out[gp.at] = halo(f(x), f(yc + size * 0.34), f(size), txt, { ...l.o, anchor: c === 'L' ? 'end' : 'start', ...skey(l, gp) });
       for (const [ax, ay] of [...gp.pts, ...gp.jp]) {
         const dy = ay - yc, ad = Math.abs(dy), sg = Math.sign(dy);
         const xk = c === 'L' ? Math.max(edge, ax - ad) : Math.min(edge, ax + ad), run = Math.abs(ax - xk);
@@ -10862,7 +10878,7 @@ function edgeLayout(LBL, halo, e) {
       let x = c2.x0;
       for (const { gp, size, txt, w } of c2.items) {
         const cx = x + w / 2, yb = r === 'T' ? -fs * 2.4 : D + fs * 1.5; x += w;
-        out[gp.at] = halo(f(cx), f(yb), f(size), txt, { ...gp.l.o, anchor: 'middle', ...skey(gp.l) });
+        out[gp.at] = halo(f(cx), f(yb), f(size), txt, { ...gp.l.o, anchor: 'middle', ...skey(gp.l, gp) });
         const sy = r === 'T' ? yb + size * 0.3 : yb - size * 0.95;
         others(gp, gp.lead);
         for (const [ax, ay] of [[gp.ax, gp.ay], ...gp.jp]) {

@@ -1406,7 +1406,8 @@ test('plant database: rows ruled in their layer colour, the species form grouped
 
 test('labels dragged into the margin line up with the column or row there', async open => {
   const s = sample();
-  s['gardens/g1'] = { ...s['gardens/g1'], labelAt: { p0: { x: -0.9, y: 3.3 }, p4: { x: -2.1, y: 6.2 }, p2: { x: 8.3, y: -0.9 } } };
+  s['gardens/g1'] = { ...s['gardens/g1'], labelAt: { p0: { x: -0.9, y: 3.3 }, p4: { x: -2.1, y: 6.2 }, p2: { x: 8.3, y: -0.9 } },
+    plantings: [...s['gardens/g1'].plantings, { id: 'h', plantId: 'p0', x: 9, y: 6.5, qty: 3, kx: 4.1, ky: 0.2 }, { id: 'i', plantId: 'p1', x: 9, y: 7, qty: 2, kx: 0.3, ky: 2.5 }] };   // other patches whose own labels were dragged off the plan
   const app = await open(s), pg = app.page;
   const at = await pg.$$eval('#map text[data-kind=lbl]', ts => ts.filter(t => /^s/.test(t.dataset.lk)).map(t => ({ k: t.dataset.lk, x: +t.getAttribute('x'), y: +t.getAttribute('y'), a: t.getAttribute('text-anchor') || '' })));
   const L = at.filter(q => q.a === 'end'), xs = new Set(L.map(q => q.x));
@@ -1416,6 +1417,10 @@ test('labels dragged into the margin line up with the column or row there', asyn
   ok(p0.y < p4.y, 'kept in the order they were put');
   const top = at.find(q => q.k === 'sp2');
   ok(top && top.a === 'middle' && top.y < 0, 'the one dropped above the plan is in the top row, got ' + JSON.stringify(top));
+  const all = await pg.$$eval('#map text[data-kind=lbl]', ts => ts.map(t => ({ k: t.dataset.lk, x: +t.getAttribute('x'), y: +t.getAttribute('y'), a: t.getAttribute('text-anchor') || '' })));
+  const R = all.filter(q => q.a === 'start'), ph = all.find(q => q.k === 'ph'), pi = all.find(q => q.k === 'pi');
+  ok(ph && ph.a === 'start' && new Set(R.map(q => q.x)).size === 1, 'a patch label dragged into the right margin is in the right column, got ' + JSON.stringify(all));
+  ok(pi && pi.a === 'middle' && pi.y > 8.6, 'one dragged below the plan is in the bottom row, got ' + JSON.stringify(pi));
   eq(app.errors, [], 'no errors');
 });
 
