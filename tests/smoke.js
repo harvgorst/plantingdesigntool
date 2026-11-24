@@ -339,7 +339,7 @@ test('booklet PDF: searchable text and a vector plan', async open => {
   ok(/\/BaseFont \/(Helvetica|IBMPlex|plex)/i.test(text) || /FontFile2/.test(text), "a text layer is embedded");
   let plain = null;
   try { const fs = require('fs'), os = require('os'), path = require('path'), f = path.join(os.tmpdir(), 'sl-booklet-' + process.pid + '.pdf'); fs.writeFileSync(f, pdf); plain = require('child_process').execFileSync('pdftotext', [f, '-'], { encoding: 'utf8' }); fs.unlinkSync(f); } catch {}
-  if (plain) ok(plain.includes('Plant schedule') && plain.includes("Lavandula angustifolia 'Hidcote'") && plain.includes('Mr & Mrs Hart'), 'the text can be searched and copied');
+  if (plain) ok(plain.includes('Plant schedule') && /Lavender .Hidcote. Lavandula angustifolia/.test(plain) && plain.includes('Mr & Mrs Hart'), 'the text can be searched and copied');
   else console.log('     (pdftotext not installed, so the text layer was not read back)');
 });
 
@@ -565,7 +565,14 @@ test('presentation picture cards show the cultivar', async open => {
   await app.page.waitForSelector('.bcard');
   const names = await app.page.$$eval('.bcard .bn', l => l.map(x => x.textContent));
   ok(names.some(t => /‘Hidcote’/.test(t)), 'the cultivar is on its card, got ' + names.join(' | '));
-  ok(await app.page.$eval('.bcard .bn .cv', c => getComputedStyle(c).fontStyle === 'normal'), 'set upright, as cultivar names are');
+  ok(names.includes('Salvia ‘Hidcote’') && names.includes('Lavender ‘Hidcote’'), 'the common name and cultivar lead, got ' + names.join(' | '));
+  ok(await app.page.$eval('.bcard .bn', c => getComputedStyle(c).fontStyle === 'normal'), 'set upright');
+  const lat = await app.page.$$eval('.bcard .cn i.lat', l => l.map(c => c.textContent + ' ' + getComputedStyle(c).fontStyle));
+  ok(lat.includes('Lavandula angustifolia italic'), 'the Latin name follows in italics, got ' + lat.join(' | '));
+  // the key, schedule and calendar lead with the common name too, the Latin after it in faint italics
+  const sched = await app.page.$$eval('.btable td', l => l.map(x => x.textContent).find(t => t.includes('Lavender')) || '');
+  ok(/^Lavender ‘Hidcote’ Lavandula angustifolia$/.test(sched.trim()), 'schedule: ' + sched);
+  ok((await app.page.$$eval('.bsheet .kr .kt', l => l.map(x => x.textContent))).includes('Lavender ‘Hidcote’ Lavandula angustifolia'), 'on the plan key');
 });
 
 test('plan keys only work on the plan; Space still presses a focused button', async open => {

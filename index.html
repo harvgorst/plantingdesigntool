@@ -278,7 +278,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .bpage { --bk-sheet: #F8F9F5; --bk-film: #ECEEE8; --bk-ink: #1F2B26; --bk-muted: #5F6964; --bk-line: #CCD2CA; --bk-soft: #DFE3DC; --bk-accent: #2F5A3C;
   --f-display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif; --f-body: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif; --f-bot: "Source Serif 4", Georgia, serif;
   width: 1123px; height: 794px; background: var(--bk-sheet); color: var(--bk-ink); font-family: var(--f-body); font-variant-numeric: tabular-nums; position: relative; overflow: hidden; box-sizing: border-box; padding: 50px 60px 60px; display: flex; flex-direction: column; }
-.bpage i, .bpage .bn { font-family: var(--f-bot); font-style: italic; }
+.bpage i { font-family: var(--f-bot); font-style: italic; }
 .pdfhost .bpage { --f-bot: "Times New Roman", Tinos, "Liberation Serif", Times, serif; }
 .pdfhost.noplex .bpage { --f-display: Helvetica, Arimo, "Liberation Sans", Arial, sans-serif; --f-body: Helvetica, Arimo, "Liberation Sans", Arial, sans-serif; }
 .bpage .bh { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--bk-muted); border-bottom: 1px solid var(--bk-line); padding-bottom: 9px; margin-bottom: 26px; }
@@ -311,7 +311,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .bsheet .kr { display: grid; grid-template-columns: 15px minmax(14px, max-content) minmax(0, 1fr) auto; align-items: baseline; gap: 0 6px; line-height: 1.2; }
 .bsheet .kr > :first-child { align-self: center; }
 .bsheet .kr .kn { font-weight: 600; white-space: nowrap; }
-.bsheet .kr i { overflow-wrap: anywhere; }
+.bsheet .kr .kt { overflow-wrap: anywhere; min-width: 0; }
 .bsheet .kr .q { text-align: right; padding-left: 6px; }
 .bsheet .key .tot { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--bk-soft); color: var(--bk-muted); }
 .bsheet .key .kex { display: flex; align-items: center; gap: 6px; color: var(--bk-muted); }
@@ -342,7 +342,7 @@ fieldset.pref { border: 1px solid var(--line); border-radius: 12px; padding: 14p
 .bcard .ph .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--f-bot); font-size: 34px; color: #A3ABA6; font-style: italic; }
 .bcard .ph .add { position: absolute; left: 0; right: 0; bottom: 10px; text-align: center; font-size: 12px; color: var(--bk-muted); }
 .bcard .num { position: absolute; left: 0; top: 0; min-width: 26px; height: 24px; padding: 0 7px; box-sizing: border-box; background: var(--bk-sheet); color: var(--bk-ink); font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
-.bcard .bn .cv { font-style: normal; }
+.bcard .bn { font-weight: 600; } .bcard .bn i { font-weight: 400; }
 .bcard .bn { font-size: 14px; line-height: 1.25; color: var(--bk-ink); border-left: 3px solid var(--lc, var(--bk-line)); padding-left: 7px; }
 .bcard .cn { font-size: 12px; color: var(--bk-muted); padding-left: 10px; }
 .bcard .cr { position: absolute; right: 0; bottom: 0; max-width: 100%; padding: 2px 5px; font-size: 7.5px; line-height: 1.25; color: #F8F9F5; background: rgba(31, 43, 38, 0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -376,6 +376,7 @@ html[data-skin=xp] .pgrid button { border-radius: 0; }
 .btable .swv { margin-right: 7px; vertical-align: -1px; }
 .btable .lr { display: inline-block; width: 12px; height: 3px; margin-right: 7px; vertical-align: 3px; }
 .btable i { color: var(--bk-ink); } .btable .cmn { color: var(--bk-muted); }
+.bpage .pn { color: var(--bk-ink); font-weight: 600; } .bpage .pn i { font-weight: 400; } .bpage i.lat, .btable i.lat { color: var(--bk-muted); font-weight: 400; opacity: 0.85; }
 .btable tbody tr:last-child td { border-bottom-color: var(--bk-ink); }
 .btable tfoot td { border-bottom: 0; font-weight: 600; padding-top: 9px; }
 .btable tr.total td { font-family: var(--f-display); font-size: 22px; font-weight: 600; border-top: 1px solid var(--bk-ink); padding-top: 10px; }
@@ -9831,6 +9832,17 @@ function withCultivar(name, p) {
   if (!bare || name.toLowerCase().includes(bare.toLowerCase())) return name;
   return `${name} ‘${bare}’`;
 }
+/* in the presentation a plant is named by its common name and cultivar first, then the Latin name in faint italics;
+   the cultivar is already in the common name, so the Latin keeps only the species */
+const latinOf = p => String(p?.botanical || '').replace(/\s*['‘’"“”][^'‘’"“”]+['‘’"“”]\s*$/, '').replace(/\s*['‘’"“”][^'‘’"“”]+['‘’"“”]/, '').trim();
+function presName(p) {
+  if (!p) return '';
+  const cm = String(p.common || '').trim();
+  if (!cm) return `<span class="pn"><i>${esc(withCultivar(latinOf(p) || String(p.botanical || ''), p))}</i></span>`;
+  const lat = latinOf(p);
+  return `<span class="pn">${esc(withCultivar(cm, p))}</span>${lat ? ` <i class="lat">${esc(lat)}</i>` : ''}`;
+}
+const presText = p => [p?.common ? withCultivar(p.common, p) : '', p?.common ? latinOf(p) : withCultivar(latinOf(p) || p?.botanical || '', p)].filter(Boolean).join(' ');
 function labelSample(P) {   // the preview in Settings
   const cv = P.labelCultivar ? ' ‘Hidcote’' : '';
   return (P.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender' + cv, botanical: 'Lavandula angustifolia' + cv }[P.labelMode] || 'Lav ang');
@@ -12911,12 +12923,12 @@ function bookletPages(planImg, forExport) {
     const scaleBar = ppm ? `<div class="sb"><svg width="${barW.toFixed(1)}" height="6" viewBox="0 0 ${barW.toFixed(1)} 6"><rect x="0.5" y="0.5" width="${(barW - 1).toFixed(1)}" height="5" fill="none" stroke="#1F2B26" stroke-width="1"/>${[0, 2].map(q => `<rect x="${(q * barW / 4).toFixed(1)}" y="0" width="${(barW / 4).toFixed(1)}" height="6" fill="#1F2B26"/>`).join('')}</svg><div class="sbl" style="width:${barW.toFixed(1)}px"><span>0</span><span>${barM} m</span></div></div>` : '';
     const north = `<div class="na"><svg width="26" height="26" viewBox="-13 -13 26 26"><circle r="12" fill="none" stroke="#1F2B26" stroke-width="1"/><g transform="rotate(${num(g.north, 0)})"><path d="M0,-10 L4.5,6 L0,3 L-4.5,6 Z" fill="#1F2B26"/></g></svg><span>N</span></div>`;
     // as many key rows as fit the title block: a long name wraps onto a second line, which takes most of a row's height
-    const keyRows = n => pal.slice(0, n).reduce((t, r) => t + ((r.p.botanical || r.p.common || '').length > 30 ? 1.75 : 1), 0);
+    const keyRows = n => pal.slice(0, n).reduce((t, r) => t + (presText(r.p).length > 30 ? 1.75 : 1), 0);
     let keyN = Math.min(pal.length, 18); while (keyN > 1 && keyRows(keyN) > (pal.length > keyN ? 17.5 : 18.5)) keyN--;
     const meta = [['Client', g.client], ['Site', b.site]].filter(([, v]) => v);
     pages.push({ cls: 'bsheet', foot: false, html: `<div class="frame"><div class="bplan">${planImg ? `<img data-plan src="${planImg}" alt="Planting plan">` : ''}</div>
       <div class="tb"><div class="key"><div class="t">Plant key${b.numberPlan ? ', numbered as in the plant palette' : ''}</div>
-      ${pal.slice(0, keyN).map(r => `<div class="kr">${plantSwatch(r.p, 11)}<span class="kn">${b.numberPlan ? r.n : esc(code(r.p))}</span><i>${esc(r.p.botanical || r.p.common)}</i><span class="q">${r.qty}</span></div>`).join('')}
+      ${pal.slice(0, keyN).map(r => `<div class="kr">${plantSwatch(r.p, 11)}<span class="kn">${b.numberPlan ? r.n : esc(code(r.p))}</span><span class="kt">${presName(r.p)}</span><span class="q">${r.qty}</span></div>`).join('')}
       ${pal.length > keyN ? `<div class="t">and ${pal.length - keyN} more in the plant schedule</div>` : ''}${exRows.length ? `<div class="kex"><span class="d"></span>Dashed: existing trees and shrubs</div>` : ''}
       <div class="tot">${pal.reduce((t, r) => t + r.qty, 0)} new plants, ${pal.length} species</div></div>
       <div class="tblock"><div class="brand">${logoUrl() ? `<img class="blogo" src="${esc(logoUrl())}" alt="">` : `<div class="mark">${LAYER_ORDER.map(k => `<div style="background:var(--r-${k})"></div>`).join('')}</div><span>${esc(b.designer || '')}</span>`}</div>
@@ -12926,19 +12938,19 @@ function bookletPages(planImg, forExport) {
       <div class="nb">${north}${scaleBar}</div></div></div></div>` });
   }
   if (b.pages.palette && pal.length) chunk(pal, 12).forEach((part, i, all) => pages.push({ html: `${head('Plant palette')}<h3>Plant palette${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Numbered to match the planting plan and schedule</p>
-      <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<span class="add"><label style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label> · <u data-findphoto="${r.id}">Find photo</u></span>`}`}${u && r.p.photoCredit ? `<div class="cr">${esc(photoCreditText(r.p.photoCredit))}</div>` : ''}<div class="num">${r.n}</div></div><div class="bn" style="--lc:${lc(r.p)}">${(() => { const nm = r.p.botanical || r.p.common || '', full = withCultivar(nm, r.p); return full === nm ? esc(nm) : `${esc(nm)} <span class="cv">${esc(full.slice(nm.length).trim())}</span>`; })()}</div><div class="cn">${esc(r.p.common && r.p.botanical ? r.p.common : '')}${r.p.common && r.p.botanical ? ' · ' : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
+      <div class="bgrid">${part.map(r => { const u = photoUrl(r.p), ini = (r.p.botanical || r.p.common || '?').replace(/['"‘’“”()×]/g, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(''); return `<div class="bcard"><div class="ph">${u ? `<img src="${esc(u)}" alt="">` : `<div class="ini">${esc(ini)}</div>${forExport ? '' : `<span class="add"><label style="cursor:pointer"><u>Add photo</u><input type="file" accept="image/*" data-photo-for="${r.id}" hidden></label> · <u data-findphoto="${r.id}">Find photo</u></span>`}`}${u && r.p.photoCredit ? `<div class="cr">${esc(photoCreditText(r.p.photoCredit))}</div>` : ''}<div class="num">${r.n}</div></div><div class="bn" style="--lc:${lc(r.p)}">${r.p.common ? esc(withCultivar(r.p.common, r.p)) : `<i>${esc(withCultivar(latinOf(r.p) || r.p.botanical || '', r.p))}</i>`}</div><div class="cn">${r.p.common && latinOf(r.p) ? `<i class="lat">${esc(latinOf(r.p))}</i> · ` : ''}${esc(ROLES[layerOf(r.p.role)] || '')}</div></div>`; }).join('')}</div>` }));
   if (b.pages.guilds) {
-    const gr = guildRows().filter(gd => gd.items.length), rows = gr.flatMap(gd => gd.items.map((r, i) => `<tr${i ? '' : ' class="gstart"'}><td>${i ? '' : `<b>${esc(gd.name)}</b>`}</td><td><span class="lr" style="background:${lc(r.p)}"></span>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${paletteNumber(r.p.id) ? `<span class="lnum">${paletteNumber(r.p.id)}</span>` : ''}<i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}${r.p.existing ? ' · existing' : ''}</span></td><td class="n">${r.qty}</td></tr>`));
+    const gr = guildRows().filter(gd => gd.items.length), rows = gr.flatMap(gd => gd.items.map((r, i) => `<tr${i ? '' : ' class="gstart"'}><td>${i ? '' : `<b>${esc(gd.name)}</b>`}</td><td><span class="lr" style="background:${lc(r.p)}"></span>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${paletteNumber(r.p.id) ? `<span class="lnum">${paletteNumber(r.p.id)}</span>` : ''}${presName(r.p)}${r.p.existing ? ' <span class="cmn">existing</span>' : ''}</td><td class="n">${r.qty}</td></tr>`));
     // a guild carried over onto the next page gets its name again there
     const owner = gr.flatMap(gd => gd.items.map(() => gd.name)), cont = (part, i) => part.map((r, j) => i && !j && r.startsWith('<tr>') ? r.replace('<td></td>', `<td><b>${esc(owner[i * 16])}</b> <span class="cmn">cont.</span></td>`) : r);
     chunk(rows, 16).map((part, i) => cont(part, i)).forEach((part, i, all) => pages.push({ html: `${head('Guilds')}<h3>Guilds${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">Groups of plants that support each other, from the tallest layer down</p>
       <table class="btable"><thead><tr><th>Guild</th><th>Layer</th><th>Plant</th><th class="n">Qty</th></tr></thead><tbody>${part.join('')}</tbody></table>` }));
   }
   if (b.pages.schedule && (pal.length || exRows.length)) {
-    const rows = pal.map(r => `<tr><td class="no">${r.n}</td><td class="cd">${esc(code(r.p))}</td><td>${plantSwatch(r.p, 11)}<i>${esc(r.p.botanical || '')}</i> <span class="cmn">${esc(r.p.common || '')}</span></td><td><span class="lr" style="background:${lc(r.p)}"></span>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${esc(r.p.supply || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td></tr>`);
+    const rows = pal.map(r => `<tr><td class="no">${r.n}</td><td class="cd">${esc(code(r.p))}</td><td>${plantSwatch(r.p, 11)}${presName(r.p)}</td><td><span class="lr" style="background:${lc(r.p)}"></span>${esc(ROLES[layerOf(r.p.role)] || '')}</td><td>${esc(r.p.supply || '')}</td><td class="n">${r.qty}</td><td class="n">${money(num(r.p.cost))}</td><td class="n">${money(num(r.p.cost) * r.qty)}</td></tr>`);
     const total = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
     const parts = chunk(rows, 15); if (!parts.length) parts.push([]);
-    const exN = exRows.length || woods.length ? existingRows().length + woods.length : 0, exTable = exN ? `<p class="bsub" style="margin:22px 0 8px">Existing plants</p><table class="btable"><thead><tr><th>Plant</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th></tr></thead><tbody>${existingRows().map(r => `<tr><td><i>${esc(r.p?.botanical || '')}</i> <span class="cmn">${esc(r.p?.common || '')}</span></td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n">${r.remove || '–'}</td></tr>`).join('')}${woods.map(w => `<tr><td><i>Existing woodland</i> <span class="cmn">${esc(w.name)}, ${esc(w.desc)}</span></td><td class="n">${Math.round(w.area)} m²</td><td class="n">–</td><td class="n">–</td></tr>`).join('')}</tbody></table>` : '';
+    const exN = exRows.length || woods.length ? existingRows().length + woods.length : 0, exTable = exN ? `<p class="bsub" style="margin:22px 0 8px">Existing plants</p><table class="btable"><thead><tr><th>Plant</th><th class="n">Retain</th><th class="n">Prune</th><th class="n">Remove</th></tr></thead><tbody>${existingRows().map(r => `<tr><td>${presName(r.p)}</td><td class="n">${r.retain || '–'}</td><td class="n">${r.prune || '–'}</td><td class="n">${r.remove || '–'}</td></tr>`).join('')}${woods.map(w => `<tr><td><i>Existing woodland</i> <span class="cmn">${esc(w.name)}, ${esc(w.desc)}</span></td><td class="n">${Math.round(w.area)} m²</td><td class="n">–</td><td class="n">–</td></tr>`).join('')}</tbody></table>` : '';
     const exFits = exN && parts[parts.length - 1].length + exN + 4 <= 16;
     parts.forEach((part, i) => pages.push({ html: `${head('Plant schedule')}<h3>Plant schedule${parts.length > 1 ? ` <span class="pg">${i + 1} / ${parts.length}</span>` : ''}</h3><p class="bsub">New planting</p>
       <table class="btable"><thead><tr><th class="no">No.</th><th>Code</th><th>Plant</th><th>Layer</th><th>Supply</th><th class="n">Qty</th><th class="n">Each</th><th class="n">Total</th></tr></thead><tbody>${part.join('')}</tbody>
@@ -12952,7 +12964,7 @@ function bookletPages(planImg, forExport) {
     const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && flowerMonths(p).length).sort((a, c) => firstM(a) - firstM(c));
     if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Through the year${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">When each plant flowers, or for crops when they are harvested, in their colour.</p>
       <div class="bcal"><div></div>${MONTHS.map(m => `<div class="mh">${m}</div>`).join('')}
-      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span class="lnum">${n}</span>` : ''}<i>${esc(withCultivar(p.botanical || p.common || '', p))}</i>${p.crop ? ' <span class="crop">crop</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar${isPale(showCol(p)) ? ' pale' : ''}" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
+      ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span class="lnum">${n}</span>` : ''}<span>${presName(p)}</span>${p.crop ? ' <span class="crop">crop</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar${isPale(showCol(p)) ? ' pale' : ''}" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
   }
   if (b.pages.pricing) {
     const supply = pal.reduce((t, r) => t + num(r.p.cost) * r.qty, 0), count = pal.reduce((t, r) => t + r.qty, 0);
@@ -13155,8 +13167,13 @@ async function exportSheet() {
       const x0 = x0k, tw = colW;
       { const sw = new DOMParser().parseFromString(plantSwatch(r.p, 12).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" '), 'image/svg+xml').documentElement; const z = size * 0.42; try { await pdf.svg(sw, { x: x0 + 1 - z / 2, y: y - size * 0.12 - z / 2, width: z, height: z }); } catch {} }
       pdf.setTextColor(31, 43, 38); pdf.setFontSize(size); pdf.setFont(F, 'bold'); pdf.text(pdfText(lay.o.numbered ? String(r.n) : code(r.p)), x0 + 3.2, y);
-      pdf.setFont('times', 'italic'); let name = pdfText(r.p.botanical || r.p.common || ''); const maxW = tw - lblW - 3.2 - 8; while (name.length > 4 && pdf.getTextWidth(name) > maxW) name = name.slice(0, -2); if (name !== pdfText(r.p.botanical || r.p.common || '')) name += '.';
-      pdf.text(name, x0 + 3.2 + lblW, y); pdf.setFont(F, 'normal'); pdf.text(String(r.qty), x0 + tw, y, { align: 'right' }); y += rh;
+      /* the common name and cultivar first, then the Latin name in faint italics, cut short to fit */
+      const maxW = tw - lblW - 3.2 - 8, fit = (t, w) => { let n = t; while (n.length > 4 && pdf.getTextWidth(n) > w) n = n.slice(0, -2); return n === t ? t : n.replace(/\s+$/, '') + '.'; };
+      const cm = r.p.common ? pdfText(withCultivar(r.p.common, r.p)) : '', lat = pdfText(r.p.common ? latinOf(r.p) : withCultivar(latinOf(r.p) || r.p.botanical || '', r.p));
+      let nx = x0 + 3.2 + lblW;
+      if (cm) { pdf.setFont(F, 'bold'); const t = fit(cm, maxW); pdf.text(t, nx, y); nx += pdf.getTextWidth(t + ' '); }
+      if (lat) { pdf.setFont('times', 'italic'); const room = x0 + 3.2 + lblW + maxW - nx; if (room > 6) { pdf.setTextColor(cm ? 120 : 31, cm ? 128 : 43, cm ? 124 : 38); pdf.text(fit(lat, room), nx, y); pdf.setTextColor(31, 43, 38); } }
+      pdf.setFont(F, 'normal'); pdf.text(String(r.qty), x0 + tw, y, { align: 'right' }); y += rh;
     }
     if (shown.length < rows.length) { pdf.setFont('times', 'italic'); pdf.setFontSize(size); pdf.text(`and ${rows.length - shown.length} more species: see the plant schedule`, x0k, y); y += rh; }
     if (ex.length) { y += 1.5; pdf.setFont(F, 'normal'); pdf.setFontSize(6.5); pdf.setTextColor(95, 105, 100); pdf.text(`Dashed outlines: ${plural(ex.reduce((t, r) => t + r.retain + r.prune, 0), 'existing plant')} kept`, keyX, y); }
