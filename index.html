@@ -9718,7 +9718,7 @@ const HINTS = {
   scale: 'Set the scale: click two points on the plan a known distance apart, such as the ends of a dimensioned fence.',
 };
 
-const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'drafting', themeV: 1, pgridSpace: 0.3, oudolf: false, esriKey: '', labelPlace: 'edge', labelZoom: 'screen' };
+const PREF_DEFAULTS = { labelSize: 1, showLabels: true, labelMode: 'code', labelQty: true, labelCultivar: true, showGrid: true, gridStep: 'auto', showRulers: true, showScale: true, snap: 0.1, currency: '£', roleColors: {}, theme: 'drafting', themeV: 1, pgridSpace: 0.3, oudolf: false, esriKey: '', labelPlace: 'edge', labelZoom: 'screen' };
 /* the lettering on the plan. Each theme names its face in --f-plan; prints set S.print.font. Label widths are measured
    in that face (falling back to whatever the browser actually has), so labels pack tightly and never overlap */
 const GEORGIA = 'Georgia, "Times New Roman", serif';
@@ -9810,8 +9810,9 @@ function setStatus(t, err) { const el = $('status'); el.textContent = t; el.clas
 function plantLabel(p) {
   if (!p) return '?';
   if (S.prefs.labelMode === 'number') { const n = paletteNumber(p.id); return n ? String(n) : code(p); }
-  if (S.prefs.labelMode === 'common') return p.common ? withCultivar(p.common, p) : code(p);
-  if (S.prefs.labelMode === 'botanical') return p.botanical || p.common || '?';
+  const cv = S.prefs.labelCultivar ? n => withCultivar(n, p) : n => n;
+  if (S.prefs.labelMode === 'common') return p.common ? cv(p.common) : code(p);
+  if (S.prefs.labelMode === 'botanical') return p.botanical ? cv(p.botanical) : p.common ? cv(p.common) : '?';
   return code(p);
 }
 /* a common name is followed by its cultivar, in single quotes as it is written: Apple 'Bramley' (unless the name already says it).
@@ -9820,6 +9821,10 @@ function withCultivar(name, p) {
   const cv = String(p?.cultivar || '').trim() || (String(p?.botanical || '').match(/['‘’"“”]([^'‘’"“”]+)['‘’"“”]/)?.[1] || ''), bare = cv.replace(/^['‘’"“”]+|['‘’"“”]+$/g, '').trim();
   if (!bare || name.toLowerCase().includes(bare.toLowerCase())) return name;
   return `${name} ‘${bare}’`;
+}
+function labelSample(P) {   // the preview in Settings
+  const cv = P.labelCultivar ? ' ‘Hidcote’' : '';
+  return (P.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender' + cv, botanical: 'Lavandula angustifolia' + cv }[P.labelMode] || 'Lav ang');
 }
 function code(p) {
   if (!p) return '?';
@@ -11803,7 +11808,7 @@ function renderPrefs() {
   const P = S.prefs, el = $('prefsView');
   const sel = (id, k, opts) => `<select id="${id}" data-pref="${k}">${opts.map(([v, l]) => `<option value="${v}"${String(P[k]) === String(v) ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
   const chk = (id, k, l) => `<label class="checks"><input type="checkbox" id="${id}" data-pref="${k}"${P[k] ? ' checked' : ''}> ${l}</label>`;
-  const sample = (P.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender ‘Hidcote’', botanical: 'Lavandula angustifolia' }[P.labelMode] || 'Lav ang');
+  const sample = labelSample(P);
   el.innerHTML = `<div class="calhead"><div><span class="lbl">Preferences</span><h2 id="prefsH">Preferences</h2></div>
       <div class="row"><span class="note">${S.online ? 'Saved automatically and used for every garden.' : 'Not saved in this view.'}</span><button class="btn sm" type="button" data-act="resetPrefs">Reset to defaults</button></div></div>
     <div class="prefgrid">
@@ -11818,8 +11823,9 @@ function renderPrefs() {
         <label class="field"><span>Label size</span><span class="row" style="flex-wrap:nowrap"><input type="range" id="pf-size" data-pref="labelSize" min="0.5" max="2" step="0.1" value="${P.labelSize}" style="flex:1;accent-color:var(--accent)"><output id="pf-size-v" style="min-width:3.5em;text-align:right">${Math.round(P.labelSize * 100)}%</output></span></label>
         <label class="field"><span>When zooming</span>${sel('pf-zoom', 'labelZoom', [['screen', 'Labels stay the same size on screen'], ['plan', 'Labels grow with the plan']])}</label>
         <label class="field"><span>Label placement</span>${sel('pf-place', 'labelPlace', [['edge', 'Around the edge, with leader lines'], ['plan', 'On the plan, beside each plant']])}</label>
-        <label class="field"><span>Label text</span>${sel('pf-mode', 'labelMode', [['code', 'Short code (Lav ang)'], ['common', 'Common name and cultivar'], ['botanical', 'Botanical name']])}</label>
+        <label class="field"><span>Label text</span>${sel('pf-mode', 'labelMode', [['code', 'Short code (Lav ang)'], ['common', 'Common name'], ['botanical', 'Botanical name']])}</label>
         ${chk('pf-qty', 'labelQty', 'Show quantity before the name')}
+        ${chk('pf-cv', 'labelCultivar', 'Show the cultivar after a common or botanical name')}
         <div class="field"><span>Preview</span><div class="pv-sample"><span id="pf-sample" style="font-size:${Math.round(13 * P.labelSize)}px">${esc(sample)}</span></div></div>
       </fieldset>
       <fieldset class="pref"><legend>Plan display</legend>
@@ -11871,7 +11877,7 @@ function setPref(k, v) {
   if (k === 'labelSize') { const o = $('pf-size-v'); if (o) o.textContent = Math.round(v * 100) + '%'; }
   if (k === 'snap') { const o = $('pf-snap-v'); if (o) o.textContent = snapText(v); }
   const smp = $('pf-sample');
-  if (smp) { smp.style.fontSize = Math.round(13 * S.prefs.labelSize) + 'px'; smp.textContent = (S.prefs.labelQty ? '5 ' : '') + ({ code: 'Lav ang', common: 'Lavender ‘Hidcote’', botanical: 'Lavandula angustifolia' }[S.prefs.labelMode] || 'Lav ang'); }
+  if (smp) { smp.style.fontSize = Math.round(13 * S.prefs.labelSize) + 'px'; smp.textContent = labelSample(S.prefs); }
 }
 function usageByPlant() {
   const gs = S.gardens.map(g => (S.g && g.id === S.g.id) ? S.g : g);
@@ -14423,7 +14429,7 @@ async function restoreBackup(file) {
     }
     if (data.kind === 'all' && data.prefs && typeof data.prefs === 'object' && !S.prefsExist) {
       const p = data.prefs, rc = {}; for (const k of Object.keys(ROLE_DEFAULTS)) if (hexOrNull(p.roleColors?.[k])) rc[k] = p.roleColors[k];
-      S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false,
+      S.prefs = { ...PREF_DEFAULTS, labelSize: clamp(numOrNull(p.labelSize) ?? 1, 0.5, 2), showLabels: p.showLabels !== false, labelMode: ['code', 'common', 'botanical'].includes(p.labelMode) ? p.labelMode : 'code', labelQty: p.labelQty !== false, labelCultivar: p.labelCultivar !== false,
         showGrid: p.showGrid !== false, gridStep: ['auto', '0.5', '1', '2', '5'].includes(String(p.gridStep)) ? String(p.gridStep) : 'auto', showRulers: p.showRulers !== false, showScale: p.showScale !== false, snap: clamp(numOrNull(p.snap) ?? 0.1, 0.05, 1),
         currency: ['£', '€', '$'].includes(p.currency) ? p.currency : '£', roleColors: rc, theme: THEMES[p.theme] ? p.theme : 'drafting', themeV: 1,
         pgridSpace: clamp(numOrNull(p.pgridSpace) ?? 0.3, 0.05, 2), oudolf: p.oudolf === true, esriKey: S.prefs.esriKey || '', labelPlace: p.labelPlace === 'plan' ? 'plan' : 'edge', labelZoom: p.labelZoom === 'plan' ? 'plan' : 'screen' };
