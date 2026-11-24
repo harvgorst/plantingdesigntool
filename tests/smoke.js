@@ -809,6 +809,14 @@ test('each garden has its own plant library; the database stays whole; existing 
   await app.page.click('#lib [data-edit=p4]'); await app.page.click('[data-act=unLibrary]'); await app.page.waitForTimeout(900);
   eq((await app.page.$$eval('#lib li[data-pid]', l => l.map(x => x.dataset.pid))).includes('p4'), false, 'removed from this garden');
   ok(await app.store('plants/p4'), 'but still in the database');
+  // an existing plant stays out of the database: it lives only in its garden's library
+  await app.go('database');
+  const dbIds = await app.page.$$eval('#dbTable [data-dbsel]', l => l.map(x => x.dataset.dbsel));
+  ok(dbIds.length && !dbIds.includes('ex1'), 'the database leaves out Elm Road’s existing birch, got ' + dbIds);
+  ok(!(await app.page.$('#dbKind')), 'and has no new or existing filter');
+  await app.page.click('#dbAdd'); await app.page.waitForTimeout(200);
+  ok(!(await app.page.$('#sp-existing')), 'a species made in the database can’t be marked as already on site');
+  eq(app.errors, [], 'no errors');
 });
 
 test('found in hands-on testing: moved areas never stack or leave a bed; schedule readable; centimetre sizes; tidy rulers', async open => {
