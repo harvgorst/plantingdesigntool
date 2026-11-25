@@ -9855,7 +9855,7 @@ function code(p) {
 }
 /* planting spacing, centre to centre: what each plant is drawn at in the Spacing view */
 /* colour by species: each species in a garden gets its own colour, and a pattern once the colours run out */
-const SPECIES_COLS = ['#B4A0D2', '#9DBB8C', '#E6CF7E', '#E3A9AE', '#9BBEDB', '#A3AA62', '#D0957A', '#86B3A6', '#C690BC', '#D6AE6C', '#7E98C2', '#C5C67F', '#B07F7A', '#A6C3D6', '#D7A3CF', '#77A083', '#E2BC98', '#8C87BC'];   // muted planting-plan tones, each clear of its neighbours and of the paper
+const SPECIES_COLS = ['#A481D8', '#8BC06E', '#F9D451', '#EC8790', '#78B3E4', '#A5AF43', '#DE7E52', '#68B7A1', '#CC70BB', '#E9A940', '#5B86CC', '#CFD15B', '#B7625A', '#87BADB', '#DD83CF', '#5AA46F', '#EEAF72', '#7067C2'];   // planting-plan tones, rich enough to tell apart, each clear of its neighbours and of the paper
 const PATTERNS = { solid: 'Solid', hatch: 'Diagonal lines', back: 'Back diagonals', cross: 'Cross-hatch', dots: 'Dots', horiz: 'Horizontal lines', vert: 'Vertical lines', grid: 'Grid' };
 const PAT_KEYS = Object.keys(PATTERNS);
 /* three kinds of plant in one plan:
@@ -9886,12 +9886,12 @@ function speciesStyle(p) {
 function patternDef(id, col, pat, t) {
   const sw = +(t * 0.24).toFixed(4), L = `<path d="M0 ${t / 2}H${t}" stroke="${col}" stroke-width="${sw}"/>`, V = `<path d="M${t / 2} 0V${t}" stroke="${col}" stroke-width="${sw}"/>`;
   const [rot, inner] = { hatch: [45, L], back: [-45, L], horiz: [0, L], vert: [0, V], cross: [45, L + V], grid: [0, L + V], dots: [45, `<circle cx="${t / 2}" cy="${t / 2}" r="${+(t * 0.2).toFixed(4)}" fill="${col}"/>`] }[pat] || [0, ''];
-  return `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${t}" height="${t}"${rot ? ` patternTransform="rotate(${rot})"` : ''}><rect width="${t}" height="${t}" fill="${col}" fill-opacity="0.28"/>${inner}</pattern>`;
+  return `<pattern id="${id}" patternUnits="userSpaceOnUse" width="${t}" height="${t}"${rot ? ` patternTransform="rotate(${rot})"` : ''}><rect width="${t}" height="${t}" fill="${col}" fill-opacity="${S.print ? 0.42 : 0.3}"/>${inner}</pattern>`;
 }
 /* a small key swatch for a species, in whichever colour scheme is on */
 function plantSwatch(p, size = 12, force = false) {
   const st = speciesStyle(p), id = 'sws-' + String(p?.id).replace(/[^\w-]/g, '') + '-' + size, r = size / 2 - 0.75;
-  return `<svg class="swv" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${st.pat === 'solid' ? '' : `<defs>${patternDef(id, st.col, st.pat, size / 3.2)}</defs>`}<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${st.pat === 'solid' ? st.col : `url(#${id})`}"${st.pat === 'solid' ? ' fill-opacity="0.65"' : ''} stroke="#2F2B25" stroke-opacity="0.7" stroke-width="1"${p?.existing && !onGrid(p) && !force ? ' stroke-dasharray="2.2 1.6"' : ''}/></svg>`;
+  return `<svg class="swv" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" aria-hidden="true">${st.pat === 'solid' ? '' : `<defs>${patternDef(id, st.col, st.pat, size / 3.2)}</defs>`}<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="${st.pat === 'solid' ? st.col : `url(#${id})`}"${st.pat === 'solid' ? ' fill-opacity="0.82"' : ''} stroke="#2F2B25" stroke-opacity="0.7" stroke-width="1"${p?.existing && !onGrid(p) && !force ? ' stroke-dasharray="2.2 1.6"' : ''}/></svg>`;
 }
 /* the interlocked (staggered) planting grid */
 const gridFor = p => onGrid(p);   // trees, shrubs, climbers and existing ones of those always go exactly where they are put
@@ -11132,7 +11132,7 @@ function renderMap() {
   /* how a plant looks on the plan, the same for every kind: its species colour and pattern (or its season colour),
      with a dashed edge for existing trees and shrubs */
   const look = (p, se) => { if (se) return { fill: se.col || 'var(--muted)', op: se.op, line: 'var(--muted)', dash: false }; const f = spFill(p); return { ...f, dash: !!p?.existing && !onGrid(p) }; };
-  const spFill = p => { const st = speciesStyle(p); if (st.pat === 'solid') return { fill: st.col, op: 0.6, line: st.col }; const id = 'pat-' + String(p.id).replace(/[^\w-]/g, ''); if (!defs.has(id)) defs.set(id, patternDef(id, st.col, st.pat, patT)); return { fill: `url(#${id})`, op: 1, line: st.col }; };
+  const spFill = p => { const st = speciesStyle(p); if (st.pat === 'solid') return { fill: st.col, op: S.print ? 0.82 : 0.65, line: st.col }; /* stronger in the presentation, where colour has to carry the plan */ const id = 'pat-' + String(p.id).replace(/[^\w-]/g, ''); if (!defs.has(id)) defs.set(id, patternDef(id, st.col, st.pat, patT)); return { fill: `url(#${id})`, op: 1, line: st.col }; };
   /* touching plants of one species (on the grid, or shrubs and trees whose canopies meet) form a block that is labelled once */
   let blockLab = null; const driftSets = [];   // runs of one shrub or tree, joined by a fine line through their centres
   {
@@ -11249,7 +11249,7 @@ function renderMap() {
       }
     } else {
       const r = radiusOf(pl), k = r * 0.7071, tree = !se && TREE_LAYERS.has(layerOf(p?.role)), arm = Math.max(px * 4, Math.min(r * 0.28, ls * 1.1));
-      body = `<circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${fillOf()};stroke:${se ? sc : 'var(--ink)'}" fill-opacity="${tree ? (S.print?.img ? 0.3 : 0.16) : opOf()}" stroke-opacity="${se ? 1 : 0.75}" stroke-width="1" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
+      body = `<circle cx="${pl.x}" cy="${pl.y}" r="${r}" style="fill:${fillOf()};stroke:${se ? sc : 'var(--ink)'}" fill-opacity="${tree ? (S.print?.img ? 0.36 : 0.2) : opOf()}" stroke-opacity="${se ? 1 : 0.75}" stroke-width="1" ${ex ? 'stroke-dasharray="5 3"' : ''} vector-effect="non-scaling-stroke"/>
       ${ex && st === 'remove' ? `<path d="M${pl.x - k} ${pl.y - k} L${pl.x + k} ${pl.y + k} M${pl.x + k} ${pl.y - k} L${pl.x - k} ${pl.y + k}" style="stroke:var(--crit)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : ''}
       ${S.prefs.labelMode === 'number' && showL ? '' : `<path class="ctr" d="M${+(pl.x - arm).toFixed(3)} ${pl.y}H${+(pl.x + arm).toFixed(3)}M${pl.x} ${+(pl.y - arm).toFixed(3)}V${+(pl.y + arm).toFixed(3)}" style="stroke:var(--ink)" stroke-opacity="0.8" stroke-width="0.9" vector-effect="non-scaling-stroke"/>`}`;   // trees and shrubs are marked at their centre with a fine cross
       ringR = r;

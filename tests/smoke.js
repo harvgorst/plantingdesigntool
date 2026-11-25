@@ -230,7 +230,7 @@ test('season view colours the plan by month', async open => {
   eq((await fill('b'))[1], '0.04', 'salvia, not yet in flower, is faint');
   ok(/^April: 2 of 7 species in flower/.test(await app.page.textContent('#hint')), 'summary line, got: ' + await app.page.textContent('#hint'));
   await app.page.selectOption('#seasonSel', '0');
-  const back = await fill('a'); ok(['0.6', '1'].includes(back[1]) && back[0] !== 'rgb(94, 138, 78)', 'back to its own species colour and pattern, got ' + JSON.stringify(back));
+  const back = await fill('a'); ok(['0.65', '1'].includes(back[1]) && back[0] !== 'rgb(94, 138, 78)', 'back to its own species colour and pattern, got ' + JSON.stringify(back));
 });
 
 test('sun study: sun position for a place, date and time', async open => {
