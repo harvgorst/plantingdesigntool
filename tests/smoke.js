@@ -1225,6 +1225,23 @@ test('areas: the Area tool makes beds, buildings, paths and water; plants can go
 });
 
 
+test('booklet calendar: long names that wrap never run into the page footer', async open => {
+  const seed = sample(), g = seed['gardens/g1'];
+  for (let i = 0; i < 30; i++) {
+    seed['plants/L' + i] = { common: i % 2 ? 'Mulberry Illinois Everbearing' : 'Apple', botanical: i % 2 ? "Morus alba × rubra 'Illinois Everbearing'" : "Malus domestica 'Ben's Red'", role: 'understory', flowerFrom: 1 + i % 12, flowerTo: 2 + i % 10, flowerColor: '#B03030', crop: i % 3 === 0, spread: 1 };
+    g.palette.push('L' + i); g.plantings.push({ id: 'l' + i, plantId: 'L' + i, x: 1 + (i % 10), y: 1 + Math.floor(i / 10), qty: 1 });
+  }
+  const app = await open(seed);
+  await app.page.click('#navPres'); await app.page.waitForSelector('.bcal'); await app.page.waitForTimeout(300);
+  const res = await app.page.$$eval('.bpage', pgs => pgs.filter(p => p.querySelector('.bcal')).map(p => {
+    const foot = p.querySelector('.bf').getBoundingClientRect().top, rows = [...p.querySelectorAll('.bcal .nm')];
+    return { rows: rows.length, over: Math.max(...rows.map(r => r.getBoundingClientRect().bottom)) - foot };
+  }));
+  ok(res.length >= 2, 'the calendar runs over more than one page, got ' + JSON.stringify(res));
+  eq(res.reduce((t, r) => t + r.rows, 0), 36, 'every plant is on the calendar');
+  ok(res.every(r => r.over <= 0), 'no row reaches the footer, got ' + JSON.stringify(res));
+});
+
 test('season: each plant is Flowers or Crop, with one set of months and one colour, shown the same way on the calendar and in the booklet', async open => {
   const seed = sample(); Object.assign(seed['plants/p2'], { interest: [{ kind: 'berries', from: 10, to: 1, color: '#C92F2F' }] });
   seed['plants/p4'] = { ...seed['plants/p4'], crop: true, cropFrom: 7, cropTo: 8, cropColor: '#C92F2F', cropColorName: 'Red' };   // a crop saved the earlier way

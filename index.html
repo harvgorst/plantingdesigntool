@@ -12962,7 +12962,13 @@ function bookletPages(planImg, forExport) {
   if (b.pages.calendar) {
     const firstM = p => showMonths(p)[0] || 99;
     const list = [...pal.map(r => r.p), ...exRows.map(r => r.p)].filter(p => p && flowerMonths(p).length).sort((a, c) => firstM(a) - firstM(c));
-    if (list.length) chunk(list, 18).forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Through the year${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">When each plant flowers, or for crops when they are harvested, in their colour.</p>
+    /* rows that wrap a long name onto a second line are taller, so fill each page by height, not a fixed count */
+    const calW = p => { const pt = 12.5, w = (t, font) => { MCTX.font = font; return MCTX.measureText(t).width; };
+      return w(withCultivar(p.common || '', p) + ' ', `600 ${pt}px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif`) + w(latinOf(p), `italic 400 ${pt}px "Source Serif 4", Georgia, serif`) + (paletteNumber(p.id) ? 26 : 0) + (p.crop ? 36 : 0); };
+    const calPages = []; let cur = [], used = 0;
+    for (const p of list) { const h = 1 + 0.6 * (Math.ceil(calW(p) / 285) - 1); if (cur.length && used + h > 18) { calPages.push(cur); cur = []; used = 0; } cur.push(p); used += h; }
+    if (cur.length) calPages.push(cur);
+    if (list.length) calPages.forEach((part, i, all) => pages.push({ html: `${head('Interest calendar')}<h3>Through the year${all.length > 1 ? ` <span class="pg">${i + 1} / ${all.length}</span>` : ''}</h3><p class="bsub">When each plant flowers, or for crops when they are harvested, in their colour.</p>
       <div class="bcal"><div></div>${MONTHS.map(m => `<div class="mh">${m}</div>`).join('')}
       ${part.map((p, ri) => { const row = ri + 2, n = paletteNumber(p.id); return `<div class="nm" style="grid-row:${row}">${n ? `<span class="lnum">${n}</span>` : ''}<span>${presName(p)}</span>${p.crop ? ' <span class="crop">crop</span>' : ''}</div><div class="tr" style="grid-row:${row}"></div>${runs(showMonths(p)).map(([a, c]) => `<div class="bar${isPale(showCol(p)) ? ' pale' : ''}" style="grid-row:${row};grid-column:${a + 1} / ${c + 2};background:${esc(showCol(p) || '#C9D3B8')}"></div>`).join('')}`; }).join('')}</div>` }));
   }
