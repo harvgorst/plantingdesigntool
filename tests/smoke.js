@@ -8,6 +8,12 @@ test('loads the garden with no errors', async open => {
   eq(await app.page.locator('#map [data-kind=planting]').count(), 7, 'plantings drawn');
 });
 
+test('the tab has an icon', async open => {
+  const app = await open(sample());
+  ok((await app.page.$eval('link[rel=icon]', l => l.href)).startsWith('data:image/svg+xml'), 'an SVG tab icon');
+  eq(await app.page.$eval('link[rel=icon]', l => new Promise(r => { const i = new Image(); i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false); i.src = l.href; })), true, 'it draws');
+});
+
 test('placing a plant updates the schedule and saves', async open => {
   const app = await open(sample());
   await app.page.click('#lib [data-pid=p1]');
